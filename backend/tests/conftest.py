@@ -15,6 +15,8 @@ PERMISSION_CODES = {
     "productos:editar": "Editar productos",
     "productos:editar_precio": "Modificar precios de venta",
     "productos:desactivar": "Desactivar productos",
+    "inventario:ver": "Ver stock y movimientos",
+    "inventario:ajustar": "Ajustar stock manualmente",
 }
 
 
