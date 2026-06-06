@@ -4,18 +4,21 @@ from app.extensions import db, jwt, migrate, cors
 
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
-    app.config.from_object(config_class)
+    application = Flask(__name__)
+    application.config.from_object(config_class)
 
-    db.init_app(app)
-    jwt.init_app(app)
-    migrate.init_app(app, db)
-    cors.init_app(app)
+    db.init_app(application)
+    jwt.init_app(application)
+    migrate.init_app(application, db)
+    cors.init_app(application)
+
+    with application.app_context():
+        from app import models  # noqa: F401 — register models for Alembic
 
     from app.api import register_blueprints
-    register_blueprints(app)
+    register_blueprints(application)
 
     from app.utils.errors import register_error_handlers
-    register_error_handlers(app)
+    register_error_handlers(application)
 
-    return app
+    return application
