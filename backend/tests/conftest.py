@@ -5,11 +5,16 @@ from app.extensions import db as _db
 from app.models import User, Role, Permission  # noqa: F401
 
 
-AUTH_PERMISSION_CODES = {
+PERMISSION_CODES = {
     "usuarios:ver": "Ver lista de usuarios",
     "usuarios:crear": "Crear usuarios",
     "usuarios:editar": "Editar usuarios",
     "usuarios:desactivar": "Desactivar usuarios",
+    "productos:ver": "Ver catalogo de productos",
+    "productos:crear": "Crear productos",
+    "productos:editar": "Editar productos",
+    "productos:editar_precio": "Modificar precios de venta",
+    "productos:desactivar": "Desactivar productos",
 }
 
 
@@ -51,8 +56,9 @@ def db(db_session):
 @pytest.fixture
 def seed_permissions(db):
     permissions = {}
-    for code, description in AUTH_PERMISSION_CODES.items():
-        permission = Permission(code=code, module="auth", description=description)
+    for code, description in PERMISSION_CODES.items():
+        module = code.split(":", maxsplit=1)[0]
+        permission = Permission(code=code, module=module, description=description)
         db.session.add(permission)
         permissions[code] = permission
     db.session.flush()
