@@ -1,5 +1,5 @@
 from functools import wraps
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import get_jwt, verify_jwt_in_request
 from flask import jsonify
 
 
@@ -8,8 +8,8 @@ def require_permission(permission):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
-            identity = get_jwt_identity()
-            if permission not in identity.get("permissions", []):
+            claims = get_jwt()
+            if permission not in claims.get("permissions", []):
                 return jsonify({"error": "Permiso insuficiente"}), 403
             return fn(*args, **kwargs)
         return wrapper
@@ -21,8 +21,8 @@ def require_role(role):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
-            identity = get_jwt_identity()
-            if identity.get("role") != role:
+            claims = get_jwt()
+            if claims.get("role") != role:
                 return jsonify({"error": "Rol insuficiente"}), 403
             return fn(*args, **kwargs)
         return wrapper

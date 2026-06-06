@@ -22,7 +22,7 @@ def test_create_user(db):
 
 
 def test_user_permissions(db):
-    from app.models.user import User, Role, Permission, role_permissions
+    from app.models.user import User, Role, Permission
 
     perm1 = Permission(code="productos:crear", module="productos", description="Crear productos")
     perm2 = Permission(code="productos:editar", module="productos", description="Editar productos")
@@ -69,3 +69,79 @@ def test_user_inactive_cannot_be_found(db):
 
     found = User.query.filter_by(username="inactive_user", is_active=True).first()
     assert found is None
+
+
+# --- API Tests ---
+
+def test_login_success(client, seed_admin):
+    response = client.post("/api/auth/login", json={
+        "username": "admin",
+        "password": "admin123",
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["user"]["username"] == "admin"
+    assert data["user"]["role"] == "admin"
+
+
+def test_login_wrong_password(client, seed_admin):
+    response = client.post("/api/auth/login", json={
+        "username": "admin",
+        "password": "wrong",
+    })
+    assert response.status_code == 401
+
+
+def test_login_inactive_user(client, db, seed_roles):
+    from app.models.user import User
+    user = User(
+        username="disabled",
+        email="disabled@test.com",
+        full_name="Disabled User",
+        role_id=seed_roles["cajero"].id,
+        is_active=False,
+    )
+    user.set_password("pass123")
+    db.session.add(user)
+    db.session.flush()
+
+    response = client.post("/api/auth/login", json={
+        "username": "disabled",
+        "password": "pass123",
+    })
+    assert response.status_code == 401
+
+
+def test_me_endpoint(client, admin_token):
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["username"] == "admin"
+
+
+def test_me_without_token(client):
+    response = client.get("/api/auth/me")
+    assert response.status_code == 401
+
+
+def test_refresh_token(client, admin_refresh_token):
+    response = client.post(
+        "/api/auth/refresh",
+        headers={"Authorization": f"Bearer {admin_refresh_token}"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "access_token" in data
+
+
+def test_logout(client, admin_token):
+    response = client.post(
+        "/api/auth/logout",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
