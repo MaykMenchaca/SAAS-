@@ -1,9 +1,9 @@
 """Inventory API — stock consultation, adjustments, and movement history."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db
-from app.models.inventory import Stock, StockMovement
+from app.models.inventory import Stock
 from app.models.product import Product
 from app.schemas.inventory import (
     StockAdjustSchema,
@@ -18,7 +18,6 @@ inventory_bp = Blueprint("inventory", __name__)
 
 stock_schema = StockSchema()
 stocks_schema = StockSchema(many=True)
-movement_schema = StockMovementSchema()
 movements_schema = StockMovementSchema(many=True)
 adjust_schema = StockAdjustSchema()
 
