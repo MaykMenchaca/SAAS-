@@ -23,6 +23,10 @@ PERMISSION_CODES = {
     "caja:abrir": "Abrir sesion de caja",
     "caja:cerrar": "Cerrar sesion de caja",
     "caja:ver": "Ver sesiones de caja",
+    "compras:ver": "Ver proveedores y ordenes de compra",
+    "compras:crear": "Crear ordenes de compra",
+    "compras:editar": "Editar proveedores y ordenes",
+    "compras:recibir": "Recibir mercancia",
 }
 
 
