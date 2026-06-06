@@ -9,6 +9,7 @@ class StockSchema(Schema):
     product_name = fields.Method("get_product_name")
     sku = fields.Method("get_sku")
     quantity = fields.Decimal(as_string=True, places=3, dump_only=True)
+    unit_abbreviation = fields.Method("get_unit_abbreviation")
     min_stock = fields.Method("get_min_stock")
     max_stock = fields.Method("get_max_stock")
     last_updated = fields.DateTime(dump_only=True)
@@ -18,6 +19,11 @@ class StockSchema(Schema):
 
     def get_sku(self, obj):
         return obj.product.sku if obj.product else None
+
+    def get_unit_abbreviation(self, obj):
+        if obj.product and obj.product.unit:
+            return obj.product.unit.abbreviation
+        return None
 
     def get_min_stock(self, obj):
         if obj.product:

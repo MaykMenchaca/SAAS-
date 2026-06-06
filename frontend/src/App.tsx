@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BarChart3, Boxes, Settings, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Settings, ShoppingCart, Users } from "lucide-react";
 import { useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import { useAuthStore } from "./stores/auth-store";
 import { DashboardPage } from "./pages/dashboard";
 import { LoginPage } from "./pages/login";
 import { ModulePlaceholder } from "./pages/module-placeholder";
+import { InventoryPage } from "./pages/inventory";
 import { NotFoundPage } from "./pages/not-found";
 import { ProductsPage } from "./pages/products";
 
@@ -40,7 +41,7 @@ export default function App() {
               <Route element={<DashboardPage />} index />
               <Route element={<ModulePlaceholder icon={<ShoppingCart aria-hidden="true" size={24} />} title="POS" />} path="pos" />
               <Route element={<ProductsPage />} path="productos" />
-              <Route element={<ModulePlaceholder icon={<Boxes aria-hidden="true" size={24} />} title="Inventario" />} path="inventario" />
+              <Route element={<InventoryPage />} path="inventario" />
               <Route element={<ModulePlaceholder icon={<Users aria-hidden="true" size={24} />} title="Usuarios" />} path="usuarios" />
               <Route element={<ModulePlaceholder icon={<BarChart3 aria-hidden="true" size={24} />} title="Reportes" />} path="reportes" />
               <Route element={<ModulePlaceholder icon={<Settings aria-hidden="true" size={24} />} title="Configuracion" />} path="configuracion" />
