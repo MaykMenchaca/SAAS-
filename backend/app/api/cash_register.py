@@ -1,9 +1,12 @@
-"""Cash Register API — open/close sessions and list them."""
+"""Cash Register API — open/close sessions, list, and cash cut summary."""
+from decimal import Decimal
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
+from sqlalchemy import func
 
 from app.extensions import db
-from app.models.sale import CashRegister, CashRegisterSession
+from app.models.sale import CashRegister, CashRegisterSession, Payment, Sale
 from app.schemas.sale import (
     CashRegisterSessionCloseSchema,
     CashRegisterSessionOpenSchema,
@@ -64,21 +67,81 @@ def close_session(session_id):
         return jsonify({"error": "La sesión ya está cerrada"}), 400
 
     from datetime import datetime, timezone
-    from decimal import Decimal
+
+    # Calculate expected cash: opening + net cash payments from completed sales
+    cash_payments = (
+        db.session.query(func.coalesce(func.sum(Payment.amount - Payment.change_amount), 0))
+        .join(Sale, Sale.id == Payment.sale_id)
+        .filter(
+            Sale.session_id == session_id,
+            Sale.status == "completada",
+            Payment.method == "efectivo",
+        )
+        .scalar()
+    )
+    expected_cash = session.opening_amount + Decimal(str(cash_payments))
 
     session.closing_amount = data["closing_amount"]
     session.close_notes = data.get("close_notes")
     session.status = "cerrada"
     session.closed_at = datetime.now(timezone.utc)
-
-    # Calculate expected cash: opening + cash sales during session
-    # For now, expected_cash = opening_amount (will be enhanced later)
-    session.expected_cash = session.opening_amount
-    session.difference = Decimal(str(data["closing_amount"])) - session.expected_cash
+    session.expected_cash = expected_cash
+    session.difference = Decimal(str(data["closing_amount"])) - expected_cash
 
     db.session.commit()
 
     return jsonify(session_schema.dump(session)), 200
+
+
+@cash_register_bp.route("/<int:session_id>/summary", methods=["GET"])
+@require_permission("caja:ver")
+def session_summary(session_id):
+    """Get a cash cut summary for a session: sales count, totals by payment method."""
+    session = db.session.get(CashRegisterSession, session_id)
+    if not session:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+
+    # Count sales by status
+    sales_completed = Sale.query.filter_by(session_id=session_id, status="completada").count()
+    sales_cancelled = Sale.query.filter_by(session_id=session_id, status="cancelada").count()
+
+    # Total by payment method (only completed sales)
+    payment_totals = (
+        db.session.query(
+            Payment.method,
+            func.sum(Payment.amount).label("total"),
+            func.sum(Payment.change_amount).label("change_total"),
+        )
+        .join(Sale, Sale.id == Payment.sale_id)
+        .filter(Sale.session_id == session_id, Sale.status == "completada")
+        .group_by(Payment.method)
+        .all()
+    )
+
+    methods = {}
+    for method, total, change in payment_totals:
+        net = Decimal(str(total)) - Decimal(str(change or 0))
+        methods[method] = str(net.quantize(Decimal("0.01")))
+
+    # Grand total of completed sales
+    grand_total = (
+        db.session.query(func.coalesce(func.sum(Sale.total), 0))
+        .filter(Sale.session_id == session_id, Sale.status == "completada")
+        .scalar()
+    )
+
+    return jsonify({
+        "session_id": session_id,
+        "opening_amount": str(session.opening_amount),
+        "closing_amount": str(session.closing_amount) if session.closing_amount is not None else None,
+        "expected_cash": str(session.expected_cash) if session.expected_cash is not None else None,
+        "difference": str(session.difference) if session.difference is not None else None,
+        "status": session.status,
+        "sales_completed": sales_completed,
+        "sales_cancelled": sales_cancelled,
+        "grand_total": str(Decimal(str(grand_total)).quantize(Decimal("0.01"))),
+        "payment_methods": methods,
+    }), 200
 
 
 @cash_register_bp.route("/sessions", methods=["GET"])

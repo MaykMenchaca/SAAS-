@@ -172,6 +172,74 @@ def test_admin_can_list_sales(
     assert len(data["items"]) >= 1
 
 
+def test_session_summary_returns_payment_breakdown(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Corte de caja summary should break down payments by method."""
+    # Create a cash sale
+    client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [
+                {
+                    "product_id": seed_product_for_sale.id,
+                    "quantity": 1,
+                    "unit_price": "100.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            "payments": [{"method": "efectivo", "amount": "120.00", "change_amount": "4.00"}],
+        },
+    )
+
+    response = client.get(
+        f"/api/cash-register/{seed_open_session.id}/summary",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["sales_completed"] == 1
+    assert data["sales_cancelled"] == 0
+    assert "efectivo" in data["payment_methods"]
+    assert data["grand_total"] == "116.00"
+
+
+def test_close_session_calculates_expected_cash(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Closing a session should calculate expected cash from opening + cash sales."""
+    # Create a cash sale: total = 116.00, paid 120, change 4 → net cash = 116
+    client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [
+                {
+                    "product_id": seed_product_for_sale.id,
+                    "quantity": 1,
+                    "unit_price": "100.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            "payments": [{"method": "efectivo", "amount": "120.00", "change_amount": "4.00"}],
+        },
+    )
+
+    # Close the session reporting exactly the expected cash (1000 opening + 116 net cash)
+    response = client.post(
+        f"/api/cash-register/{seed_open_session.id}/close",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"closing_amount": "1116.00"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["expected_cash"] == "1116.00"
+    assert data["difference"] == "0.00"
+
+
 def test_admin_can_get_sale_detail(
     client, admin_token, seed_open_session, seed_product_for_sale
 ):
