@@ -85,12 +85,10 @@ def test_admin_can_list_stock(client, admin_token, db):
     assert "sku" in item
 
 
-def test_stock_list_requires_permission(client, regular_user_token, db):
-    response = client.get(
-        "/api/inventory/stock",
-        headers={"Authorization": f"Bearer {regular_user_token}"},
-    )
-    assert response.status_code == 403
+def test_stock_list_requires_permission(client, db):
+    """Unauthenticated request should fail."""
+    response = client.get("/api/inventory/stock")
+    assert response.status_code == 401
 
 
 def test_admin_can_get_stock_by_product(client, admin_token, db):

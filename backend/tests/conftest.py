@@ -17,6 +17,12 @@ PERMISSION_CODES = {
     "productos:desactivar": "Desactivar productos",
     "inventario:ver": "Ver stock y movimientos",
     "inventario:ajustar": "Ajustar stock manualmente",
+    "ventas:crear": "Crear ventas",
+    "ventas:ver": "Ver ventas",
+    "ventas:cancelar": "Cancelar ventas",
+    "caja:abrir": "Abrir sesion de caja",
+    "caja:cerrar": "Cerrar sesion de caja",
+    "caja:ver": "Ver sesiones de caja",
 }
 
 
@@ -89,6 +95,10 @@ def seed_roles(db, seed_permissions):
     cajero_role = Role(name="cajero", description="Cajero")
     admin_role.permissions.extend(seed_permissions.values())
     gerente_role.permissions.append(seed_permissions["usuarios:ver"])
+    # Cajero gets POS-related permissions
+    for code in ("ventas:crear", "ventas:ver", "caja:abrir", "caja:cerrar", "caja:ver",
+                 "productos:ver", "inventario:ver"):
+        cajero_role.permissions.append(seed_permissions[code])
     db.session.add_all([admin_role, gerente_role, cajero_role])
     db.session.flush()
     return {"admin": admin_role, "gerente": gerente_role, "cajero": cajero_role}
@@ -147,3 +157,54 @@ def regular_user_token(client, seed_cajero):
         "password": "cajero123",
     })
     return response.get_json()["access_token"]
+
+
+@pytest.fixture
+def seed_cash_register(db):
+    from app.models.sale import CashRegister
+    register = CashRegister(name="Caja 1")
+    db.session.add(register)
+    db.session.flush()
+    return register
+
+
+@pytest.fixture
+def seed_open_session(db, seed_admin, seed_cash_register):
+    from app.models.sale import CashRegisterSession
+    from decimal import Decimal
+    session = CashRegisterSession(
+        cash_register_id=seed_cash_register.id,
+        user_id=seed_admin.id,
+        opening_amount=Decimal("1000.00"),
+        status="abierta",
+    )
+    db.session.add(session)
+    db.session.flush()
+    return session
+
+
+@pytest.fixture
+def seed_product_for_sale(db):
+    from app.models.product import Product, UnitOfMeasure
+    from app.models.inventory import Stock
+    from decimal import Decimal
+
+    unit = UnitOfMeasure(name="Pieza", abbreviation="pz")
+    db.session.add(unit)
+    db.session.flush()
+
+    product = Product(
+        sku="POS-001",
+        name="Martillo",
+        unit_id=unit.id,
+        sale_price=Decimal("149.90"),
+        avg_cost=Decimal("60.00"),
+        tax_rate=Decimal("16.00"),
+    )
+    db.session.add(product)
+    db.session.flush()
+
+    stock = Stock(product_id=product.id, quantity=Decimal("100.000"))
+    db.session.add(stock)
+    db.session.flush()
+    return product
