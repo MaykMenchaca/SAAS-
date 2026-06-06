@@ -5,6 +5,14 @@ from app.extensions import db as _db
 from app.models import User, Role, Permission  # noqa: F401
 
 
+AUTH_PERMISSION_CODES = {
+    "usuarios:ver": "Ver lista de usuarios",
+    "usuarios:crear": "Crear usuarios",
+    "usuarios:editar": "Editar usuarios",
+    "usuarios:desactivar": "Desactivar usuarios",
+}
+
+
 @pytest.fixture(scope="session")
 def flask_app():
     application = create_app(TestConfig)
@@ -41,10 +49,23 @@ def db(db_session):
 
 
 @pytest.fixture
-def seed_roles(db):
+def seed_permissions(db):
+    permissions = {}
+    for code, description in AUTH_PERMISSION_CODES.items():
+        permission = Permission(code=code, module="auth", description=description)
+        db.session.add(permission)
+        permissions[code] = permission
+    db.session.flush()
+    return permissions
+
+
+@pytest.fixture
+def seed_roles(db, seed_permissions):
     admin_role = Role(name="admin", description="Administrador")
     gerente_role = Role(name="gerente", description="Gerente")
     cajero_role = Role(name="cajero", description="Cajero")
+    admin_role.permissions.extend(seed_permissions.values())
+    gerente_role.permissions.append(seed_permissions["usuarios:ver"])
     db.session.add_all([admin_role, gerente_role, cajero_role])
     db.session.flush()
     return {"admin": admin_role, "gerente": gerente_role, "cajero": cajero_role}
