@@ -7,6 +7,7 @@ venv/
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 *.db
 *.sqlite3
 .pytest_cache/
