@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors — from DESIGN.md tokens */
+  --color-primary: #1a56db;
+  --color-primary-hover: #1e40af;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  --color-neutral-bg: #f8fafc;
+  --color-neutral-surface: #ffffff;
+  --color-neutral-border: #e2e8f0;
+  --color-neutral-text-primary: #0f172a;
+  --color-neutral-text-secondary: #475569;
+  --color-neutral-text-muted: #94a3b8;
+
+  --color-sidebar-bg: #1e293b;
+  --color-sidebar-text: #e2e8f0;
+
+  --color-pos-bg: #f1f5f9;
+  --color-pos-cart: #ffffff;
+  --color-pos-total-bg: #0f172a;
+  --color-pos-total-text: #ffffff;
+
+  /* Typography */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* Rounded */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-section: 48px;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-neutral-bg);
+  color: var(--color-neutral-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
