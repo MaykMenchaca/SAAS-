@@ -1,0 +1,136 @@
+import { apiClient } from "./client";
+import type { PaginatedResponse } from "./products";
+
+// ── Types ──────────────────────────────────────────────────────────
+
+export type CashRegisterSession = {
+  id: number;
+  cash_register_id: number;
+  cash_register_name: string;
+  user_id: number;
+  username: string;
+  opening_amount: string;
+  closing_amount: string | null;
+  expected_cash: string | null;
+  difference: string | null;
+  status: "abierta" | "cerrada";
+  opened_at: string;
+  closed_at: string | null;
+  close_notes: string | null;
+};
+
+export type SaleItem = {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  quantity: string;
+  unit_price: string;
+  discount_percent: string;
+  discount_amount: string;
+  tax_rate: string;
+  subtotal: string;
+  cost_at_sale: string;
+};
+
+export type Payment = {
+  id: number;
+  method: string;
+  amount: string;
+  reference: string | null;
+  change_amount: string;
+};
+
+export type Sale = {
+  id: number;
+  folio: string;
+  session_id: number;
+  user_id: number;
+  username: string;
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  total: string;
+  status: "completada" | "cancelada";
+  cancel_reason: string | null;
+  created_at: string;
+  items: SaleItem[];
+  payments: Payment[];
+};
+
+export type SaleListItem = {
+  id: number;
+  folio: string;
+  total: string;
+  status: string;
+  created_at: string;
+  username: string;
+};
+
+export type SaleItemInput = {
+  product_id: number;
+  quantity: number;
+  unit_price: string;
+  tax_rate: string;
+  discount_percent?: string;
+};
+
+export type PaymentInput = {
+  method: "efectivo" | "tarjeta" | "transferencia";
+  amount: string;
+  reference?: string;
+  change_amount?: string;
+};
+
+export type CreateSalePayload = {
+  session_id: number;
+  items: SaleItemInput[];
+  payments: PaymentInput[];
+};
+
+// ── Cash Register API ──────────────────────────────────────────────
+
+export async function openCashRegister(cashRegisterId: number, openingAmount: string) {
+  const response = await apiClient.post<CashRegisterSession>("/cash-register/open", {
+    cash_register_id: cashRegisterId,
+    opening_amount: openingAmount,
+  });
+  return response.data;
+}
+
+export async function closeCashRegister(sessionId: number, closingAmount: string, closeNotes?: string) {
+  const response = await apiClient.post<CashRegisterSession>(`/cash-register/${sessionId}/close`, {
+    closing_amount: closingAmount,
+    close_notes: closeNotes || null,
+  });
+  return response.data;
+}
+
+export async function listSessions() {
+  const response = await apiClient.get<CashRegisterSession[]>("/cash-register/sessions");
+  return response.data;
+}
+
+// ── Sales API ──────────────────────────────────────────────────────
+
+export async function createSale(payload: CreateSalePayload) {
+  const response = await apiClient.post<Sale>("/sales/", payload);
+  return response.data;
+}
+
+export async function cancelSale(saleId: number, reason: string) {
+  const response = await apiClient.post<Sale>(`/sales/${saleId}/cancel`, { reason });
+  return response.data;
+}
+
+export async function listSales(page = 1, perPage = 20) {
+  const response = await apiClient.get<PaginatedResponse<SaleListItem>>("/sales/", {
+    params: { page, per_page: perPage },
+  });
+  return response.data;
+}
+
+export async function getSale(saleId: number) {
+  const response = await apiClient.get<Sale>(`/sales/${saleId}`);
+  return response.data;
+}

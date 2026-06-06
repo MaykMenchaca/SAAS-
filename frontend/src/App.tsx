@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BarChart3, Settings, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Settings, Users } from "lucide-react";
 import { useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
@@ -12,6 +12,7 @@ import { LoginPage } from "./pages/login";
 import { ModulePlaceholder } from "./pages/module-placeholder";
 import { InventoryPage } from "./pages/inventory";
 import { NotFoundPage } from "./pages/not-found";
+import { PosPage } from "./pages/pos";
 import { ProductsPage } from "./pages/products";
 
 const queryClient = new QueryClient({
@@ -39,7 +40,7 @@ export default function App() {
               }
             >
               <Route element={<DashboardPage />} index />
-              <Route element={<ModulePlaceholder icon={<ShoppingCart aria-hidden="true" size={24} />} title="POS" />} path="pos" />
+              <Route element={<PosPage />} path="pos" />
               <Route element={<ProductsPage />} path="productos" />
               <Route element={<InventoryPage />} path="inventario" />
               <Route element={<ModulePlaceholder icon={<Users aria-hidden="true" size={24} />} title="Usuarios" />} path="usuarios" />
