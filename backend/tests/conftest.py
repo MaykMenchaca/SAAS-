@@ -25,6 +25,11 @@ def flask_app():
     application = create_app(TestConfig)
     with application.app_context():
         _db.create_all()
+        # Create sequences not managed by SQLAlchemy's create_all
+        _db.session.execute(
+            _db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1")
+        )
+        _db.session.commit()
     yield application
     with application.app_context():
         _db.session.remove()

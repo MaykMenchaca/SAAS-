@@ -203,3 +203,232 @@ def test_sale_can_be_cancelled(db):
 
     assert sale.status == "cancelada"
     assert sale.cancel_reason == "Cliente cambio de opinion"
+
+
+# --- Service Tests (Task 18) ---
+
+
+def test_service_create_sale_success(db):
+    """SaleService creates sale, deducts inventory, records payment."""
+    from app.services.sale_service import SaleService
+    from app.models.inventory import Stock
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-001", "Taladro", "500.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 2,
+                "unit_price": "500.00",
+                "tax_rate": "16.00",
+            }
+        ],
+        payments=[
+            {"method": "efectivo", "amount": "1160.00"},
+        ],
+    )
+
+    assert sale.id is not None
+    assert sale.folio.startswith("V-")
+    assert sale.subtotal == Decimal("1000.00")
+    assert sale.tax_total == Decimal("160.00")
+    assert sale.total == Decimal("1160.00")
+    assert len(sale.items) == 1
+    assert sale.items[0].product_name == "Taladro"
+    assert sale.items[0].cost_at_sale == Decimal("60.00")
+    assert len(sale.payments) == 1
+
+    # Verify inventory was deducted
+    stock = Stock.query.filter_by(product_id=product.id).first()
+    assert stock.quantity == Decimal("98.000")
+
+
+def test_service_create_sale_with_discount(db):
+    """SaleService correctly applies per-item percentage discounts."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-002", "Sierra", "200.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "unit_price": "200.00",
+                "tax_rate": "16.00",
+                "discount_percent": "10",
+            }
+        ],
+        payments=[
+            {"method": "tarjeta", "amount": "208.80"},
+        ],
+    )
+
+    item = sale.items[0]
+    assert item.discount_percent == Decimal("10.00")
+    assert item.discount_amount == Decimal("20.00")
+    assert item.subtotal == Decimal("180.00")
+    assert sale.discount_total == Decimal("20.00")
+    assert sale.tax_total == Decimal("28.80")
+    assert sale.total == Decimal("208.80")
+
+
+def test_service_create_sale_insufficient_stock(db):
+    """SaleService raises error when trying to sell more than available stock."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-003", "Pintura", "300.00")
+
+    with pytest.raises(ValueError, match="Stock insuficiente"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 999,
+                    "unit_price": "300.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            payments=[
+                {"method": "efectivo", "amount": "999999.00"},
+            ],
+        )
+
+
+def test_service_create_sale_insufficient_payment(db):
+    """SaleService raises error when payment is less than total."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-004", "Llave", "50.00")
+
+    with pytest.raises(ValueError, match="Pago insuficiente"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                    "unit_price": "50.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            payments=[
+                {"method": "efectivo", "amount": "10.00"},
+            ],
+        )
+
+
+def test_service_create_sale_closed_session_rejected(db):
+    """SaleService rejects sales on a closed cash register session."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    session.status = "cerrada"
+    db.session.flush()
+
+    product = _seed_product_for_sale(db, "SRV-005", "Cinta", "25.00")
+
+    with pytest.raises(ValueError, match="no está abierta"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                    "unit_price": "25.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            payments=[
+                {"method": "efectivo", "amount": "29.00"},
+            ],
+        )
+
+
+def test_service_cancel_sale_returns_inventory(db):
+    """Cancelling a sale returns items to inventory."""
+    from app.services.sale_service import SaleService
+    from app.models.inventory import Stock
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-006", "Clavos", "10.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 20,
+                "unit_price": "10.00",
+                "tax_rate": "16.00",
+            }
+        ],
+        payments=[
+            {"method": "efectivo", "amount": "232.00"},
+        ],
+    )
+
+    # Stock should be 80 after sale
+    stock = Stock.query.filter_by(product_id=product.id).first()
+    assert stock.quantity == Decimal("80.000")
+
+    # Cancel the sale
+    cancelled = SaleService.cancel_sale(
+        sale_id=sale.id,
+        user_id=user.id,
+        reason="Error de captura",
+    )
+
+    assert cancelled.status == "cancelada"
+    assert cancelled.cancel_reason == "Error de captura"
+
+    # Stock should be back to 100
+    db.session.refresh(stock)
+    assert stock.quantity == Decimal("100.000")
+
+
+def test_service_cancel_already_cancelled_sale(db):
+    """Cannot cancel an already cancelled sale."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "SRV-007", "Broca", "15.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "unit_price": "15.00",
+                "tax_rate": "16.00",
+            }
+        ],
+        payments=[
+            {"method": "efectivo", "amount": "17.40"},
+        ],
+    )
+
+    SaleService.cancel_sale(sale.id, user.id, "Primera cancelacion")
+
+    with pytest.raises(ValueError, match="ya está cancelada"):
+        SaleService.cancel_sale(sale.id, user.id, "Segunda cancelacion")
