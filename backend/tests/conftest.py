@@ -27,6 +27,7 @@ PERMISSION_CODES = {
     "compras:crear": "Crear ordenes de compra",
     "compras:editar": "Editar proveedores y ordenes",
     "compras:recibir": "Recibir mercancia",
+    "reportes:ver": "Ver reportes y dashboard",
 }
 
 
