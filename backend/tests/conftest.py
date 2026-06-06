@@ -23,6 +23,8 @@ PERMISSION_CODES = {
 @pytest.fixture(scope="session")
 def flask_app():
     application = create_app(TestConfig)
+    with application.app_context():
+        _db.create_all()
     yield application
     with application.app_context():
         _db.session.remove()
@@ -31,13 +33,21 @@ def flask_app():
 
 @pytest.fixture(autouse=True)
 def db_session(flask_app):
+    """Truncate all tables between tests instead of drop/create.
+
+    This avoids FK ordering issues that cause intermittent failures
+    with drop_all() when the schema has many cross-table foreign keys.
+    """
     with flask_app.app_context():
-        _db.session.remove()
-        _db.drop_all()
-        _db.create_all()
         yield _db
         _db.session.remove()
-        _db.drop_all()
+        # TRUNCATE CASCADE handles FK ordering automatically
+        tables = ",".join(
+            f'"{t.name}"' for t in reversed(_db.metadata.sorted_tables)
+        )
+        if tables:
+            _db.session.execute(_db.text(f"TRUNCATE TABLE {tables} CASCADE"))
+            _db.session.commit()
 
 
 @pytest.fixture
