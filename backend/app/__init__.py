@@ -21,4 +21,7 @@ def create_app(config_class=Config):
     from app.utils.errors import register_error_handlers
     register_error_handlers(application)
 
+    from app.seed import seed_command
+    application.cli.add_command(seed_command)
+
     return application
