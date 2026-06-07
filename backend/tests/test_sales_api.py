@@ -240,6 +240,116 @@ def test_close_session_calculates_expected_cash(
     assert data["difference"] == "0.00"
 
 
+def test_admin_can_return_partial_sale(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Partial return should restore inventory for returned items only."""
+    # Create a sale with quantity=5
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [
+                {
+                    "product_id": seed_product_for_sale.id,
+                    "quantity": 5,
+                    "unit_price": "100.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            "payments": [{"method": "efectivo", "amount": "580.00"}],
+        },
+    )
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    # Return 2 of the 5
+    response = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Producto defectuoso",
+            "items": [{"sale_item_id": item_id, "quantity": 2}],
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "devolucion_parcial"
+    assert len(data["returned_items"]) == 1
+    assert data["returned_items"][0]["quantity"] == "2.000"
+
+
+def test_return_full_sale(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Full return should mark sale as returned."""
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [
+                {
+                    "product_id": seed_product_for_sale.id,
+                    "quantity": 2,
+                    "unit_price": "100.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            "payments": [{"method": "efectivo", "amount": "232.00"}],
+        },
+    )
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    response = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Cliente cambio de opinion",
+            "items": [{"sale_item_id": item_id, "quantity": 2}],
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "devolucion_total"
+
+
+def test_cannot_return_more_than_sold(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Should not allow returning more than was sold."""
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [
+                {
+                    "product_id": seed_product_for_sale.id,
+                    "quantity": 1,
+                    "unit_price": "100.00",
+                    "tax_rate": "16.00",
+                }
+            ],
+            "payments": [{"method": "efectivo", "amount": "116.00"}],
+        },
+    )
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    response = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Error",
+            "items": [{"sale_item_id": item_id, "quantity": 5}],
+        },
+    )
+    assert response.status_code == 400
+
+
 def test_admin_can_get_sale_detail(
     client, admin_token, seed_open_session, seed_product_for_sale
 ):

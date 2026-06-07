@@ -152,3 +152,52 @@ class Payment(db.Model):
     )
 
     sale = db.relationship("Sale", back_populates="payments")
+
+
+class SaleReturn(db.Model):
+    __tablename__ = "sale_returns"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sale_id = db.Column(
+        db.Integer, db.ForeignKey("sales.id"), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
+    )
+    reason = db.Column(db.Text, nullable=False)
+    refund_total = db.Column(db.Numeric(12, 2), nullable=False)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        server_default=db.func.now(),
+    )
+
+    sale = db.relationship("Sale")
+    user = db.relationship("User", foreign_keys=[user_id])
+    items = db.relationship(
+        "SaleReturnItem", back_populates="sale_return", cascade="all, delete-orphan"
+    )
+
+
+class SaleReturnItem(db.Model):
+    __tablename__ = "sale_return_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sale_return_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sale_returns.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sale_item_id = db.Column(
+        db.Integer, db.ForeignKey("sale_items.id"), nullable=False
+    )
+    product_id = db.Column(
+        db.Integer, db.ForeignKey("products.id"), nullable=False
+    )
+    quantity = db.Column(db.Numeric(12, 3), nullable=False)
+    refund_amount = db.Column(db.Numeric(12, 2), nullable=False)
+
+    sale_return = db.relationship("SaleReturn", back_populates="items")
+    sale_item = db.relationship("SaleItem")

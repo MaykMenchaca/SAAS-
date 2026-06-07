@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.extensions import db
 from app.models.product import Product
-from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem
+from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.services.inventory_service import InventoryService
 
 
@@ -170,6 +170,109 @@ class SaleService:
         sale.cancel_reason = reason
         db.session.commit()
         return sale
+
+    @staticmethod
+    def return_sale(sale_id: int, user_id: int, reason: str, items: list) -> SaleReturn:
+        """Process a return (partial or full) for a sale.
+
+        Args:
+            sale_id: Sale to return items from.
+            user_id: User performing the return.
+            reason: Reason for the return.
+            items: List of dicts with sale_item_id and quantity to return.
+
+        Returns:
+            The SaleReturn object.
+
+        Raises:
+            ValueError: If sale not found, already cancelled, or quantity exceeds sold.
+        """
+        sale = db.session.get(Sale, sale_id)
+        if not sale:
+            raise ValueError("Venta no encontrada")
+        if sale.status == "cancelada":
+            raise ValueError("No se puede devolver una venta cancelada")
+
+        # Build a map of already-returned quantities per sale_item
+        already_returned: dict[int, Decimal] = {}
+        existing_returns = SaleReturn.query.filter_by(sale_id=sale_id).all()
+        for ret in existing_returns:
+            for ri in ret.items:
+                already_returned[ri.sale_item_id] = (
+                    already_returned.get(ri.sale_item_id, Decimal("0")) + ri.quantity
+                )
+
+        sale_return = SaleReturn(
+            sale_id=sale_id,
+            user_id=user_id,
+            reason=reason,
+            refund_total=Decimal("0"),
+        )
+        db.session.add(sale_return)
+        db.session.flush()
+
+        refund_total = Decimal("0")
+
+        for item_data in items:
+            sale_item = db.session.get(SaleItem, item_data["sale_item_id"])
+            if not sale_item or sale_item.sale_id != sale_id:
+                raise ValueError(f"Item {item_data['sale_item_id']} no pertenece a esta venta")
+
+            qty = Decimal(str(item_data["quantity"]))
+            prev_returned = already_returned.get(sale_item.id, Decimal("0"))
+            available = sale_item.quantity - prev_returned
+
+            if qty > available:
+                raise ValueError(
+                    f"Cantidad a devolver ({qty}) excede lo disponible ({available}) "
+                    f"para {sale_item.product_name}"
+                )
+
+            # Calculate proportional refund
+            price_per_unit = sale_item.subtotal / sale_item.quantity
+            tax_per_unit = price_per_unit * sale_item.tax_rate / Decimal("100")
+            line_refund = ((price_per_unit + tax_per_unit) * qty).quantize(Decimal("0.01"))
+
+            return_item = SaleReturnItem(
+                sale_return_id=sale_return.id,
+                sale_item_id=sale_item.id,
+                product_id=sale_item.product_id,
+                quantity=qty,
+                refund_amount=line_refund,
+            )
+            db.session.add(return_item)
+
+            # Return inventory
+            InventoryService.move_stock(
+                product_id=sale_item.product_id,
+                quantity=qty,
+                movement_type="entrada",
+                reference_type="devolucion",
+                reference_id=sale_return.id,
+                user_id=user_id,
+            )
+
+            refund_total += line_refund
+
+        sale_return.refund_total = refund_total
+
+        # Determine if the return is partial or total
+        total_returned: dict[int, Decimal] = {}
+        for si_id, prev_qty in already_returned.items():
+            total_returned[si_id] = prev_qty
+        for item_data in items:
+            si_id = item_data["sale_item_id"]
+            total_returned[si_id] = total_returned.get(si_id, Decimal("0")) + Decimal(str(item_data["quantity"]))
+
+        all_returned = all(
+            total_returned.get(si.id, Decimal("0")) >= si.quantity
+            for si in sale.items
+        )
+
+        sale.status = "devolucion_total" if all_returned else "devolucion_parcial"
+
+        db.session.commit()
+        return sale_return
 
     @staticmethod
     def get_sale(sale_id: int) -> Sale | None:

@@ -6,6 +6,8 @@ from app.schemas.sale import (
     SaleCancelSchema,
     SaleCreateSchema,
     SaleListSchema,
+    SaleReturnCreateSchema,
+    SaleReturnSchema,
     SaleSchema,
 )
 from app.services.sale_service import SaleService
@@ -17,7 +19,9 @@ sales_bp = Blueprint("sales", __name__)
 
 sale_create_schema = SaleCreateSchema()
 sale_cancel_schema = SaleCancelSchema()
+sale_return_create_schema = SaleReturnCreateSchema()
 sale_schema = SaleSchema()
+sale_return_schema = SaleReturnSchema()
 sale_list_schema = SaleListSchema(many=True)
 
 
@@ -60,6 +64,27 @@ def cancel_sale(sale_id):
         return jsonify({"error": str(e)}), 400
 
     return jsonify(sale_schema.dump(sale)), 200
+
+
+@sales_bp.route("/<int:sale_id>/return", methods=["POST"])
+@require_permission("ventas:cancelar")
+def return_sale(sale_id):
+    """Process a return (partial or full) for a sale."""
+    data = sale_return_create_schema.load(request.get_json(silent=True) or {})
+
+    user_id = int(get_jwt_identity())
+
+    try:
+        sale_return = SaleService.return_sale(
+            sale_id=sale_id,
+            user_id=user_id,
+            reason=data["reason"],
+            items=data["items"],
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(sale_return_schema.dump(sale_return)), 200
 
 
 @sales_bp.route("/", methods=["GET"])

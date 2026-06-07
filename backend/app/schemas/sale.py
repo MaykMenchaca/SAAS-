@@ -134,6 +134,45 @@ class SaleSchema(Schema):
         return obj.user.username if obj.user else None
 
 
+class SaleReturnItemInputSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    sale_item_id = fields.Int(required=True, validate=validate.Range(min=1))
+    quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
+
+
+class SaleReturnCreateSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    reason = fields.Str(required=True, validate=validate.Length(min=1))
+    items = fields.List(
+        fields.Nested(SaleReturnItemInputSchema), required=True, validate=validate.Length(min=1)
+    )
+
+
+class SaleReturnItemSchema(Schema):
+    id = fields.Int(dump_only=True)
+    sale_item_id = fields.Int(dump_only=True)
+    product_id = fields.Int(dump_only=True)
+    quantity = fields.Decimal(as_string=True, places=3, dump_only=True)
+    refund_amount = fields.Decimal(as_string=True, places=2, dump_only=True)
+
+
+class SaleReturnSchema(Schema):
+    id = fields.Int(dump_only=True)
+    sale_id = fields.Int(dump_only=True)
+    status = fields.Method("get_sale_status")
+    reason = fields.Str(dump_only=True)
+    refund_total = fields.Decimal(as_string=True, places=2, dump_only=True)
+    created_at = fields.DateTime(dump_only=True)
+    returned_items = fields.List(fields.Nested(SaleReturnItemSchema), attribute="items", dump_only=True)
+
+    def get_sale_status(self, obj):
+        return obj.sale.status if obj.sale else None
+
+
 class SaleListSchema(Schema):
     """Lighter schema for sale listings (no items/payments)."""
     id = fields.Int(dump_only=True)
