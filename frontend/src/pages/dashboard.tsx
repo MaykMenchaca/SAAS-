@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CircleDollarSign, PackageSearch, ReceiptText, TrendingUp } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { apiClient } from "../api/client";
-import { Badge, Card } from "../components/ui";
+import { getLowStock } from "../api/inventory";
+import { Badge, Button, Card } from "../components/ui";
 
 type DashboardData = {
   sales_today: number;
@@ -26,9 +28,15 @@ export function DashboardPage() {
     queryFn: fetchDashboard,
     refetchInterval: 60_000, // auto-refresh every minute
   });
+  const lowStockQuery = useQuery({
+    queryKey: ["low-stock"],
+    queryFn: getLowStock,
+    refetchInterval: 60_000,
+  });
 
   const data = dashboardQuery.data;
   const isLoading = dashboardQuery.isLoading;
+  const lowStockItems = lowStockQuery.data ?? [];
 
   const kpis = [
     {
@@ -85,6 +93,30 @@ export function DashboardPage() {
           );
         })}
       </section>
+
+      {(data?.low_stock_count ?? 0) > 0 ? (
+        <section className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <AlertTriangle aria-hidden="true" className="mt-0.5 shrink-0 text-warning" size={20} />
+              <div className="min-w-0">
+                <p className="font-semibold text-neutral-text-primary">
+                  {data?.low_stock_count} producto{data?.low_stock_count === 1 ? "" : "s"} bajo minimo
+                </p>
+                <p className="mt-1 text-sm text-neutral-text-secondary">
+                  {lowStockItems.slice(0, 3).map((item) => item.product_name).join(", ") || "Revisa inventario"}
+                  {lowStockItems.length > 3 ? ` y ${lowStockItems.length - 3} mas` : ""}
+                </p>
+              </div>
+            </div>
+            <Link to="/inventario">
+              <Button icon={<PackageSearch aria-hidden="true" size={17} />} variant="secondary">
+                Revisar
+              </Button>
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {/* Bottom row */}
       <section className="grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">

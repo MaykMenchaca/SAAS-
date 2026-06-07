@@ -2,8 +2,9 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Edit, PackagePlus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit, PackagePlus, Search, Trash2 } from "lucide-react";
 
+import { getLowStock } from "../api/inventory";
 import type { Category, Product, ProductPayload, UnitOfMeasure } from "../api/products";
 import {
   createProduct,
@@ -102,6 +103,11 @@ export function ProductsPage() {
     queryFn: listUnits,
   });
 
+  const lowStockQuery = useQuery({
+    queryKey: ["low-stock"],
+    queryFn: getLowStock,
+  });
+
   const createMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: async () => {
@@ -127,6 +133,10 @@ export function ProductsPage() {
 
   const products = productsQuery.data?.items ?? [];
   const totalPages = productsQuery.data?.pages ?? 1;
+  const lowStockByProductId = useMemo(
+    () => new Map((lowStockQuery.data ?? []).map((item) => [item.product_id, item])),
+    [lowStockQuery.data],
+  );
 
   function openCreateModal() {
     setEditingProduct(null);
@@ -192,43 +202,55 @@ export function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={product.id}>
-                  <td className={tableCellClass}>
-                    <div className="font-semibold text-neutral-text-primary">{product.name}</div>
-                    <div className="font-mono text-xs text-neutral-text-secondary">{product.sku}</div>
-                  </td>
-                  <td className={tableCellClass}>{product.category?.name ?? "Sin categoria"}</td>
-                  <td className={tableCellClass}>{product.unit.abbreviation}</td>
-                  <td className={`${tableCellClass} font-mono font-semibold`}>${product.sale_price}</td>
-                  <td className={tableCellClass}>
-                    <Badge tone={product.is_active ? "success" : "danger"}>
-                      {product.is_active ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </td>
-                  <td className={tableCellClass}>
-                    <div className="flex gap-2">
-                      <Button
-                        aria-label={`Editar ${product.name}`}
-                        className="h-11 w-11 px-0"
-                        onClick={() => openEditModal(product)}
-                        variant="secondary"
-                      >
-                        <Edit aria-hidden="true" size={17} />
-                      </Button>
-                      <Button
-                        aria-label={`Desactivar ${product.name}`}
-                        className="h-11 w-11 px-0"
-                        disabled={deactivateMutation.isPending || !product.is_active}
-                        onClick={() => deactivateMutation.mutate(product.id)}
-                        variant="danger"
-                      >
-                        <Trash2 aria-hidden="true" size={17} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {products.map((product) => {
+                const lowStock = lowStockByProductId.get(product.id);
+
+                return (
+                  <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={product.id}>
+                    <td className={tableCellClass}>
+                      <div className="font-semibold text-neutral-text-primary">{product.name}</div>
+                      <div className="font-mono text-xs text-neutral-text-secondary">{product.sku}</div>
+                    </td>
+                    <td className={tableCellClass}>{product.category?.name ?? "Sin categoria"}</td>
+                    <td className={tableCellClass}>{product.unit.abbreviation}</td>
+                    <td className={`${tableCellClass} font-mono font-semibold`}>${product.sale_price}</td>
+                    <td className={tableCellClass}>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge tone={product.is_active ? "success" : "danger"}>
+                          {product.is_active ? "Activo" : "Inactivo"}
+                        </Badge>
+                        {lowStock ? (
+                          <Badge tone="warning">
+                            <AlertTriangle aria-hidden="true" className="mr-1 inline" size={12} />
+                            {lowStock.quantity} / min {lowStock.min_stock}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className={tableCellClass}>
+                      <div className="flex gap-2">
+                        <Button
+                          aria-label={`Editar ${product.name}`}
+                          className="h-11 w-11 px-0"
+                          onClick={() => openEditModal(product)}
+                          variant="secondary"
+                        >
+                          <Edit aria-hidden="true" size={17} />
+                        </Button>
+                        <Button
+                          aria-label={`Desactivar ${product.name}`}
+                          className="h-11 w-11 px-0"
+                          disabled={deactivateMutation.isPending || !product.is_active}
+                          onClick={() => deactivateMutation.mutate(product.id)}
+                          variant="danger"
+                        >
+                          <Trash2 aria-hidden="true" size={17} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {!productsQuery.isLoading && products.length === 0 ? (
                 <tr>
