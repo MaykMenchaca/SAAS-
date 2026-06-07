@@ -4,3 +4,4 @@ from app.models.inventory import Stock, StockMovement, InventoryCount, Inventory
 from app.models.sale import CashRegister, CashRegisterSession, Sale, SaleItem, Payment, SaleReturn, SaleReturnItem
 from app.models.purchase import Supplier, PurchaseOrder, PurchaseOrderItem
 from app.models.audit import AuditLog
+from app.models.config import SystemConfig
