@@ -175,6 +175,13 @@ def seed_cash_register():
     click.echo("  Caja: 'Caja 1' creada")
 
 
+def seed_system_config():
+    """Insert default system configuration values."""
+    from app.services.config_service import seed_defaults
+    seed_defaults()
+    click.echo("  Configuracion: valores por defecto sembrados")
+
+
 @click.command("seed")
 @with_appcontext
 def seed_command():
@@ -186,6 +193,7 @@ def seed_command():
     seed_admin_user()
     seed_units()
     seed_cash_register()
+    seed_system_config()
 
     # Create folio sequences if they don't exist
     db.session.execute(db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1"))
