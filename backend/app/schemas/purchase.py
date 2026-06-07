@@ -112,6 +112,27 @@ class PurchaseOrderSchema(Schema):
         return obj.user.username if obj.user else None
 
 
+class ReceiveItemInputSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    order_item_id = fields.Int(required=True, validate=validate.Range(min=1))
+    received_quantity = fields.Decimal(
+        as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False)
+    )
+
+
+class ReceiveOrderSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    items = fields.List(
+        fields.Nested(ReceiveItemInputSchema),
+        required=True,
+        validate=validate.Length(min=1),
+    )
+
+
 class PurchaseOrderListSchema(Schema):
     """Lighter schema for purchase order listings (no items)."""
     id = fields.Int(dump_only=True)

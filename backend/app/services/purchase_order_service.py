@@ -5,8 +5,10 @@ from decimal import Decimal
 from sqlalchemy import text
 
 from app.extensions import db
+from app.models.inventory import Stock
 from app.models.product import Product
 from app.models.purchase import PurchaseOrder, PurchaseOrderItem, Supplier
+from app.services.inventory_service import InventoryService
 
 
 class PurchaseOrderService:
@@ -149,6 +151,87 @@ class PurchaseOrderService:
             )
 
         order.status = "cancelada"
+        db.session.commit()
+        return order
+
+    @staticmethod
+    def receive_order(order_id: int, user_id: int, items: list) -> PurchaseOrder:
+        """Receive items for a purchase order.
+
+        For each received item:
+        1. Validates quantity doesn't exceed remaining
+        2. Updates received_quantity on the order item
+        3. Adds inventory via InventoryService (entrada, compra)
+        4. Updates product avg_cost using weighted average
+
+        Args:
+            order_id: Order to receive against.
+            user_id: User performing the reception.
+            items: List of dicts with order_item_id and received_quantity.
+
+        Returns:
+            The updated PurchaseOrder.
+
+        Raises:
+            ValueError: If order not receivable or quantities invalid.
+        """
+        order = db.session.get(PurchaseOrder, order_id)
+        if not order:
+            raise ValueError("Orden de compra no encontrada")
+        if order.status not in ("enviada", "parcial"):
+            raise ValueError(
+                "Solo se pueden recibir órdenes enviadas o parcialmente recibidas"
+            )
+
+        for item_data in items:
+            order_item = db.session.get(PurchaseOrderItem, item_data["order_item_id"])
+            if not order_item or order_item.purchase_order_id != order_id:
+                raise ValueError(
+                    f"Item {item_data['order_item_id']} no pertenece a esta orden"
+                )
+
+            recv_qty = Decimal(str(item_data["received_quantity"]))
+            remaining = order_item.quantity - order_item.received_quantity
+
+            if recv_qty > remaining:
+                raise ValueError(
+                    f"Cantidad recibida ({recv_qty}) excede lo pendiente ({remaining}) "
+                    f"para {order_item.product_name}"
+                )
+
+            # Update received quantity
+            order_item.received_quantity += recv_qty
+
+            # Add inventory
+            InventoryService.move_stock(
+                product_id=order_item.product_id,
+                quantity=recv_qty,
+                movement_type="entrada",
+                reference_type="compra",
+                reference_id=order.id,
+                user_id=user_id,
+                notes=f"Recepción OC {order.folio}",
+            )
+
+            # Update weighted average cost
+            product = db.session.get(Product, order_item.product_id)
+            stock = Stock.query.filter_by(product_id=order_item.product_id).first()
+            if product and stock:
+                current_stock = stock.quantity  # already updated by move_stock
+                old_stock = current_stock - recv_qty
+                if current_stock > 0:
+                    new_avg = (
+                        (old_stock * product.avg_cost + recv_qty * order_item.unit_cost)
+                        / current_stock
+                    ).quantize(Decimal("0.01"))
+                    product.avg_cost = new_avg
+
+        # Determine new status
+        all_received = all(
+            oi.received_quantity >= oi.quantity for oi in order.items
+        )
+        order.status = "recibida" if all_received else "parcial"
+
         db.session.commit()
         return order
 

@@ -1,4 +1,4 @@
-"""Tests for purchase order CRUD (Task 28)."""
+"""Tests for purchase order CRUD and receiving (Tasks 28-29)."""
 from decimal import Decimal
 
 import pytest
@@ -16,6 +16,7 @@ def seed_supplier(db):
 @pytest.fixture
 def seed_products_for_po(db):
     from app.models.product import Product, UnitOfMeasure
+    from app.models.inventory import Stock
 
     unit = UnitOfMeasure(name="Pieza", abbreviation="pz")
     db.session.add(unit)
@@ -39,6 +40,13 @@ def seed_products_for_po(db):
     )
     db.session.add_all([p1, p2])
     db.session.flush()
+
+    # Create initial stock for avg cost calculation tests
+    s1 = Stock(product_id=p1.id, quantity=Decimal("50.000"))
+    s2 = Stock(product_id=p2.id, quantity=Decimal("100.000"))
+    db.session.add_all([s1, s2])
+    db.session.flush()
+
     return [p1, p2]
 
 
@@ -297,3 +305,171 @@ class TestListAndDetail:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp.status_code == 404
+
+
+# --- Task 29: Receiving ---
+
+
+@pytest.fixture
+def sent_order(client, admin_token, seed_supplier, seed_products_for_po):
+    """Create and send a purchase order, returning (order_data, products)."""
+    p1, p2 = seed_products_for_po
+    resp = client.post(
+        "/api/purchases/orders",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "supplier_id": seed_supplier.id,
+            "items": [
+                {"product_id": p1.id, "quantity": "10", "unit_cost": "90.00"},
+                {"product_id": p2.id, "quantity": "20", "unit_cost": "40.00"},
+            ],
+        },
+    )
+    order = resp.get_json()
+    client.post(
+        f"/api/purchases/orders/{order['id']}/send",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    return order, [p1, p2]
+
+
+class TestReceiveOrder:
+    def test_full_receive(self, client, admin_token, db, sent_order):
+        """Receiving all items should set status to recibida and update inventory."""
+        from app.models.inventory import Stock
+
+        order, products = sent_order
+        p1, p2 = products
+        items = order["items"]
+
+        resp = client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "10"},
+                    {"order_item_id": items[1]["id"], "received_quantity": "20"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "recibida"
+
+        # Verify inventory increased
+        s1 = Stock.query.filter_by(product_id=p1.id).first()
+        s2 = Stock.query.filter_by(product_id=p2.id).first()
+        assert s1.quantity == Decimal("60.000")   # 50 + 10
+        assert s2.quantity == Decimal("120.000")  # 100 + 20
+
+    def test_partial_receive(self, client, admin_token, db, sent_order):
+        """Receiving some items should set status to parcial."""
+        order, products = sent_order
+        items = order["items"]
+
+        resp = client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "5"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "parcial"
+
+        # Receive the rest
+        resp = client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "5"},
+                    {"order_item_id": items[1]["id"], "received_quantity": "20"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "recibida"
+
+    def test_receive_updates_avg_cost(self, client, admin_token, db, sent_order):
+        """Receiving should update the product's weighted average cost."""
+        from app.models.product import Product
+
+        order, products = sent_order
+        p1 = products[0]
+        items = order["items"]
+
+        # p1 has: 50 units at avg_cost 80.00
+        # Receiving: 10 units at unit_cost 90.00
+        # New avg: (50*80 + 10*90) / 60 = (4000 + 900) / 60 = 81.67
+
+        client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "10"},
+                ],
+            },
+        )
+
+        product = db.session.get(Product, p1.id)
+        assert product.avg_cost == Decimal("81.67")
+
+    def test_cannot_exceed_ordered_quantity(self, client, admin_token, sent_order):
+        """Should fail if received_quantity exceeds remaining."""
+        order, _ = sent_order
+        items = order["items"]
+
+        resp = client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "999"},
+                ],
+            },
+        )
+        assert resp.status_code == 400
+        assert "excede" in resp.get_json()["error"]
+
+    def test_cannot_receive_draft_order(self, client, admin_token, seed_supplier, seed_products_for_po):
+        """Should not be able to receive a draft order."""
+        p1 = seed_products_for_po[0]
+        resp = client.post(
+            "/api/purchases/orders",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "supplier_id": seed_supplier.id,
+                "items": [{"product_id": p1.id, "quantity": "5", "unit_cost": "80.00"}],
+            },
+        )
+        order_id = resp.get_json()["id"]
+
+        resp = client.post(
+            f"/api/purchases/orders/{order_id}/receive",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "items": [{"order_item_id": 1, "received_quantity": "5"}],
+            },
+        )
+        assert resp.status_code == 400
+        assert "enviadas" in resp.get_json()["error"]
+
+    def test_receive_requires_permission(self, client, regular_user_token, sent_order):
+        """Cajero without compras:recibir should be denied."""
+        order, _ = sent_order
+        items = order["items"]
+
+        resp = client.post(
+            f"/api/purchases/orders/{order['id']}/receive",
+            headers={"Authorization": f"Bearer {regular_user_token}"},
+            json={
+                "items": [
+                    {"order_item_id": items[0]["id"], "received_quantity": "5"},
+                ],
+            },
+        )
+        assert resp.status_code == 403

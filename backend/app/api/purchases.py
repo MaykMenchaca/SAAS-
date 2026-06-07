@@ -8,6 +8,7 @@ from app.schemas.purchase import (
     PurchaseOrderCreateSchema,
     PurchaseOrderListSchema,
     PurchaseOrderSchema,
+    ReceiveOrderSchema,
     SupplierCreateSchema,
     SupplierSchema,
     SupplierUpdateSchema,
@@ -25,6 +26,7 @@ suppliers_schema = SupplierSchema(many=True)
 po_create_schema = PurchaseOrderCreateSchema()
 po_schema = PurchaseOrderSchema()
 po_list_schema = PurchaseOrderListSchema(many=True)
+receive_schema = ReceiveOrderSchema()
 
 
 # --- Supplier endpoints ---
@@ -164,4 +166,23 @@ def cancel_order(order_id):
         order = PurchaseOrderService.cancel_order(order_id)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    return jsonify(po_schema.dump(order)), 200
+
+
+@purchases_bp.route("/orders/<int:order_id>/receive", methods=["POST"])
+@require_permission("compras:recibir")
+def receive_order(order_id):
+    """Receive items for a purchase order, updating inventory and avg cost."""
+    data = receive_schema.load(request.get_json(silent=True) or {})
+    user_id = int(get_jwt_identity())
+
+    try:
+        order = PurchaseOrderService.receive_order(
+            order_id=order_id,
+            user_id=user_id,
+            items=data["items"],
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     return jsonify(po_schema.dump(order)), 200
