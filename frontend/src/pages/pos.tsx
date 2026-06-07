@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Minus, Plus, Printer, ReceiptText, Search, ShoppingCart, X } from "lucide-react";
+import { Minus, Plus, Printer, ReceiptText, Search, ShoppingCart, Trash2, X } from "lucide-react";
 
 import type { Product } from "../api/products";
 import { listProducts } from "../api/products";
@@ -416,7 +416,16 @@ function CartPanel() {
   );
 }
 
-// ── Payment Modal ──────────────────────────────────────────────────
+// ── Payment Modal (supports mixed payments) ──────────────────────
+
+type PaymentEntry = {
+  id: number;
+  method: "efectivo" | "tarjeta" | "transferencia";
+  amount: string;
+  reference: string;
+};
+
+let paymentIdCounter = 0;
 
 function PaymentModal({
   sessionId,
@@ -433,13 +442,46 @@ function PaymentModal({
   const clearCart = usePosStore((s) => s.clearCart);
   const queryClient = useQueryClient();
 
-  const [method, setMethod] = useState<"efectivo" | "tarjeta" | "transferencia">("efectivo");
-  const [cashReceived, setCashReceived] = useState(total.toFixed(2));
-  const [reference, setReference] = useState("");
+  const [payments, setPayments] = useState<PaymentEntry[]>([
+    { id: ++paymentIdCounter, method: "efectivo", amount: total.toFixed(2), reference: "" },
+  ]);
 
-  const cashReceivedNum = Number(cashReceived) || 0;
-  const change = method === "efectivo" ? Math.max(0, Math.round((cashReceivedNum - total) * 100) / 100) : 0;
-  const isPaymentSufficient = method === "efectivo" ? cashReceivedNum >= total : true;
+  // Calculate totals
+  const paidTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const remaining = Math.round((total - paidTotal) * 100) / 100;
+
+  // For the last cash payment, calculate change
+  const lastCashPayment = [...payments].reverse().find((p) => p.method === "efectivo");
+  const cashChange =
+    lastCashPayment && remaining <= 0
+      ? Math.max(0, Math.round((paidTotal - total) * 100) / 100)
+      : 0;
+
+  const isPaymentSufficient = paidTotal >= total;
+
+  function addPayment() {
+    const amountToAdd = Math.max(0, remaining);
+    setPayments([
+      ...payments,
+      {
+        id: ++paymentIdCounter,
+        method: "efectivo",
+        amount: amountToAdd > 0 ? amountToAdd.toFixed(2) : "0.00",
+        reference: "",
+      },
+    ]);
+  }
+
+  function removePayment(id: number) {
+    if (payments.length <= 1) return;
+    setPayments(payments.filter((p) => p.id !== id));
+  }
+
+  function updatePayment(id: number, field: keyof PaymentEntry, value: string) {
+    setPayments(
+      payments.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+    );
+  }
 
   const saleMutation = useMutation({
     mutationFn: (payload: CreateSalePayload) => createSale(payload),
@@ -459,16 +501,15 @@ function PaymentModal({
       discount_percent: c.discount_percent,
     }));
 
-    const payments: PaymentInput[] = [
-      {
-        method,
-        amount: method === "efectivo" ? cashReceived : total.toFixed(2),
-        reference: method !== "efectivo" ? reference || undefined : undefined,
-        change_amount: change > 0 ? change.toFixed(2) : "0.00",
-      },
-    ];
+    const paymentInputs: PaymentInput[] = payments.map((p) => ({
+      method: p.method,
+      amount: p.amount,
+      reference: p.method !== "efectivo" && p.reference ? p.reference : undefined,
+      change_amount:
+        p === lastCashPayment && cashChange > 0 ? cashChange.toFixed(2) : "0.00",
+    }));
 
-    saleMutation.mutate({ session_id: sessionId, items, payments });
+    saleMutation.mutate({ session_id: sessionId, items, payments: paymentInputs });
   }
 
   const errorMessage = saleMutation.error
@@ -503,74 +544,116 @@ function PaymentModal({
           <div className="text-3xl font-bold text-primary">${total.toFixed(2)}</div>
         </div>
 
-        {/* Payment method */}
-        <div className="grid gap-1.5">
-          <span className="text-sm font-medium text-neutral-text-primary">Forma de pago</span>
-          <div className="flex gap-2">
-            {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
-              <button
-                className={`flex-1 rounded-md border px-3 py-2.5 text-sm font-medium transition-colors ${
-                  method === m
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-neutral-border text-neutral-text-secondary hover:border-primary/50"
-                }`}
-                key={m}
-                onClick={() => setMethod(m)}
-                type="button"
-              >
-                {m.charAt(0).toUpperCase() + m.slice(1)}
-              </button>
-            ))}
+        {/* Payment entries */}
+        <div className="grid gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-neutral-text-primary">Pagos</span>
+            <button
+              className="text-xs font-medium text-primary hover:underline"
+              onClick={addPayment}
+              type="button"
+            >
+              + Agregar pago
+            </button>
           </div>
+
+          {payments.map((payment, index) => (
+            <div
+              className="rounded-md border border-neutral-border bg-neutral-surface p-3"
+              key={payment.id}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-neutral-text-secondary">
+                  Pago {index + 1}
+                </span>
+                {payments.length > 1 ? (
+                  <button
+                    className="text-neutral-text-secondary hover:text-danger"
+                    onClick={() => removePayment(payment.id)}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" size={14} />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Method selector */}
+              <div className="mb-2 flex gap-1.5">
+                {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
+                  <button
+                    className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
+                      payment.method === m
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-neutral-border text-neutral-text-secondary hover:border-primary/50"
+                    }`}
+                    key={m}
+                    onClick={() => updatePayment(payment.id, "method", m)}
+                    type="button"
+                  >
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Amount */}
+              <Input
+                label="Monto"
+                name={`amount_${payment.id}`}
+                onChange={(e) => updatePayment(payment.id, "amount", e.target.value)}
+                type="number"
+                value={payment.amount}
+              />
+
+              {/* Reference for non-cash */}
+              {payment.method !== "efectivo" ? (
+                <div className="mt-2">
+                  <Input
+                    label="Referencia"
+                    name={`ref_${payment.id}`}
+                    onChange={(e) => updatePayment(payment.id, "reference", e.target.value)}
+                    placeholder="No. autorizacion"
+                    value={payment.reference}
+                  />
+                </div>
+              ) : null}
+
+              {/* Quick cash buttons for efectivo */}
+              {payment.method === "efectivo" ? (
+                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  {[50, 100, 200, 500].map((amount) => (
+                    <button
+                      className="rounded border border-neutral-border py-1 text-xs font-medium transition-colors hover:border-primary hover:bg-primary/5"
+                      key={amount}
+                      onClick={() => updatePayment(payment.id, "amount", String(amount))}
+                      type="button"
+                    >
+                      ${amount}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
         </div>
 
-        {/* Cash input */}
-        {method === "efectivo" ? (
-          <div className="grid gap-3">
-            <Input
-              label="Efectivo recibido"
-              name="cash_received"
-              onChange={(e) => setCashReceived(e.target.value)}
-              type="number"
-              value={cashReceived}
-            />
-            {change > 0 ? (
-              <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-center">
-                <span className="text-sm text-green-700">Cambio: </span>
-                <span className="font-mono text-lg font-bold text-green-800">${change.toFixed(2)}</span>
-              </div>
-            ) : null}
-            {!isPaymentSufficient ? (
-              <div className="text-center text-sm font-medium text-danger">
-                Monto insuficiente (faltan ${(total - cashReceivedNum).toFixed(2)})
-              </div>
-            ) : null}
+        {/* Balance summary */}
+        <div className="rounded-md border border-neutral-border bg-neutral-bg px-3 py-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-neutral-text-secondary">Total pagos</span>
+            <span className="font-mono font-medium">${paidTotal.toFixed(2)}</span>
           </div>
-        ) : (
-          <Input
-            label="Referencia (opcional)"
-            name="reference"
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="No. de autorizacion / referencia"
-            value={reference}
-          />
-        )}
-
-        {/* Quick cash buttons */}
-        {method === "efectivo" ? (
-          <div className="grid grid-cols-4 gap-2">
-            {[50, 100, 200, 500].map((amount) => (
-              <button
-                className="rounded-md border border-neutral-border py-2 text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5"
-                key={amount}
-                onClick={() => setCashReceived(String(amount))}
-                type="button"
-              >
-                ${amount}
-              </button>
-            ))}
-          </div>
-        ) : null}
+          {remaining > 0 ? (
+            <div className="flex justify-between text-sm text-danger">
+              <span>Falta</span>
+              <span className="font-mono font-medium">${remaining.toFixed(2)}</span>
+            </div>
+          ) : cashChange > 0 ? (
+            <div className="flex justify-between text-sm text-green-700">
+              <span>Cambio</span>
+              <span className="font-mono font-bold">${cashChange.toFixed(2)}</span>
+            </div>
+          ) : null}
+        </div>
 
         {errorMessage ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">{errorMessage}</div>
