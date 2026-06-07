@@ -31,21 +31,6 @@ PERMISSION_CODES = {
 }
 
 
-def _truncate_test_tables():
-    """Clean test tables using autocommit so PostgreSQL releases locks promptly."""
-    tables = ",".join(
-        f'"{table.name}"' for table in reversed(_db.metadata.sorted_tables)
-    )
-    if not tables:
-        return
-
-    _db.session.remove()
-    with _db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        conn.execute(_db.text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
-        conn.execute(_db.text("ALTER SEQUENCE IF EXISTS sale_folio_seq RESTART WITH 1"))
-        conn.execute(_db.text("ALTER SEQUENCE IF EXISTS purchase_order_folio_seq RESTART WITH 1"))
-
-
 @pytest.fixture(scope="session")
 def flask_app():
     application = create_app(TestConfig)
@@ -63,7 +48,7 @@ def flask_app():
     yield application
     with application.app_context():
         _db.session.remove()
-        _db.engine.dispose()
+        _db.drop_all()
 
 
 @pytest.fixture(autouse=True)
@@ -74,10 +59,15 @@ def db_session(flask_app):
     with drop_all() when the schema has many cross-table foreign keys.
     """
     with flask_app.app_context():
-        _truncate_test_tables()
         yield _db
-        _db.session.rollback()
         _db.session.remove()
+        # TRUNCATE CASCADE handles FK ordering automatically
+        tables = ",".join(
+            f'"{t.name}"' for t in reversed(_db.metadata.sorted_tables)
+        )
+        if tables:
+            _db.session.execute(_db.text(f"TRUNCATE TABLE {tables} CASCADE"))
+            _db.session.commit()
 
 
 @pytest.fixture
