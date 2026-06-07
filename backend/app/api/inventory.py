@@ -1,15 +1,21 @@
-"""Inventory API — stock consultation, adjustments, and movement history."""
+"""Inventory API — stock consultation, adjustments, movement history, and physical counts."""
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db
-from app.models.inventory import Stock
+from app.models.inventory import InventoryCount, Stock
 from app.models.product import Product
 from app.schemas.inventory import (
+    InventoryCountCaptureSchema,
+    InventoryCountCreateSchema,
+    InventoryCountItemSchema,
+    InventoryCountListSchema,
+    InventoryCountSchema,
     StockAdjustSchema,
     StockMovementSchema,
     StockSchema,
 )
+from app.services.inventory_count_service import InventoryCountService
 from app.services.inventory_service import InventoryService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
@@ -20,6 +26,11 @@ stock_schema = StockSchema()
 stocks_schema = StockSchema(many=True)
 movements_schema = StockMovementSchema(many=True)
 adjust_schema = StockAdjustSchema()
+count_create_schema = InventoryCountCreateSchema()
+count_capture_schema = InventoryCountCaptureSchema()
+count_schema = InventoryCountSchema()
+count_item_schema = InventoryCountItemSchema()
+count_list_schema = InventoryCountListSchema(many=True)
 
 
 @inventory_bp.route("/stock", methods=["GET"])
@@ -115,3 +126,86 @@ def list_movements(product_id):
 
     movements = InventoryService.get_movements(product_id, limit=limit)
     return jsonify(movements_schema.dump(movements)), 200
+
+
+# --- Physical Inventory Count ---
+
+
+@inventory_bp.route("/counts", methods=["POST"])
+@require_permission("inventario:ajustar")
+def create_count():
+    """Create a new physical inventory count, pre-populated with all active products."""
+    data = count_create_schema.load(request.get_json(silent=True) or {})
+    user_id = int(get_jwt_identity())
+
+    try:
+        count = InventoryCountService.create_count(
+            user_id=user_id,
+            notes=data.get("notes"),
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(count_schema.dump(count)), 201
+
+
+@inventory_bp.route("/counts", methods=["GET"])
+@require_permission("inventario:ver")
+def list_counts():
+    """List inventory counts with pagination."""
+    query = InventoryCount.query.order_by(InventoryCount.created_at.desc())
+    return jsonify(paginate(query, count_list_schema)), 200
+
+
+@inventory_bp.route("/counts/<int:count_id>", methods=["GET"])
+@require_permission("inventario:ver")
+def get_count(count_id):
+    """Get inventory count detail including all items."""
+    count = InventoryCountService.get_count(count_id)
+    if not count:
+        return jsonify({"error": "Conteo no encontrado"}), 404
+    return jsonify(count_schema.dump(count)), 200
+
+
+@inventory_bp.route("/counts/<int:count_id>/items/<int:product_id>", methods=["PATCH"])
+@require_permission("inventario:ajustar")
+def capture_count_item(count_id, product_id):
+    """Record the physical count for a specific product in a count."""
+    data = count_capture_schema.load(request.get_json(silent=True) or {})
+    try:
+        item = InventoryCountService.capture_item(
+            count_id=count_id,
+            product_id=product_id,
+            counted_quantity=data["counted_quantity"],
+            notes=data.get("notes"),
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(count_item_schema.dump(item)), 200
+
+
+@inventory_bp.route("/counts/<int:count_id>/close", methods=["POST"])
+@require_permission("inventario:ajustar")
+def close_count(count_id):
+    """Close a count and auto-adjust stock for items with differences."""
+    user_id = int(get_jwt_identity())
+    try:
+        count = InventoryCountService.close_count(count_id, user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(count_schema.dump(count)), 200
+
+
+@inventory_bp.route("/counts/<int:count_id>/cancel", methods=["POST"])
+@require_permission("inventario:ajustar")
+def cancel_count(count_id):
+    """Cancel a count without applying any adjustments."""
+    user_id = int(get_jwt_identity())
+    try:
+        count = InventoryCountService.cancel_count(count_id, user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(count_schema.dump(count)), 200

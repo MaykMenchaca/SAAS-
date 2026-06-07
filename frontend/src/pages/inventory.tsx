@@ -2,7 +2,8 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { AlertTriangle, ArrowDownUp, Boxes, Package, Search } from "lucide-react";
+import { AlertTriangle, ArrowDownUp, Boxes, ClipboardList, Package, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import type { StockAdjustPayload, StockItem, StockMovement } from "../api/inventory";
 import { adjustStock, listMovements, listStock } from "../api/inventory";
@@ -40,6 +41,11 @@ export function InventoryPage() {
           <h1 className="text-2xl font-bold text-neutral-text-primary">Inventario</h1>
           <p className="text-sm text-neutral-text-secondary">Stock actual y movimientos</p>
         </div>
+        <Link to="/inventario/conteo">
+          <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
+            Conteo fisico
+          </Button>
+        </Link>
       </div>
 
       {/* Search + Table */}
