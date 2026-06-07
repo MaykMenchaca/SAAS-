@@ -2,10 +2,12 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Minus, Plus, Search, ShoppingCart, X } from "lucide-react";
+import { Minus, Plus, Printer, ReceiptText, Search, ShoppingCart, X } from "lucide-react";
 
 import type { Product } from "../api/products";
 import { listProducts } from "../api/products";
+import { previewSaleTicket, printSaleTicket } from "../api/printing";
+import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
 import { createSale, listSessions, openCashRegister } from "../api/sales";
 import { Badge, Button, Card, Input, Modal } from "../components/ui";
@@ -123,7 +125,8 @@ function PosTerminal() {
   const addToCart = usePosStore((s) => s.addToCart);
   const clearSession = usePosStore((s) => s.clearSession);
   const [showPayment, setShowPayment] = useState(false);
-  const [lastSale, setLastSale] = useState<{ folio: string; total: string } | null>(null);
+  const [lastSale, setLastSale] = useState<Sale | null>(null);
+  const [ticketSaleId, setTicketSaleId] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const totals = getCartTotals(cart);
@@ -214,8 +217,8 @@ function PosTerminal() {
       {showPayment ? (
         <PaymentModal
           onClose={() => setShowPayment(false)}
-          onSuccess={(folio, total) => {
-            setLastSale({ folio, total });
+          onSuccess={(sale) => {
+            setLastSale(sale);
             setShowPayment(false);
           }}
           sessionId={sessionId}
@@ -233,6 +236,14 @@ function PosTerminal() {
                 Folio: {lastSale.folio} — Total: ${lastSale.total}
               </div>
             </div>
+            <Button
+              aria-label={`Ver ticket ${lastSale.folio}`}
+              className="h-11 w-11 border-green-300 bg-white px-0 text-green-800 hover:bg-green-100"
+              onClick={() => setTicketSaleId(lastSale.id)}
+              variant="secondary"
+            >
+              <ReceiptText aria-hidden="true" size={17} />
+            </Button>
             <button
               className="text-green-600 hover:text-green-800"
               onClick={() => setLastSale(null)}
@@ -243,6 +254,8 @@ function PosTerminal() {
           </div>
         </div>
       ) : null}
+
+      {ticketSaleId ? <TicketPreviewModal onClose={() => setTicketSaleId(null)} saleId={ticketSaleId} /> : null}
     </div>
   );
 }
@@ -414,7 +427,7 @@ function PaymentModal({
   sessionId: number;
   total: number;
   onClose: () => void;
-  onSuccess: (folio: string, total: string) => void;
+  onSuccess: (sale: Sale) => void;
 }) {
   const cart = usePosStore((s) => s.cart);
   const clearCart = usePosStore((s) => s.clearCart);
@@ -433,7 +446,7 @@ function PaymentModal({
     onSuccess: async (sale) => {
       clearCart();
       await queryClient.invalidateQueries({ queryKey: ["stock"] });
-      onSuccess(sale.folio, sale.total);
+      onSuccess(sale);
     },
   });
 
@@ -561,6 +574,74 @@ function PaymentModal({
 
         {errorMessage ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">{errorMessage}</div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function TicketPreviewModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
+  const [printError, setPrintError] = useState("");
+  const ticketQuery = useQuery({
+    queryKey: ["sale-ticket", saleId],
+    queryFn: () => previewSaleTicket(saleId),
+  });
+
+  const printMutation = useMutation({
+    mutationFn: () => printSaleTicket(saleId),
+    onMutate: () => setPrintError(""),
+    onError: (error) => {
+      if (error instanceof AxiosError) {
+        setPrintError(error.response?.data?.error ?? "No se pudo imprimir el ticket.");
+      } else {
+        setPrintError("No se pudo imprimir el ticket.");
+      }
+    },
+  });
+
+  return (
+    <Modal
+      footer={
+        <>
+          <Button onClick={onClose} variant="secondary">
+            Cerrar
+          </Button>
+          <Button
+            disabled={ticketQuery.isLoading || printMutation.isPending}
+            icon={<Printer aria-hidden="true" size={17} />}
+            onClick={() => printMutation.mutate()}
+          >
+            {printMutation.isPending ? "Enviando" : "Imprimir"}
+          </Button>
+        </>
+      }
+      onClose={onClose}
+      open
+      title="Ticket de venta"
+    >
+      <div className="grid gap-3">
+        {ticketQuery.isLoading ? (
+          <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando ticket...</p>
+        ) : ticketQuery.error ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+            No se pudo cargar el ticket.
+          </div>
+        ) : (
+          <pre className="max-h-96 overflow-auto rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-xs leading-relaxed text-neutral-text-primary">
+            {ticketQuery.data?.content}
+          </pre>
+        )}
+
+        {printMutation.data?.sent ? (
+          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">
+            Ticket enviado a impresora.
+          </div>
+        ) : null}
+
+        {printError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+            {printError}
+          </div>
         ) : null}
       </div>
     </Modal>
