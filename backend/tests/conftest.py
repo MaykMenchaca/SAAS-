@@ -40,6 +40,9 @@ def flask_app():
         _db.session.execute(
             _db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1")
         )
+        _db.session.execute(
+            _db.text("CREATE SEQUENCE IF NOT EXISTS purchase_order_folio_seq START 1")
+        )
         _db.session.commit()
     yield application
     with application.app_context():

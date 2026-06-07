@@ -187,8 +187,9 @@ def seed_command():
     seed_units()
     seed_cash_register()
 
-    # Create folio sequence if it doesn't exist
+    # Create folio sequences if they don't exist
     db.session.execute(db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1"))
+    db.session.execute(db.text("CREATE SEQUENCE IF NOT EXISTS purchase_order_folio_seq START 1"))
 
     db.session.commit()
     click.echo("Listo.")

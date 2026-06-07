@@ -1,14 +1,20 @@
 """Purchases API — supplier CRUD and purchase order management."""
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db
-from app.models.purchase import Supplier
+from app.models.purchase import PurchaseOrder, Supplier
 from app.schemas.purchase import (
+    PurchaseOrderCreateSchema,
+    PurchaseOrderListSchema,
+    PurchaseOrderSchema,
     SupplierCreateSchema,
     SupplierSchema,
     SupplierUpdateSchema,
 )
+from app.services.purchase_order_service import PurchaseOrderService
 from app.utils.decorators import require_permission
+from app.utils.pagination import paginate
 
 purchases_bp = Blueprint("purchases", __name__)
 
@@ -16,6 +22,9 @@ supplier_create_schema = SupplierCreateSchema()
 supplier_update_schema = SupplierUpdateSchema()
 supplier_schema = SupplierSchema()
 suppliers_schema = SupplierSchema(many=True)
+po_create_schema = PurchaseOrderCreateSchema()
+po_schema = PurchaseOrderSchema()
+po_list_schema = PurchaseOrderListSchema(many=True)
 
 
 # --- Supplier endpoints ---
@@ -87,3 +96,72 @@ def deactivate_supplier(supplier_id):
     db.session.commit()
 
     return jsonify(supplier_schema.dump(supplier)), 200
+
+
+# --- Purchase Order endpoints ---
+
+
+@purchases_bp.route("/orders", methods=["POST"])
+@require_permission("compras:crear")
+def create_order():
+    """Create a new purchase order."""
+    data = po_create_schema.load(request.get_json(silent=True) or {})
+    user_id = int(get_jwt_identity())
+
+    try:
+        order = PurchaseOrderService.create_order(
+            user_id=user_id,
+            supplier_id=data["supplier_id"],
+            items=data["items"],
+            notes=data.get("notes"),
+            expected_date=data.get("expected_date"),
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(po_schema.dump(order)), 201
+
+
+@purchases_bp.route("/orders", methods=["GET"])
+@require_permission("compras:ver")
+def list_orders():
+    """List purchase orders with pagination."""
+    query = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc())
+
+    status = request.args.get("status")
+    if status:
+        query = query.filter(PurchaseOrder.status == status)
+
+    return jsonify(paginate(query, po_list_schema)), 200
+
+
+@purchases_bp.route("/orders/<int:order_id>", methods=["GET"])
+@require_permission("compras:ver")
+def get_order(order_id):
+    """Get purchase order detail including items."""
+    order = PurchaseOrderService.get_order(order_id)
+    if not order:
+        return jsonify({"error": "Orden de compra no encontrada"}), 404
+    return jsonify(po_schema.dump(order)), 200
+
+
+@purchases_bp.route("/orders/<int:order_id>/send", methods=["POST"])
+@require_permission("compras:editar")
+def send_order(order_id):
+    """Mark a draft order as sent."""
+    try:
+        order = PurchaseOrderService.send_order(order_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(po_schema.dump(order)), 200
+
+
+@purchases_bp.route("/orders/<int:order_id>/cancel", methods=["POST"])
+@require_permission("compras:editar")
+def cancel_order(order_id):
+    """Cancel a purchase order."""
+    try:
+        order = PurchaseOrderService.cancel_order(order_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(po_schema.dump(order)), 200
