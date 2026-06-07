@@ -12,6 +12,7 @@ def register_blueprints(app):
         ("app.api.cash_register", "cash_register_bp", "/api/cash-register"),
         ("app.api.purchases", "purchases_bp", "/api/purchases"),
         ("app.api.reports", "reports_bp", "/api/reports"),
+        ("app.api.printing", "printing_bp", "/api/printing"),
         ("app.api.config", "config_bp", "/api/config"),
     ]
 
