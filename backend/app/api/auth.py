@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
+from app.services.audit_service import log_action
 from app.services.auth_service import AuthService
 
 auth_bp = Blueprint("auth", __name__)
@@ -16,7 +17,18 @@ def login():
 
     result = AuthService.authenticate(username, password)
     if result:
+        log_action(
+            action="login",
+            entity_type="user",
+            entity_id=result["user"]["id"],
+            user_id=result["user"]["id"],
+            username=result["user"]["username"],
+        )
         return jsonify(result), 200
+    log_action(
+        action="login_failed",
+        details={"username": username},
+    )
     return jsonify({"error": "Credenciales invalidas"}), 401
 
 
@@ -41,4 +53,5 @@ def refresh():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required()
 def logout():
+    log_action(action="logout", entity_type="user")
     return jsonify({"message": "Sesion cerrada"}), 200

@@ -10,6 +10,7 @@ from app.schemas.sale import (
     SaleReturnSchema,
     SaleSchema,
 )
+from app.services.audit_service import log_action
 from app.services.sale_service import SaleService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
@@ -43,6 +44,13 @@ def create_sale():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+    log_action(
+        action="create",
+        entity_type="sale",
+        entity_id=sale.id,
+        details={"folio": sale.folio, "total": str(sale.total)},
+    )
+
     return jsonify(sale_schema.dump(sale)), 201
 
 
@@ -62,6 +70,13 @@ def cancel_sale(sale_id):
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+    log_action(
+        action="cancel",
+        entity_type="sale",
+        entity_id=sale.id,
+        details={"folio": sale.folio, "reason": data["reason"]},
+    )
 
     return jsonify(sale_schema.dump(sale)), 200
 

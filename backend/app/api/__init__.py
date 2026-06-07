@@ -14,6 +14,7 @@ def register_blueprints(app):
         ("app.api.reports", "reports_bp", "/api/reports"),
         ("app.api.printing", "printing_bp", "/api/printing"),
         ("app.api.config", "config_bp", "/api/config"),
+        ("app.api.audit", "audit_bp", "/api/audit"),
     ]
 
     for module_path, bp_name, prefix in _BLUEPRINTS:
