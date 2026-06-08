@@ -48,7 +48,22 @@ def test_format_price_label_includes_price_and_barcode(db, seed_product_for_sale
     assert "Martillo" in label
     assert "POS-001" in label
     assert "$149.90" in label
+    assert "CODIGO 750100000001" in label
     assert "750100000001" in label
+    assert "\x1dkI" in label
+    assert "{B750100000001" in label
+
+
+def test_format_price_label_falls_back_to_sku_barcode(db, seed_product_for_sale):
+    from app.services.printer_service import PrinterService
+
+    seed_product_for_sale.barcode = None
+    db.session.flush()
+
+    label = PrinterService.format_price_label(seed_product_for_sale)
+
+    assert "CODIGO POS-001" in label
+    assert "{BPOS-001" in label
 
 
 def test_send_to_printer_writes_cp437_bytes(tmp_path):

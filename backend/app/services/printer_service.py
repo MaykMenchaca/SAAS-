@@ -69,9 +69,9 @@ class PrinterService:
 
     @staticmethod
     def format_price_label(product: Product, business_name: str | None = None) -> str:
-        """Create a compact product price label with SKU/barcode text."""
+        """Create a compact product price label with an ESC/POS Code 128 barcode."""
         name = business_name or os.getenv("BUSINESS_NAME", "POS Local")
-        code = product.barcode or product.sku
+        code = PrinterService._barcode_value(product.barcode or product.sku)
         lines = [
             PrinterService._center(name),
             PrinterService._line(),
@@ -79,7 +79,8 @@ class PrinterService:
             PrinterService._kv("SKU", product.sku),
             PrinterService._center(f"${PrinterService._decimal(product.sale_price):.2f}"),
             PrinterService._line(),
-            PrinterService._center(f"BARCODE {code}"),
+            PrinterService._center(f"CODIGO {code}"),
+            PrinterService._barcode_command(code),
             "",
         ]
         return "\n".join(lines)
@@ -128,3 +129,23 @@ class PrinterService:
     def _qty(value) -> str:
         normalized = PrinterService._decimal(value).normalize()
         return format(normalized, "f")
+
+    @staticmethod
+    def _barcode_value(value: str | None) -> str:
+        """Return a printable Code 128-B value supported by ESC/POS printers."""
+        raw_value = str(value or "").strip()
+        sanitized = "".join(char for char in raw_value if 32 <= ord(char) <= 126)
+        return sanitized[:80] or "NO-CODE"
+
+    @staticmethod
+    def _barcode_command(value: str) -> str:
+        """Build an ESC/POS Code 128 barcode command with HRI text below."""
+        payload = "{B" + value
+        if len(payload) > 255:
+            payload = payload[:255]
+        return (
+            "\x1dH\x02"  # Print human-readable text below the barcode.
+            "\x1dhP"  # Barcode height: 80 dots.
+            "\x1dw\x02"  # Barcode module width: 2.
+            "\x1dkI" + chr(len(payload)) + payload
+        )
