@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import {
+  CheckCircle2,
   Database,
   Download,
   HardDrive,
@@ -15,7 +16,7 @@ import {
 import type { AuditLog } from "../api/audit";
 import { listAuditLogs } from "../api/audit";
 import type { BackupEntry, ConfigMap } from "../api/config";
-import { createBackup, deleteBackup, getConfig, listBackups, updateConfig } from "../api/config";
+import { createBackup, deleteBackup, getConfig, listBackups, updateConfig, verifyBackup } from "../api/config";
 import { Badge, Button, Card, Input, Modal, Table, tableCellClass, tableHeadClass, Toast } from "../components/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -326,6 +327,7 @@ function AuditTab() {
 function BackupsTab() {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
 
   const backupsQuery = useQuery({
     queryKey: ["backups"],
@@ -344,6 +346,16 @@ function BackupsTab() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["backups"] });
       setConfirmDelete(null);
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: verifyBackup,
+    onSuccess: (result) => {
+      setVerifyMessage(`Backup verificado: ${result.filename} (${result.entries} entradas).`);
+    },
+    onError: () => {
+      setVerifyMessage("No se pudo verificar el backup.");
     },
   });
 
@@ -378,6 +390,10 @@ function BackupsTab() {
         <Toast tone="success">Backup creado correctamente.</Toast>
       ) : null}
 
+      {verifyMessage ? (
+        <Toast tone={verifyMutation.isError ? "danger" : "success"}>{verifyMessage}</Toast>
+      ) : null}
+
       <Card className="overflow-hidden">
         <Table>
           <thead>
@@ -410,14 +426,28 @@ function BackupsTab() {
                   })}
                 </td>
                 <td className={tableCellClass}>
-                  <Button
-                    aria-label={`Eliminar ${backup.filename}`}
-                    className="h-11 w-11 px-0"
-                    onClick={() => setConfirmDelete(backup.filename)}
-                    variant="danger"
-                  >
-                    <Trash2 aria-hidden="true" size={17} />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      aria-label={`Verificar ${backup.filename}`}
+                      className="h-11 w-11 px-0"
+                      disabled={verifyMutation.isPending}
+                      onClick={() => {
+                        setVerifyMessage(null);
+                        verifyMutation.mutate(backup.filename);
+                      }}
+                      variant="secondary"
+                    >
+                      <CheckCircle2 aria-hidden="true" size={17} />
+                    </Button>
+                    <Button
+                      aria-label={`Eliminar ${backup.filename}`}
+                      className="h-11 w-11 px-0"
+                      onClick={() => setConfirmDelete(backup.filename)}
+                      variant="danger"
+                    >
+                      <Trash2 aria-hidden="true" size={17} />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

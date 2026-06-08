@@ -13,6 +13,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "jwt-dev-secret")
     JWT_ACCESS_TOKEN_EXPIRES = 28800  # 8 horas
+    BACKUP_DIR = os.getenv("BACKUP_DIR", "backups")
+    USB_BACKUP_DIR = os.getenv("USB_BACKUP_DIR")
     JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 días
 
 

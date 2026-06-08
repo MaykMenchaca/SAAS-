@@ -1,5 +1,6 @@
 """Backup service — pg_dump wrapper for database backups."""
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,21 @@ def _get_backup_dir() -> Path:
         backup_dir = Path(current_app.root_path).parent / backup_dir
     backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir
+
+
+def _get_usb_backup_dir() -> Path | None:
+    """Return the optional USB backup directory when it is mounted."""
+    configured = current_app.config.get("USB_BACKUP_DIR") or os.getenv("USB_BACKUP_DIR")
+    if not configured:
+        return None
+
+    usb_dir = Path(configured)
+    if not usb_dir.exists() or not usb_dir.is_dir():
+        return None
+
+    target_dir = usb_dir / "pos-system-backups"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return target_dir
 
 
 def _parse_db_url() -> dict:
@@ -81,13 +97,29 @@ def create_backup() -> dict:
         raise RuntimeError(f"pg_dump fallo: {result.stderr.strip()}")
 
     size = filepath.stat().st_size
+    usb_copy = copy_backup_to_usb(filepath)
 
     return {
         "filename": filename,
         "path": str(filepath),
+        "size": size,
         "size_bytes": size,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "usb_copied": usb_copy is not None,
+        "usb_path": str(usb_copy) if usb_copy else None,
     }
+
+
+def copy_backup_to_usb(filepath: str | os.PathLike) -> Path | None:
+    """Copy a backup to the configured USB directory if it is mounted."""
+    source = Path(filepath)
+    usb_dir = _get_usb_backup_dir()
+    if usb_dir is None:
+        return None
+
+    destination = usb_dir / source.name
+    shutil.copy2(source, destination)
+    return destination
 
 
 def list_backups() -> list:
@@ -99,6 +131,7 @@ def list_backups() -> list:
         stat = f.stat()
         backups.append({
             "filename": f.name,
+            "size": stat.st_size,
             "size_bytes": stat.st_size,
             "created_at": datetime.fromtimestamp(
                 stat.st_mtime, tz=timezone.utc
@@ -110,15 +143,59 @@ def list_backups() -> list:
 
 def delete_backup(filename: str) -> bool:
     """Delete a backup file by name. Returns True if deleted."""
-    backup_dir = _get_backup_dir()
-    filepath = backup_dir / filename
-
-    # Prevent path traversal
-    if filepath.parent.resolve() != backup_dir.resolve():
-        raise ValueError("Nombre de archivo invalido")
+    filepath = _resolve_backup_path(filename)
 
     if not filepath.exists():
         return False
 
     filepath.unlink()
     return True
+
+
+def verify_backup(filename: str) -> dict:
+    """Verify that a backup archive can be read by pg_restore."""
+    filepath = _resolve_backup_path(filename)
+    if not filepath.exists():
+        raise FileNotFoundError("Backup no encontrado")
+
+    cmd = ["pg_restore", "--list", str(filepath)]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            "pg_restore no encontrado. Asegurate de que PostgreSQL client tools esten instalados."
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("La verificacion del backup tardo mas de 2 minutos.")
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Verificacion fallo: {result.stderr.strip()}")
+
+    entries = [
+        line for line in result.stdout.splitlines()
+        if line.strip() and not line.lstrip().startswith(";")
+    ]
+
+    return {
+        "filename": filepath.name,
+        "verified": True,
+        "entries": len(entries),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _resolve_backup_path(filename: str) -> Path:
+    """Resolve a backup filename while preventing path traversal."""
+    backup_dir = _get_backup_dir()
+    filepath = backup_dir / filename
+
+    if filepath.parent.resolve() != backup_dir.resolve():
+        raise ValueError("Nombre de archivo invalido")
+
+    return filepath

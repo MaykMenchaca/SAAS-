@@ -52,3 +52,25 @@ def delete_backup(filename):
     )
 
     return jsonify({"message": "Backup eliminado"}), 200
+
+
+@backup_bp.route("/<filename>/verify", methods=["POST"])
+@require_role("admin")
+def verify_backup(filename):
+    """Verify that a backup file is readable before restore."""
+    try:
+        result = backup_service.verify_backup(filename)
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+
+    log_action(
+        action="verify",
+        entity_type="backup",
+        details={"filename": filename},
+    )
+
+    return jsonify(result), 200
