@@ -15,6 +15,8 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = 28800  # 8 horas
     BACKUP_DIR = os.getenv("BACKUP_DIR", "backups")
     USB_BACKUP_DIR = os.getenv("USB_BACKUP_DIR")
+    SERVE_FRONTEND = os.getenv("SERVE_FRONTEND", "false").lower() == "true"
+    FRONTEND_DIST = os.getenv("FRONTEND_DIST")
     JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 días
 
 
