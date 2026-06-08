@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, LayoutDashboard, LogOut, Package, Settings, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Boxes, Calculator, CornerDownLeft, LayoutDashboard, LogOut, Package, ReceiptText, Settings, ShoppingCart, Truck, Users } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { useAuthStore } from "../../stores/auth-store";
@@ -7,8 +7,12 @@ import { Badge, Button } from "../ui";
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/pos", icon: ShoppingCart, label: "POS" },
+  { href: "/corte-caja", icon: Calculator, label: "Corte" },
+  { href: "/ventas", icon: ReceiptText, label: "Ventas" },
+  { href: "/devoluciones", icon: CornerDownLeft, label: "Devoluciones" },
   { href: "/productos", icon: Package, label: "Productos" },
   { href: "/inventario", icon: Boxes, label: "Inventario" },
+  { href: "/compras", icon: Truck, label: "Compras" },
   { href: "/usuarios", icon: Users, label: "Usuarios" },
   { href: "/reportes", icon: BarChart3, label: "Reportes" },
   { href: "/configuracion", icon: Settings, label: "Config" },

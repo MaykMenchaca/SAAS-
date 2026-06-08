@@ -111,6 +111,24 @@ export async function listSessions() {
   return response.data;
 }
 
+export type SessionSummary = {
+  session_id: number;
+  opening_amount: string;
+  closing_amount: string | null;
+  expected_cash: string | null;
+  difference: string | null;
+  status: string;
+  sales_completed: number;
+  sales_cancelled: number;
+  grand_total: string;
+  payment_methods: Record<string, string>;
+};
+
+export async function getSessionSummary(sessionId: number) {
+  const response = await apiClient.get<SessionSummary>(`/cash-register/${sessionId}/summary`);
+  return response.data;
+}
+
 // ── Sales API ──────────────────────────────────────────────────────
 
 export async function createSale(payload: CreateSalePayload) {
@@ -132,5 +150,35 @@ export async function listSales(page = 1, perPage = 20) {
 
 export async function getSale(saleId: number) {
   const response = await apiClient.get<Sale>(`/sales/${saleId}`);
+  return response.data;
+}
+
+// ── Returns API ───────────────────────────────────────────────────
+
+export type ReturnItemInput = {
+  sale_item_id: number;
+  quantity: string;
+};
+
+export type SaleReturnItem = {
+  id: number;
+  sale_item_id: number;
+  product_id: number;
+  quantity: string;
+  refund_amount: string;
+};
+
+export type SaleReturn = {
+  id: number;
+  sale_id: number;
+  status: string;
+  reason: string;
+  refund_total: string;
+  created_at: string;
+  returned_items: SaleReturnItem[];
+};
+
+export async function returnSale(saleId: number, reason: string, items: ReturnItemInput[]) {
+  const response = await apiClient.post<SaleReturn>(`/sales/${saleId}/return`, { reason, items });
   return response.data;
 }
