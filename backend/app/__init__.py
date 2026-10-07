@@ -1,13 +1,15 @@
 from pathlib import Path
 
 from flask import Flask, abort, send_from_directory
-from app.config import Config
+from app.config import Config, validate_secrets
 from app.extensions import db, jwt, migrate, cors
 
 
 def create_app(config_class=Config):
     application = Flask(__name__)
     application.config.from_object(config_class)
+
+    validate_secrets(application)
 
     db.init_app(application)
     jwt.init_app(application)

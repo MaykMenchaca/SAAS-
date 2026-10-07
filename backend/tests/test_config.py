@@ -132,3 +132,38 @@ def test_update_config_empty_body(client, admin_token, db):
         json={},
     )
     assert response.status_code == 400
+
+
+def test_config_rechaza_secretos_debiles():
+    import pytest
+    from app import create_app
+    from app.config import Config
+
+    class ShortSecretConfig(Config):
+        SECRET_KEY = "corta"
+        JWT_SECRET_KEY = "clave-suficientemente-larga-pero-la-otra-es-corta"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(ShortSecretConfig)
+
+    class EqualSecretConfig(Config):
+        SECRET_KEY = "clave-super-secreta-larga-y-aleatoria-12345"
+        JWT_SECRET_KEY = "clave-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(EqualSecretConfig)
+
+    class DefaultSecretConfig(Config):
+        SECRET_KEY = "cambiar-en-produccion-usar-valor-aleatorio"
+        JWT_SECRET_KEY = "clave-jwt-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(DefaultSecretConfig)
+
+    class MissingSecretConfig(Config):
+        SECRET_KEY = None
+        JWT_SECRET_KEY = "clave-jwt-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(MissingSecretConfig)
+
