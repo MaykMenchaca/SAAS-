@@ -11,11 +11,18 @@ from flask import current_app
 
 def _get_backup_dir() -> Path:
     """Return the backup directory, creating it if needed."""
-    backup_dir = Path(
-        current_app.config.get("BACKUP_DIR", "backups")
-    )
-    if not backup_dir.is_absolute():
-        backup_dir = Path(current_app.root_path).parent / backup_dir
+    configured = current_app.config.get("BACKUP_DIR") or os.getenv("BACKUP_DIR")
+    if configured:
+        backup_dir = Path(configured)
+        if not backup_dir.is_absolute():
+            backup_dir = Path(current_app.root_path).parent / backup_dir
+    else:
+        program_data = os.getenv("PROGRAMDATA")
+        if program_data:
+            backup_dir = Path(program_data) / "pos-vrntas" / "backups"
+        else:
+            backup_dir = Path(current_app.root_path).parents[2] / "pos-vrntas-backups"
+
     backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir
 
