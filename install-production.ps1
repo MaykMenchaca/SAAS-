@@ -7,9 +7,22 @@ $envExample = Join-Path $backendDir ".env.example"
 Write-Host "=== POS System - Instalacion Produccion Local ===" -ForegroundColor Cyan
 
 if (-not (Test-Path -LiteralPath $envPath)) {
-    Copy-Item -LiteralPath $envExample -Destination $envPath
-    Add-Content -LiteralPath $envPath -Value "SERVE_FRONTEND=true"
-    Write-Host "[OK] backend\.env creado desde .env.example" -ForegroundColor Green
+    Write-Host "Generando backend\.env con secretos criptograficos..." -ForegroundColor Yellow
+    $pythonExe = Join-Path $backendDir "venv\Scripts\python.exe"
+    if (Test-Path $pythonExe) {
+        $secretKey = & $pythonExe -c "import secrets; print(secrets.token_urlsafe(64))"
+        $jwtSecretKey = & $pythonExe -c "import secrets; print(secrets.token_urlsafe(64))"
+    } else {
+        $secretKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+        $jwtSecretKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+    }
+
+    $content = Get-Content -LiteralPath $envExample -Raw
+    $content = $content -replace "SECRET_KEY=.*", "SECRET_KEY=$secretKey"
+    $content = $content -replace "JWT_SECRET_KEY=.*", "JWT_SECRET_KEY=$jwtSecretKey"
+    Set-Content -LiteralPath $envPath -Value $content -NoNewline
+    Add-Content -LiteralPath $envPath -Value "`nSERVE_FRONTEND=true"
+    Write-Host "[OK] backend\.env creado desde .env.example con secretos unicos" -ForegroundColor Green
 } else {
     Write-Host "[OK] backend\.env ya existe" -ForegroundColor Green
 }

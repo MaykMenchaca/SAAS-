@@ -167,3 +167,14 @@ def test_config_rechaza_secretos_debiles():
     with pytest.raises((ValueError, RuntimeError)):
         create_app(MissingSecretConfig)
 
+
+def test_install_scripts_no_usan_credenciales_hardcodeadas():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    setup_db = (root / "setup-db.ps1").read_text(encoding="utf-8")
+    install_prod = (root / "install-production.ps1").read_text(encoding="utf-8")
+
+    assert 'pos_pass' not in setup_db
+    assert 'secrets' in install_prod.lower()
+
+
