@@ -6,10 +6,12 @@ import type { PaginatedResponse } from "./products";
 export type Supplier = {
   id: number;
   name: string;
+  rfc: string | null;
   contact_name: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
+  payment_terms: string | null;
   notes: string | null;
   is_active: boolean;
   created_at: string;
@@ -17,10 +19,12 @@ export type Supplier = {
 
 export type SupplierCreatePayload = {
   name: string;
+  rfc?: string | null;
   contact_name?: string | null;
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  payment_terms?: string | null;
   notes?: string | null;
 };
 
@@ -31,9 +35,10 @@ export type PurchaseOrderItem = {
   product_id: number;
   product_name: string;
   product_sku: string;
-  quantity_ordered: string;
-  quantity_received: string;
+  quantity: string;
+  received_quantity: string;
   unit_cost: string;
+  tax_rate: string;
   subtotal: string;
 };
 
@@ -44,12 +49,13 @@ export type PurchaseOrder = {
   supplier_name: string;
   user_id: number;
   username: string;
-  status: "borrador" | "enviada" | "recibida" | "cancelada";
+  status: "borrador" | "enviada" | "parcial" | "recibida" | "cancelada";
+  subtotal: string;
+  tax_total: string;
+  total: string;
   notes: string | null;
   expected_date: string | null;
-  total: string;
   created_at: string;
-  received_at: string | null;
   items: PurchaseOrderItem[];
 };
 
@@ -57,7 +63,6 @@ export type PurchaseOrderListItem = {
   id: number;
   folio: string;
   supplier_name: string;
-  username: string;
   status: string;
   total: string;
   created_at: string;
@@ -66,32 +71,27 @@ export type PurchaseOrderListItem = {
 
 export type OrderItemInput = {
   product_id: number;
-  quantity: number;
+  quantity: string;
   unit_cost: string;
+  tax_rate?: string;
 };
 
 export type CreateOrderPayload = {
-  supplier_id: number;
+  supplier_id?: number | null;
   items: OrderItemInput[];
   notes?: string;
   expected_date?: string;
 };
 
 export type ReceiveItemInput = {
-  product_id: number;
-  quantity_received: number;
-  unit_cost: string;
+  order_item_id: number;
+  received_quantity: string;
 };
 
 // ── Supplier API ──────────────────────────────────────────────────
 
 export async function listSuppliers() {
   const response = await apiClient.get<Supplier[]>("/purchases/suppliers");
-  return response.data;
-}
-
-export async function getSupplier(supplierId: number) {
-  const response = await apiClient.get<Supplier>(`/purchases/suppliers/${supplierId}`);
   return response.data;
 }
 

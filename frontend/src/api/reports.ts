@@ -94,3 +94,19 @@ export async function fetchGrossMargin(from?: string, to?: string) {
   });
   return response.data;
 }
+
+export type DashboardSummary = {
+  sales_today: number;
+  revenue_today: string;
+  sales_week: number;
+  revenue_week: string;
+  sales_month: number;
+  revenue_month: string;
+  top_products: { name: string; quantity: string; revenue: string }[];
+  low_stock_count: number;
+};
+
+export async function fetchDashboardSummary() {
+  const response = await apiClient.get<DashboardSummary>("/reports/dashboard");
+  return response.data;
+}

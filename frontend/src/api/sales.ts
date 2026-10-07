@@ -88,7 +88,18 @@ export type CreateSalePayload = {
   payments: PaymentInput[];
 };
 
+export type CashRegisterInfo = {
+  id: number;
+  name: string;
+  is_active: boolean;
+};
+
 // ── Cash Register API ──────────────────────────────────────────────
+
+export async function listCashRegisters() {
+  const response = await apiClient.get<CashRegisterInfo[]>("/cash-register/");
+  return response.data;
+}
 
 export async function openCashRegister(cashRegisterId: number, openingAmount: string) {
   const response = await apiClient.post<CashRegisterSession>("/cash-register/open", {

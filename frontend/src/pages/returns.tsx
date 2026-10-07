@@ -6,7 +6,7 @@ import { CornerDownLeft, Search, Undo2 } from "lucide-react";
 
 import type { ReturnItemInput, SaleItem } from "../api/sales";
 import { getSale, listSales, returnSale } from "../api/sales";
-import { Badge, Button, Card, Input, Modal, Table, tableCellClass, tableHeadClass, Toast } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, Modal, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
 
 // ── Main Page ────────────────────────────────────────────────────
 
@@ -69,59 +69,66 @@ export function ReturnsPage() {
         <h2 className="text-sm font-semibold uppercase text-neutral-text-secondary">
           Ventas recientes completadas
         </h2>
-        <Card className="overflow-hidden">
-          <Table>
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Folio</th>
-                <th className={tableHeadClass}>Fecha</th>
-                <th className={tableHeadClass}>Cajero</th>
-                <th className={`${tableHeadClass} text-right`}>Total</th>
-                <th className={tableHeadClass}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentCompleted.map((sale) => (
-                <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={sale.id}>
-                  <td className={tableCellClass}>
-                    <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
-                  </td>
-                  <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                    {new Date(sale.created_at).toLocaleString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className={tableCellClass}>{sale.username}</td>
-                  <td className={`${tableCellClass} text-right font-mono font-semibold`}>
-                    ${sale.total}
-                  </td>
-                  <td className={tableCellClass}>
-                    <Button
-                      aria-label={`Devolver ${sale.folio}`}
-                      icon={<Undo2 aria-hidden="true" size={17} />}
-                      onClick={() => setSelectedSaleId(sale.id)}
-                      variant="secondary"
-                    >
-                      Devolver
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-
-              {!recentQuery.isLoading && recentCompleted.length === 0 ? (
+        {recentQuery.isLoading ? (
+          <SkeletonTable rows={6} cols={4} />
+        ) : recentQuery.isError ? (
+          <ErrorState onRetry={() => void recentQuery.refetch()} />
+        ) : (
+          <Card className="overflow-hidden">
+            <Table>
+              <caption className="sr-only">Tabla de ventas recientes</caption>
+              <thead>
                 <tr>
-                  <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={5}>
-                    <CornerDownLeft aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                    Sin ventas completadas recientes.
-                  </td>
+                  <th className={tableHeadClass}>Folio</th>
+                  <th className={tableHeadClass}>Fecha</th>
+                  <th className={tableHeadClass}>Cajero</th>
+                  <th className={`${tableHeadClass} text-right`}>Total</th>
+                  <th className={tableHeadClass}>Acciones</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </Table>
-        </Card>
+              </thead>
+              <tbody>
+                {recentCompleted.map((sale) => (
+                  <tr className={tableRowClass} key={sale.id}>
+                    <td className={tableCellClass}>
+                      <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
+                    </td>
+                    <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
+                      {new Date(sale.created_at).toLocaleString("es-MX", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className={tableCellClass}>{sale.username}</td>
+                    <td className={`${tableCellClass} text-right font-mono font-semibold`}>
+                      ${sale.total}
+                    </td>
+                    <td className={tableCellClass}>
+                      <Button
+                        aria-label={`Devolver ${sale.folio}`}
+                        icon={<Undo2 aria-hidden="true" size={17} />}
+                        onClick={() => setSelectedSaleId(sale.id)}
+                        variant="secondary"
+                      >
+                        Devolver
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+
+                {recentCompleted.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={5}>
+                      <CornerDownLeft aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
+                      Sin ventas completadas recientes.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </Table>
+          </Card>
+        )}
       </section>
 
       {/* Return modal */}
@@ -221,28 +228,28 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
 
   const returnError = returnMutation.error
     ? returnMutation.error instanceof AxiosError
-      ? returnMutation.error.response?.data?.error ?? "No se pudo procesar la devolucion."
-      : "No se pudo procesar la devolucion."
+      ? returnMutation.error.response?.data?.error ?? "No se pudo procesar la devolución."
+      : "No se pudo procesar la devolución."
     : "";
 
   return (
     <Modal
       onClose={onClose}
       open
-      title={sale ? `Devolucion — ${sale.folio}` : "Cargando..."}
+      title={sale ? `Devolución — ${sale.folio}` : "Cargando..."}
     >
       {saleQuery.isLoading ? (
         <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando venta...</p>
       ) : !sale ? (
-        <p className="py-6 text-center text-sm text-danger">No se encontro la venta.</p>
+        <p className="py-6 text-center text-sm text-danger">No se encontró la venta.</p>
       ) : sale.status === "cancelada" ? (
         <p className="py-6 text-center text-sm text-danger">
-          Esta venta esta cancelada y no admite devoluciones.
+          Esta venta está cancelada y no admite devoluciones.
         </p>
       ) : success ? (
         <div className="grid gap-4 py-4">
           <Toast tone="success">
-            Devolucion procesada correctamente. El inventario ha sido restaurado.
+            Devolución procesada correctamente. El inventario ha sido restaurado.
           </Toast>
           <div className="flex justify-end">
             <Button onClick={onClose} variant="secondary">
@@ -346,20 +353,20 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
           {selectedItems.length > 0 ? (
             <div className="rounded-md bg-neutral-text-primary px-4 py-3 text-white">
               <div className="flex justify-between">
-                <span className="text-sm text-slate-300">
+                <span className="text-sm text-neutral-text-muted">
                   {selectedItems.length} producto{selectedItems.length > 1 ? "s" : ""} a devolver
                 </span>
                 <span className="font-mono text-lg font-bold">
                   ${estimatedRefund.toFixed(2)}
                 </span>
               </div>
-              <div className="text-xs text-slate-400">Reembolso estimado (incluye impuestos)</div>
+              <div className="text-xs text-neutral-text-muted">Reembolso estimado (incluye impuestos)</div>
             </div>
           ) : null}
 
           {/* Reason */}
           <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-            <span>Razon de la devolucion</span>
+            <span>Razón de la devolución</span>
             <textarea
               className="min-h-16 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20"
               onChange={(e) => setReason(e.target.value)}
@@ -369,7 +376,7 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
           </label>
 
           {returnError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
               {returnError}
             </div>
           ) : null}
@@ -384,7 +391,7 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
               type="submit"
               variant="danger"
             >
-              {returnMutation.isPending ? "Procesando..." : "Confirmar devolucion"}
+              {returnMutation.isPending ? "Procesando..." : "Confirmar devolución"}
             </Button>
           </div>
         </form>

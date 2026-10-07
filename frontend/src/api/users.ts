@@ -63,11 +63,6 @@ export async function listUsers({
   return response.data;
 }
 
-export async function getUser(userId: number) {
-  const response = await apiClient.get<User>(`/users/${userId}`);
-  return response.data;
-}
-
 export async function createUser(payload: UserCreatePayload) {
   const response = await apiClient.post<User>("/users/", payload);
   return response.data;

@@ -23,7 +23,7 @@ import {
   getInventoryCount,
   listInventoryCounts,
 } from "../api/inventory";
-import { Badge, Button, Card, Input, Modal, Table, tableCellClass, tableHeadClass } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -75,6 +75,26 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
     return "danger";
   }
 
+  if (countsQuery.isError) {
+    return (
+      <div className="grid gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Link className="text-neutral-text-secondary hover:text-primary" to="/inventario">
+                <ArrowLeft size={20} />
+              </Link>
+              <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
+            </div>
+          </div>
+        </div>
+        <Card className="p-6">
+          <ErrorState message="No se pudieron cargar los conteos." onRetry={() => void countsQuery.refetch()} />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -83,10 +103,10 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
             <Link className="text-neutral-text-secondary hover:text-primary" to="/inventario">
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Fisicos</h1>
+            <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
           </div>
           <p className="mt-0.5 text-sm text-neutral-text-secondary">
-            Conteo de inventario fisico con ajuste automatico
+            Conteo de inventario físico con ajuste automático
           </p>
         </div>
         <Button icon={<Plus aria-hidden="true" size={18} />} onClick={() => setShowCreate(true)}>
@@ -95,7 +115,18 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
       </div>
 
       <Card className="overflow-hidden">
+        {countsQuery.isLoading ? (
+          <SkeletonTable cols={6} rows={4} />
+        ) : counts.length === 0 ? (
+          <EmptyState
+            actionLabel="Iniciar primer conteo"
+            icon={<ClipboardList aria-hidden="true" size={36} />}
+            message="No hay conteos registrados."
+            onAction={() => setShowCreate(true)}
+          />
+        ) : (
         <Table>
+          <caption className="sr-only">Tabla de conteos de inventario</caption>
           <thead>
             <tr>
               <th className={tableHeadClass}>#</th>
@@ -108,17 +139,17 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
           </thead>
           <tbody>
             {counts.map((c: InventoryCountListItem) => (
-              <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={c.id}>
+              <tr className={tableRowClass} key={c.id}>
                 <td className={`${tableCellClass} font-mono`}>{c.id}</td>
                 <td className={tableCellClass}>{c.username}</td>
                 <td className={tableCellClass}>
-                  <Badge tone={statusTone(c.status)}>{statusLabels[c.status] ?? c.status}</Badge>
+                  <Badge dot tone={statusTone(c.status)}>{statusLabels[c.status] ?? c.status}</Badge>
                 </td>
                 <td className={tableCellClass}>
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-20 overflow-hidden rounded-full bg-neutral-border">
                       <div
-                        className="h-full rounded-full bg-primary transition-all"
+                        className="h-full rounded-full bg-primary transition-[width] duration-300 ease-[var(--ease-out-strong)]"
                         style={{
                           width: c.total_items > 0 ? `${(c.counted_items / c.total_items) * 100}%` : "0%",
                         }}
@@ -145,32 +176,16 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
                 </td>
               </tr>
             ))}
-            {!countsQuery.isLoading && counts.length === 0 ? (
-              <tr>
-                <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={6}>
-                  <ClipboardList aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                  No hay conteos registrados.
-                </td>
-              </tr>
-            ) : null}
           </tbody>
         </Table>
+        )}
       </Card>
 
       {/* Pagination */}
       {totalPages > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-          <span>
-            Pagina {countsQuery.data?.page ?? page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button disabled={page <= 1} onClick={() => setPage((v) => v - 1)} variant="secondary">
-              Anterior
-            </Button>
-            <Button disabled={page >= totalPages} onClick={() => setPage((v) => v + 1)} variant="secondary">
-              Siguiente
-            </Button>
-          </div>
+          <span>Página {countsQuery.data?.page ?? page} de {totalPages}</span>
+          <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
         </div>
       ) : null}
 
@@ -222,11 +237,11 @@ function CreateCountModal({
       }
       onClose={onClose}
       open
-      title="Nuevo conteo fisico"
+      title="Nuevo conteo físico"
     >
       <div className="grid gap-4">
         <p className="text-sm text-neutral-text-secondary">
-          Se creara un conteo con todos los productos activos. El stock esperado se capturara al momento de crear el
+          Se creará un conteo con todos los productos activos. El stock esperado se capturará al momento de crear el
           conteo.
         </p>
         <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
@@ -239,7 +254,7 @@ function CreateCountModal({
           />
         </label>
         {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
             {error}
           </div>
         ) : null}
@@ -281,6 +296,23 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
   });
 
   const count = countQuery.data;
+
+  if (countQuery.isError) {
+    return (
+      <div className="grid gap-5">
+        <div className="flex items-center gap-2">
+          <button className="text-neutral-text-secondary hover:text-primary" onClick={onBack} type="button">
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-2xl font-bold text-neutral-text-primary">Conteo</h1>
+        </div>
+        <Card className="p-6">
+          <ErrorState message="No se pudo cargar el conteo." onRetry={() => void countQuery.refetch()} />
+        </Card>
+      </div>
+    );
+  }
+
   if (!count) {
     return (
       <div className="py-12 text-center text-neutral-text-secondary">
@@ -426,14 +458,15 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
       {/* Items Table */}
       <Card className="overflow-hidden">
         <Table>
+          <caption className="sr-only">Tabla de items del conteo</caption>
           <thead>
             <tr>
               <th className={tableHeadClass}>Producto</th>
-              <th className={tableHeadClass}>Esperado</th>
-              <th className={tableHeadClass}>Contado</th>
+              <th className={`${tableHeadClass} text-right`}>Esperado</th>
+              <th className={`${tableHeadClass} text-right`}>Contado</th>
               <th className={tableHeadClass}>Diferencia</th>
               <th className={tableHeadClass}>Estado</th>
-              {isActive ? <th className={tableHeadClass}>Accion</th> : null}
+              {isActive ? <th className={tableHeadClass}>Acción</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -442,13 +475,13 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
               const isCounted = item.counted_quantity !== null;
 
               return (
-                <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={item.id}>
+                <tr className={tableRowClass} key={item.id}>
                   <td className={tableCellClass}>
                     <div className="font-semibold text-neutral-text-primary">{item.product_name}</div>
                     <div className="font-mono text-xs text-neutral-text-secondary">{item.product_sku}</div>
                   </td>
-                  <td className={`${tableCellClass} font-mono`}>{item.expected_quantity}</td>
-                  <td className={`${tableCellClass} font-mono font-semibold`}>
+                  <td className={`${tableCellClass} text-right font-mono`}>{item.expected_quantity}</td>
+                  <td className={`${tableCellClass} text-right font-mono font-semibold`}>
                     {isCounted ? item.counted_quantity : <span className="text-neutral-text-secondary">---</span>}
                   </td>
                   <td className={tableCellClass}>
@@ -522,7 +555,7 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
         >
           <div className="grid gap-3">
             <p className="text-sm text-neutral-text-secondary">
-              Al cerrar el conteo, el stock se ajustara automaticamente para los productos contados con diferencias.
+              Al cerrar el conteo, el stock se ajustará automáticamente para los productos contados con diferencias.
             </p>
             <div className="rounded-md border border-neutral-border bg-neutral-bg px-3 py-2 text-sm">
               <span className="text-neutral-text-secondary">Productos contados: </span>
@@ -533,12 +566,12 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
               <span className="font-semibold">{itemsWithDiff}</span>
             </div>
             {totalItems - countedItems > 0 ? (
-              <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
-                {totalItems - countedItems} producto(s) sin contar no seran ajustados.
+              <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                {totalItems - countedItems} producto(s) sin contar no serán ajustados.
               </div>
             ) : null}
             {closeMutation.error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+              <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
                 {closeMutation.error instanceof AxiosError
                   ? closeMutation.error.response?.data?.error
                   : "Error al cerrar conteo"}
@@ -566,10 +599,10 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
           title="Cancelar conteo"
         >
           <p className="text-sm text-neutral-text-secondary">
-            Se cancelara el conteo sin aplicar ningun ajuste de stock. Esta accion no se puede deshacer.
+            Se cancelará el conteo sin aplicar ningún ajuste de stock. Esta acción no se puede deshacer.
           </p>
           {cancelMutation.error ? (
-            <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+            <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
               {cancelMutation.error instanceof AxiosError
                 ? cancelMutation.error.response?.data?.error
                 : "Error al cancelar conteo"}
@@ -667,8 +700,8 @@ function CaptureModal({
           <div
             className={`rounded-md border px-3 py-2 text-sm font-medium ${
               parseFloat(quantity) === parseFloat(item.expected_quantity)
-                ? "border-green-200 bg-green-50 text-green-800"
-                : "border-yellow-200 bg-yellow-50 text-yellow-800"
+                ? "border-success/30 bg-success/10 text-success"
+                : "border-warning/30 bg-warning/10 text-warning"
             }`}
           >
             Diferencia:{" "}
@@ -679,7 +712,7 @@ function CaptureModal({
         ) : null}
 
         {errorMessage ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
             {errorMessage}
           </div>
         ) : null}

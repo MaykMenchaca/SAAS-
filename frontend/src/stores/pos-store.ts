@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+import type { CreateSalePayload } from "../api/sales";
 
 export type CartItem = {
   product_id: number;
@@ -15,6 +18,7 @@ type PosState = {
   sessionId: number | null;
   sessionName: string | null;
   cart: CartItem[];
+  offlineSalesQueue: CreateSalePayload[];
   setSession: (id: number, name: string) => void;
   clearSession: () => void;
   addToCart: (item: Omit<CartItem, "quantity" | "discount_percent"> & { quantity?: number; discount_percent?: string }) => void;
@@ -22,6 +26,8 @@ type PosState = {
   updateDiscount: (productId: number, discount: string) => void;
   removeFromCart: (productId: number) => void;
   clearCart: () => void;
+  addOfflineSale: (sale: CreateSalePayload) => void;
+  removeOfflineSale: (index: number) => void;
 };
 
 function calcLineTotal(item: CartItem): number {
@@ -62,65 +68,83 @@ export function getCartTotals(cart: CartItem[]) {
   };
 }
 
-export const usePosStore = create<PosState>((set, get) => ({
-  sessionId: null,
-  sessionName: null,
-  cart: [],
+export const usePosStore = create<PosState>()(
+  persist(
+    (set, get) => ({
+      sessionId: null,
+      sessionName: null,
+      cart: [],
+      offlineSalesQueue: [],
 
-  setSession: (id, name) => set({ sessionId: id, sessionName: name }),
+      setSession: (id, name) => set({ sessionId: id, sessionName: name }),
 
-  clearSession: () => set({ sessionId: null, sessionName: null, cart: [] }),
+      clearSession: () => set({ sessionId: null, sessionName: null, cart: [] }),
 
-  addToCart: (item) => {
-    const cart = get().cart;
-    const existing = cart.find((c) => c.product_id === item.product_id);
+      addToCart: (item) => {
+        const cart = get().cart;
+        const existing = cart.find((c) => c.product_id === item.product_id);
 
-    if (existing) {
-      set({
-        cart: cart.map((c) =>
-          c.product_id === item.product_id ? { ...c, quantity: c.quantity + (item.quantity ?? 1) } : c,
-        ),
-      });
-    } else {
-      set({
-        cart: [
-          ...cart,
-          {
-            product_id: item.product_id,
-            product_name: item.product_name,
-            product_sku: item.product_sku,
-            unit_price: item.unit_price,
-            tax_rate: item.tax_rate,
-            unit_abbreviation: item.unit_abbreviation,
-            quantity: item.quantity ?? 1,
-            discount_percent: item.discount_percent ?? "0.00",
-          },
-        ],
-      });
-    }
-  },
+        if (existing) {
+          set({
+            cart: cart.map((c) =>
+              c.product_id === item.product_id ? { ...c, quantity: c.quantity + (item.quantity ?? 1) } : c,
+            ),
+          });
+        } else {
+          set({
+            cart: [
+              ...cart,
+              {
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_sku: item.product_sku,
+                unit_price: item.unit_price,
+                tax_rate: item.tax_rate,
+                unit_abbreviation: item.unit_abbreviation,
+                quantity: item.quantity ?? 1,
+                discount_percent: item.discount_percent ?? "0.00",
+              },
+            ],
+          });
+        }
+      },
 
-  updateQuantity: (productId, quantity) => {
-    if (quantity <= 0) {
-      get().removeFromCart(productId);
-      return;
-    }
-    set({
-      cart: get().cart.map((c) => (c.product_id === productId ? { ...c, quantity } : c)),
-    });
-  },
+      updateQuantity: (productId, quantity) => {
+        if (quantity <= 0) {
+          get().removeFromCart(productId);
+          return;
+        }
+        set({
+          cart: get().cart.map((c) => (c.product_id === productId ? { ...c, quantity } : c)),
+        });
+      },
 
-  updateDiscount: (productId, discount) => {
-    set({
-      cart: get().cart.map((c) => (c.product_id === productId ? { ...c, discount_percent: discount } : c)),
-    });
-  },
+      updateDiscount: (productId, discount) => {
+        set({
+          cart: get().cart.map((c) => (c.product_id === productId ? { ...c, discount_percent: discount } : c)),
+        });
+      },
 
-  removeFromCart: (productId) => {
-    set({ cart: get().cart.filter((c) => c.product_id !== productId) });
-  },
+      removeFromCart: (productId) => {
+        set({ cart: get().cart.filter((c) => c.product_id !== productId) });
+      },
 
-  clearCart: () => set({ cart: [] }),
-}));
+      clearCart: () => set({ cart: [] }),
+
+      addOfflineSale: (sale) =>
+        set((state) => ({
+          offlineSalesQueue: [...state.offlineSalesQueue, sale],
+        })),
+
+      removeOfflineSale: (index) =>
+        set((state) => ({
+          offlineSalesQueue: state.offlineSalesQueue.filter((_, i) => i !== index),
+        })),
+    }),
+    {
+      name: "pos-storage",
+    },
+  ),
+);
 
 export { calcLineTotal };

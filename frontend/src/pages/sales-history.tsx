@@ -6,7 +6,7 @@ import { Ban, Eye, FileText, ReceiptText } from "lucide-react";
 
 import type { SaleListItem } from "../api/sales";
 import { cancelSale, getSale, listSales } from "../api/sales";
-import { Badge, Button, Card, Modal, Table, tableCellClass, tableHeadClass } from "../components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -38,78 +38,83 @@ export function SalesHistoryPage() {
       </div>
 
       <section className="grid gap-3">
-        <Card className="overflow-hidden">
-          <Table>
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Folio</th>
-                <th className={tableHeadClass}>Fecha</th>
-                <th className={tableHeadClass}>Cajero</th>
-                <th className={`${tableHeadClass} text-right`}>Total</th>
-                <th className={tableHeadClass}>Estado</th>
-                <th className={tableHeadClass}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map((sale: SaleListItem) => (
-                <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={sale.id}>
-                  <td className={tableCellClass}>
-                    <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
-                  </td>
-                  <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                    {new Date(sale.created_at).toLocaleString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className={tableCellClass}>{sale.username}</td>
-                  <td className={`${tableCellClass} text-right font-mono font-semibold`}>${sale.total}</td>
-                  <td className={tableCellClass}>
-                    <Badge tone={statusTone(sale.status)}>
-                      {sale.status === "completada" ? "Completada" : "Cancelada"}
-                    </Badge>
-                  </td>
-                  <td className={tableCellClass}>
-                    <Button
-                      aria-label={`Ver venta ${sale.folio}`}
-                      className="h-11 w-11 px-0"
-                      onClick={() => setSelectedSaleId(sale.id)}
-                      variant="secondary"
-                    >
-                      <Eye aria-hidden="true" size={17} />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+        {salesQuery.isLoading ? (
+          <SkeletonTable rows={8} cols={5} />
+        ) : salesQuery.isError ? (
+          <ErrorState onRetry={() => void salesQuery.refetch()} />
+        ) : sales.length === 0 ? (
+          <EmptyState
+            icon={<ReceiptText size={32} />}
+            message="Sin ventas registradas."
+            actionLabel="Ir al POS"
+            actionHref="/pos"
+          />
+        ) : (
+          <>
+            <Card className="overflow-hidden">
+              <Table>
+                <caption className="sr-only">Tabla de ventas</caption>
+                <thead>
+                  <tr>
+                    <th className={tableHeadClass}>Folio</th>
+                    <th className={tableHeadClass}>Fecha</th>
+                    <th className={tableHeadClass}>Cajero</th>
+                    <th className={`${tableHeadClass} text-right`}>Total</th>
+                    <th className={tableHeadClass}>Estado</th>
+                    <th className={tableHeadClass}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map((sale: SaleListItem) => (
+                    <tr className={tableRowClass} key={sale.id}>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
+                      </td>
+                      <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
+                        {new Date(sale.created_at).toLocaleString("es-MX", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className={tableCellClass}>
+                        <div className="flex items-center gap-2">
+                          <Avatar name={sale.username} size="sm" />
+                          <span>{sale.username}</span>
+                        </div>
+                      </td>
+                      <td className={`${tableCellClass} text-right font-mono font-semibold`}>${sale.total}</td>
+                      <td className={tableCellClass}>
+                        <Badge dot tone={statusTone(sale.status)}>
+                          {sale.status === "completada" ? "Completada" : "Cancelada"}
+                        </Badge>
+                      </td>
+                      <td className={tableCellClass}>
+                        <Tooltip content="Ver detalle">
+                          <Button
+                            aria-label={`Ver venta ${sale.folio}`}
+                            className="h-11 w-11 px-0"
+                            onClick={() => setSelectedSaleId(sale.id)}
+                            variant="secondary"
+                          >
+                            <Eye aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
 
-              {!salesQuery.isLoading && sales.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={6}>
-                    <ReceiptText aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                    Sin ventas registradas.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </Table>
-        </Card>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-          <span>
-            Pagina {salesQuery.data?.page ?? page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button disabled={page <= 1 || salesQuery.isFetching} onClick={() => setPage((v) => v - 1)} variant="secondary">
-              Anterior
-            </Button>
-            <Button disabled={page >= totalPages || salesQuery.isFetching} onClick={() => setPage((v) => v + 1)} variant="secondary">
-              Siguiente
-            </Button>
-          </div>
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
+              <span>Página {salesQuery.data?.page ?? page} de {totalPages}</span>
+              <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
+            </div>
+          </>
+        )}
       </section>
 
       {selectedSaleId !== null ? (
@@ -160,7 +165,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
       {saleQuery.isLoading ? (
         <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando detalle...</p>
       ) : !sale ? (
-        <p className="py-6 text-center text-sm text-danger">No se encontro la venta.</p>
+        <p className="py-6 text-center text-sm text-danger">No se encontró la venta.</p>
       ) : (
         <div className="grid gap-4">
           {/* Header info */}
@@ -194,8 +199,8 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           </div>
 
           {sale.cancel_reason ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger">
-              <span className="font-semibold">Razon de cancelacion: </span>
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <span className="font-semibold">Razón de cancelación: </span>
               {sale.cancel_reason}
             </div>
           ) : null}
@@ -203,6 +208,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           {/* Items */}
           <div className="max-h-64 overflow-auto">
             <Table>
+              <caption className="sr-only">Tabla de items de la venta</caption>
               <thead>
                 <tr>
                   <th className={tableHeadClass}>Producto</th>
@@ -213,7 +219,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
               </thead>
               <tbody>
                 {sale.items.map((item) => (
-                  <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={item.id}>
+                  <tr className={tableRowClass} key={item.id}>
                     <td className={tableCellClass}>
                       <div className="font-medium">{item.product_name}</div>
                       <div className="font-mono text-xs text-neutral-text-secondary">{item.product_sku}</div>
@@ -228,22 +234,22 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           </div>
 
           {/* Totals */}
-          <div className="rounded-md bg-neutral-text-primary px-4 py-3 text-white">
+          <div className="rounded-md bg-pos-total-bg px-4 py-3 text-pos-total-text fade-in">
             <div className="flex justify-between text-sm">
-              <span className="text-slate-300">Subtotal</span>
+              <span className="opacity-75">Subtotal</span>
               <span className="font-mono">${sale.subtotal}</span>
             </div>
             {Number(sale.discount_total) > 0 ? (
               <div className="flex justify-between text-sm">
-                <span className="text-slate-300">Descuento</span>
+                <span className="opacity-75">Descuento</span>
                 <span className="font-mono text-warning">-${sale.discount_total}</span>
               </div>
             ) : null}
             <div className="flex justify-between text-sm">
-              <span className="text-slate-300">Impuestos</span>
+              <span className="opacity-75">Impuestos</span>
               <span className="font-mono">${sale.tax_total}</span>
             </div>
-            <div className="mt-2 flex justify-between border-t border-slate-600 pt-2">
+            <div className="mt-2 flex justify-between border-t border-white/10 pt-2">
               <span className="text-lg font-bold">Total</span>
               <span className="font-mono text-xl font-bold">${sale.total}</span>
             </div>
@@ -281,9 +287,9 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           ) : null}
 
           {showCancel ? (
-            <form className="grid gap-3 rounded-md border border-red-200 bg-red-50 p-3" onSubmit={handleCancel}>
+            <form className="grid gap-3 rounded-md border border-danger/30 bg-danger/10 p-3" onSubmit={handleCancel}>
               <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-                <span>Razon de cancelacion</span>
+                <span>Razón de cancelación</span>
                 <textarea
                   className="min-h-16 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20"
                   onChange={(e) => setCancelReason(e.target.value)}
@@ -299,7 +305,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
                   Cerrar
                 </Button>
                 <Button disabled={!cancelReason.trim() || cancelMutation.isPending} type="submit" variant="danger">
-                  {cancelMutation.isPending ? "Cancelando..." : "Confirmar cancelacion"}
+                  {cancelMutation.isPending ? "Cancelando..." : "Confirmar cancelación"}
                 </Button>
               </div>
             </form>

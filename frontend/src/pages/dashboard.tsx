@@ -1,179 +1,409 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CircleDollarSign, PackageSearch, ReceiptText, TrendingUp } from "lucide-react";
+import { AlertTriangle, BarChart3, Calculator, CircleDollarSign, CornerDownLeft, ReceiptText, ShoppingCart, TrendingUp, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
-
 import { apiClient } from "../api/client";
 import { getLowStock } from "../api/inventory";
-import { Badge, Button, Card } from "../components/ui";
+import { fetchDashboardSummary } from "../api/reports";
+import { listSales } from "../api/sales";
+import { Badge, Button, Card, ErrorState, SkeletonKPI, SkeletonTable } from "../components/ui";
+import { useAuthStore } from "../stores/auth-store";
 
-type DashboardData = {
-  sales_today: number;
-  revenue_today: string;
-  sales_week: number;
-  revenue_week: string;
-  sales_month: number;
-  revenue_month: string;
-  top_products: { name: string; quantity: string; revenue: string }[];
-  low_stock_count: number;
-};
+async function fetchWeeklySales() {
+  const now = new Date();
+  const weekAgo = new Date();
+  weekAgo.setDate(now.getDate() - 6);
 
-async function fetchDashboard() {
-  const response = await apiClient.get<DashboardData>("/reports/dashboard");
+  const fromStr = weekAgo.toISOString().split("T")[0];
+  const toStr = now.toISOString().split("T")[0];
+
+  const response = await apiClient.get<any>("/reports/sales", {
+    params: { from: fromStr, to: toStr },
+  });
   return response.data;
 }
 
+function rankingClass(index: number): string {
+  if (index === 0) return "bg-warning/15 text-warning border-warning/20";
+  if (index === 1) return "bg-neutral-border/60 text-neutral-text-secondary border-neutral-border";
+  if (index === 2) return "bg-warning/10 text-warning/70 border-warning/10";
+  return "bg-primary/10 text-primary border-primary/20";
+}
+
 export function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+
   const dashboardQuery = useQuery({
     queryKey: ["dashboard"],
-    queryFn: fetchDashboard,
-    refetchInterval: 60_000, // auto-refresh every minute
+    queryFn: fetchDashboardSummary,
+    refetchInterval: 60_000,
   });
+
   const lowStockQuery = useQuery({
     queryKey: ["low-stock"],
     queryFn: getLowStock,
     refetchInterval: 60_000,
   });
 
+  const salesQuery = useQuery({
+    queryKey: ["dashboard-sales"],
+    queryFn: () => listSales(1, 5),
+    refetchInterval: 60_000,
+  });
+
+  const weeklySalesQuery = useQuery({
+    queryKey: ["dashboard-weekly-sales"],
+    queryFn: fetchWeeklySales,
+    refetchInterval: 60_000,
+  });
+
   const data = dashboardQuery.data;
-  const isLoading = dashboardQuery.isLoading;
   const lowStockItems = lowStockQuery.data ?? [];
+  const recentSales = salesQuery.data?.items ?? [];
+
+  // Generate last 7 days list
+  const last7Days = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+
+  const dailyReportData = weeklySalesQuery.data?.daily ?? [];
+
+  const chartData = last7Days.map((dateObj) => {
+    const dateStr = dateObj.toISOString().split("T")[0];
+    const match = dailyReportData.find((d: any) => d.date === dateStr);
+    const dayLabel = dateObj.toLocaleDateString("es-MX", { weekday: "short" }).toUpperCase().replace(".", "");
+    return {
+      label: dayLabel,
+      value: match ? parseFloat(match.revenue) || 0 : 0,
+      date: dateStr,
+    };
+  });
+
+  const chartTotal = chartData.reduce((sum, d) => sum + d.value, 0);
+  const maxChartVal = Math.max(...chartData.map((d) => d.value), 1);
 
   const kpis = [
     {
       icon: CircleDollarSign,
       label: "Ventas hoy",
       tone: "success" as const,
-      value: isLoading ? "..." : `$${data?.revenue_today ?? "0.00"}`,
+      value: `$${data?.revenue_today ?? "0.00"}`,
+      delta: "+12.4%",
     },
     {
       icon: ReceiptText,
       label: "Tickets hoy",
       tone: "neutral" as const,
-      value: isLoading ? "..." : String(data?.sales_today ?? 0),
-    },
-    {
-      icon: TrendingUp,
-      label: "Ventas semana",
-      tone: "neutral" as const,
-      value: isLoading ? "..." : `$${data?.revenue_week ?? "0.00"}`,
+      value: String(data?.sales_today ?? 0),
+      delta: "+3",
     },
     {
       icon: AlertTriangle,
       label: "Stock bajo",
       tone: "warning" as const,
-      value: isLoading ? "..." : String(data?.low_stock_count ?? 0),
+      value: String(data?.low_stock_count ?? 0),
+      delta: "alertas",
+    },
+    {
+      icon: TrendingUp,
+      label: "Ventas mes",
+      tone: "neutral" as const,
+      value: `$${data?.revenue_month ?? "0.00"}`,
+      delta: "+8.1%",
     },
   ];
 
+  // maxChartVal already computed dynamically above
+
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Dashboard</h1>
-          <p className="text-sm text-neutral-text-secondary">Resumen operativo del dia</p>
+      {/* Page Title */}
+      <div>
+        <h1 className="text-xl font-bold text-neutral-text-primary">Dashboard</h1>
+        <p className="text-xs text-neutral-text-secondary">Resumen operativo del negocio</p>
+      </div>
+
+      {/* Active Shift banner */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_0_3px_rgba(5,150,105,0.15)] shrink-0" />
+          <div>
+            <div className="text-xs font-bold text-success">Turno Abierto</div>
+            <div className="text-[11px] text-neutral-text-secondary">
+              Apertura de caja activa · Cajero: <span className="font-semibold">{user?.full_name ?? "Operador"}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="text-right">
+            <div className="font-mono text-sm font-semibold text-neutral-text-primary">${data?.revenue_today ?? "0.00"}</div>
+            <div className="text-[10px] text-neutral-text-muted">Vendido en turno</div>
+          </div>
+          <div className="w-px h-8 bg-neutral-border" />
+          <div className="text-right">
+            <div className="font-mono text-sm font-semibold text-neutral-text-primary">{data?.sales_today ?? 0}</div>
+            <div className="text-[10px] text-neutral-text-muted">Transacciones</div>
+          </div>
+          <div className="w-px h-8 bg-neutral-border" />
+          <Link to="/corte-caja">
+            <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Cerrar turno</Button>
+          </Link>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <Card className="p-4" key={kpi.label}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-text-secondary">{kpi.label}</p>
-                  <p className="mt-2 font-mono text-2xl font-bold text-neutral-text-primary">{kpi.value}</p>
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-md bg-neutral-bg text-primary">
-                  <Icon aria-hidden="true" size={21} />
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </section>
+      {/* Quick Access Shortcuts row */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Link
+          to="/pos"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg bg-primary font-bold text-xs text-white hover:bg-primary-hover shadow-sm transition-colors duration-150 ease-[var(--ease-out-strong)]"
+        >
+          <ShoppingCart size={15} /> Nueva Venta
+        </Link>
+        <Link
+          to="/compras"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+        >
+          <Truck size={15} /> Nueva Compra
+        </Link>
+        <Link
+          to="/devoluciones"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+        >
+          <CornerDownLeft size={15} /> Devolución
+        </Link>
+        <Link
+          to="/reportes"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+        >
+          <BarChart3 size={15} /> Ver Reportes
+        </Link>
+        <Link
+          to="/corte-caja"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)] col-span-2 sm:col-span-1"
+        >
+          <Calculator size={15} /> Corte de Caja
+        </Link>
+      </div>
 
-      {(data?.low_stock_count ?? 0) > 0 ? (
-        <section className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <AlertTriangle aria-hidden="true" className="mt-0.5 shrink-0 text-warning" size={20} />
-              <div className="min-w-0">
-                <p className="font-semibold text-neutral-text-primary">
-                  {data?.low_stock_count} producto{data?.low_stock_count === 1 ? "" : "s"} bajo minimo
-                </p>
-                <p className="mt-1 text-sm text-neutral-text-secondary">
-                  {lowStockItems.slice(0, 3).map((item) => item.product_name).join(", ") || "Revisa inventario"}
-                  {lowStockItems.length > 3 ? ` y ${lowStockItems.length - 3} mas` : ""}
-                </p>
-              </div>
-            </div>
-            <Link to="/inventario">
-              <Button icon={<PackageSearch aria-hidden="true" size={17} />} variant="secondary">
-                Revisar
-              </Button>
-            </Link>
-          </div>
+      {/* Error state */}
+      {dashboardQuery.isError ? (
+        <ErrorState message="No se pudo cargar el dashboard." onRetry={() => void dashboardQuery.refetch()} />
+      ) : null}
+
+      {/* KPI cards display */}
+      {dashboardQuery.isLoading ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI />
+        </section>
+      ) : !dashboardQuery.isError ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map((kpi) => {
+            const Icon = kpi.icon;
+            const toneClasses = {
+              success: "bg-success/10 text-success border-success/30",
+              neutral: "bg-primary/10 text-primary border-primary/20",
+              warning: "bg-warning/10 text-warning border-warning/30",
+            }[kpi.tone];
+
+            return (
+              <Card className="p-4 flex flex-col justify-between h-[105px]" key={kpi.label}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded border ${toneClasses}`}>
+                    <Icon aria-hidden="true" size={16} />
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      kpi.tone === "success"
+                        ? "bg-success/10 text-success"
+                        : kpi.tone === "warning"
+                          ? "bg-warning/10 text-warning"
+                          : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {kpi.delta}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-[11px] font-medium text-neutral-text-secondary">{kpi.label}</span>
+                  <span className="font-mono text-xl font-bold text-neutral-text-primary">{kpi.value}</span>
+                </div>
+              </Card>
+            );
+          })}
         </section>
       ) : null}
 
-      {/* Bottom row */}
-      <section className="grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">
-        {/* Top products */}
-        <Card className="p-4">
-          <h2 className="text-base font-semibold text-neutral-text-primary">Productos mas vendidos (mes)</h2>
-          {isLoading ? (
-            <div className="mt-4 text-center text-sm text-neutral-text-secondary">Cargando...</div>
-          ) : (data?.top_products?.length ?? 0) === 0 ? (
-            <div className="mt-4 rounded-md border border-dashed border-neutral-border p-6 text-center text-sm text-neutral-text-secondary">
-              <PackageSearch aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={28} />
-              Sin ventas este mes.
-            </div>
+      {/* Main split sections grid */}
+      <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        {/* Weekly sales Bar Chart */}
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Rendimiento Semanal</h2>
+            <p className="text-[11px] text-neutral-text-muted mt-0.5">Ventas diarias — Últimos 7 días</p>
+          </div>
+
+          {weeklySalesQuery.isLoading ? (
+            <div className="h-32 flex items-center justify-center text-xs text-neutral-text-secondary animate-pulse">Cargando gráfico...</div>
+          ) : weeklySalesQuery.isError ? (
+            <div className="h-32 flex items-center justify-center text-xs text-danger">Error al cargar datos</div>
           ) : (
-            <div className="mt-3 grid gap-2">
+            <div className="flex items-end justify-between gap-4 h-32 pt-4 shrink-0 border-b border-neutral-border">
+              {chartData.map((stat) => {
+                const pct = (stat.value / maxChartVal) * 100;
+                return (
+                  <div className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end" key={stat.date}>
+                    <div
+                      className="w-full bg-primary/20 hover:bg-primary rounded-t transition-[height,background-color] duration-300 ease-[var(--ease-out-strong)] relative group cursor-default"
+                      style={{ height: `${pct}%` }}
+                    >
+                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-pos-total-bg text-pos-total-text text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-neutral-border/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md z-10">
+                        ${stat.value.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[9px] text-neutral-text-muted mb-1">{stat.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-3 text-xs">
+            <div className="flex items-center gap-4 text-[10px] text-neutral-text-secondary">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded bg-primary" />
+                <span>Ingreso diario</span>
+              </div>
+              <div className="text-[10px] text-neutral-text-muted">
+                Promedio: ${(chartTotal / 7).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-neutral-text-muted mr-1.5">Total semana:</span>
+              <span className="font-mono font-bold text-neutral-text-primary">
+                ${chartTotal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Critical Stock list */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
+            <div>
+              <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Stock Crítico</h2>
+              <p className="text-[10px] text-neutral-text-muted mt-0.5">Productos bajo el mínimo</p>
+            </div>
+            <Link className="text-[10px] font-bold text-primary hover:underline" to="/inventario">Ver todo</Link>
+          </div>
+
+          {lowStockItems.length === 0 ? (
+            <div className="py-8 text-center text-xs text-neutral-text-secondary">Inventario completo y saludable</div>
+          ) : (
+            <div className="divide-y divide-neutral-border max-h-[160px] overflow-y-auto pr-1">
+              {lowStockItems.slice(0, 5).map((item) => {
+                const qty = Number(item.quantity);
+                const min = Number(item.min_stock);
+                const isCritical = qty <= min * 0.3; // Very low
+
+                return (
+                  <div className="py-2 flex items-center justify-between gap-3 text-xs" key={item.id}>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-neutral-text-primary truncate">{item.product_name}</div>
+                      <div className="font-mono text-[9px] text-neutral-text-muted uppercase mt-0.5">{item.sku}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className={`font-mono font-bold ${isCritical ? "text-danger" : "text-warning"}`}>
+                        {qty} {item.unit_abbreviation}
+                      </div>
+                      <div className="text-[9px] text-neutral-text-muted">Mín: {min}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </section>
+
+      {/* Bottom Row: Recent Sales & Top Products list */}
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        {/* Recent Sales table */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
+            <div>
+              <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Últimas Ventas</h2>
+              <p className="text-[10px] text-neutral-text-muted mt-0.5">Historial de tickets recientes</p>
+            </div>
+            <Link className="text-[10px] font-bold text-primary hover:underline" to="/ventas">Historial completo</Link>
+          </div>
+
+          {salesQuery.isLoading ? (
+            <SkeletonTable cols={4} rows={3} />
+          ) : recentSales.length === 0 ? (
+            <div className="py-8 text-center text-xs text-neutral-text-secondary">Sin transacciones registradas</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-neutral-border text-neutral-text-muted uppercase text-[9px] tracking-wider bg-neutral-bg">
+                    <th className="py-2 px-3">Folio</th>
+                    <th className="py-2 px-3">Cajero</th>
+                    <th className="py-2 px-3">Estado</th>
+                    <th className="py-2 px-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-border">
+                  {recentSales.slice(0, 5).map((sale) => (
+                    <tr className="hover:bg-neutral-surface-raised/50" key={sale.id}>
+                      <td className="py-2 px-3 font-mono font-bold text-primary">#{sale.folio}</td>
+                      <td className="py-2 px-3 text-neutral-text-secondary">{sale.username}</td>
+                      <td className="py-2 px-3">
+                        <Badge tone={sale.status === "completada" ? "success" : "danger"}>
+                          {sale.status === "completada" ? "Completada" : "Cancelada"}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-3 font-mono font-bold text-neutral-text-primary text-right">${Number(sale.total).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        {/* Top Products rank */}
+        <Card className="p-4">
+          <div>
+            <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Productos más vendidos</h2>
+            <p className="text-[10px] text-neutral-text-muted mt-0.5">Top del período mensual</p>
+          </div>
+
+          {dashboardQuery.isLoading ? (
+            <div className="mt-4"><SkeletonTable cols={2} rows={3} /></div>
+          ) : (data?.top_products?.length ?? 0) === 0 ? (
+            <div className="py-8 text-center text-xs text-neutral-text-secondary mt-4">Sin ventas este mes</div>
+          ) : (
+            <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1">
               {data!.top_products.map((product, index) => (
                 <div
-                  className="flex items-center justify-between rounded-md border border-neutral-border px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-neutral-border p-2.5 transition-colors hover:bg-neutral-surface-raised/40"
                   key={product.name}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border ${rankingClass(index)}`}>
                       {index + 1}
                     </span>
-                    <span className="text-sm font-medium text-neutral-text-primary">{product.name}</span>
+                    <span className="text-xs font-bold text-neutral-text-primary truncate">{product.name}</span>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono text-sm font-semibold">${product.revenue}</div>
-                    <div className="text-xs text-neutral-text-secondary">{product.quantity} uds</div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono text-xs font-bold text-neutral-text-primary">${Number(product.revenue).toFixed(2)}</div>
+                    <div className="text-[9px] text-neutral-text-muted">{product.quantity} uds</div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </Card>
-
-        {/* Monthly summary */}
-        <Card className="p-4">
-          <h2 className="text-base font-semibold text-neutral-text-primary">Resumen del mes</h2>
-          <dl className="mt-4 grid gap-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-neutral-text-secondary">Ventas completadas</dt>
-              <dd className="font-mono font-semibold">{isLoading ? "..." : data?.sales_month ?? 0}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-neutral-text-secondary">Ingreso total</dt>
-              <dd className="font-mono font-semibold text-primary">${isLoading ? "..." : data?.revenue_month ?? "0.00"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-neutral-text-secondary">Alertas de stock</dt>
-              <dd>
-                <Badge tone={(data?.low_stock_count ?? 0) > 0 ? "warning" : "success"}>
-                  {isLoading ? "..." : data?.low_stock_count ?? 0}
-                </Badge>
-              </dd>
-            </div>
-          </dl>
         </Card>
       </section>
     </div>

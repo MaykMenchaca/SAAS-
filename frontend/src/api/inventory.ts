@@ -51,11 +51,6 @@ export async function listStock({ page = 1, perPage = 20, search = "" }: ListSto
   return response.data;
 }
 
-export async function getProductStock(productId: number) {
-  const response = await apiClient.get<StockItem>(`/inventory/stock/${productId}`);
-  return response.data;
-}
-
 export async function getLowStock() {
   const response = await apiClient.get<StockItem[]>("/inventory/low-stock");
   return response.data;

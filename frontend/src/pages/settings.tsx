@@ -12,12 +12,13 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import type { AuditLog } from "../api/audit";
 import { listAuditLogs } from "../api/audit";
 import type { BackupEntry, ConfigMap } from "../api/config";
 import { createBackup, deleteBackup, getConfig, listBackups, updateConfig, verifyBackup } from "../api/config";
-import { Badge, Button, Card, Input, Modal, Table, tableCellClass, tableHeadClass, Toast } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, Modal, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ type Tab = "general" | "auditoria" | "backups";
 
 const tabs: { id: Tab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
-  { id: "auditoria", label: "Auditoria", icon: ScrollText },
+  { id: "auditoria", label: "Auditoría", icon: ScrollText },
   { id: "backups", label: "Backups", icon: Database },
 ];
 
@@ -51,8 +52,8 @@ export function SettingsPage() {
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Configuracion</h1>
-          <p className="text-sm text-neutral-text-secondary">Ajustes del sistema, auditoria y respaldos</p>
+          <h1 className="text-2xl font-bold text-neutral-text-primary">Configuración</h1>
+          <p className="text-sm text-neutral-text-secondary">Ajustes del sistema, auditoría y respaldos</p>
         </div>
       </div>
 
@@ -91,7 +92,6 @@ export function SettingsPage() {
 function GeneralTab() {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<ConfigMap>({});
-  const [saved, setSaved] = useState(false);
 
   const configQuery = useQuery({
     queryKey: ["system-config"],
@@ -108,8 +108,7 @@ function GeneralTab() {
     mutationFn: updateConfig,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["system-config"] });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      toast.success("Configuracion guardada correctamente.");
     },
   });
 
@@ -130,18 +129,35 @@ function GeneralTab() {
 
   const configFields: { key: string; label: string; placeholder: string }[] = [
     { key: "company_name", label: "Nombre de la empresa", placeholder: "Mi Negocio" },
-    { key: "company_address", label: "Direccion", placeholder: "Calle 123, Col. Centro" },
-    { key: "company_phone", label: "Telefono", placeholder: "(123) 456-7890" },
+    { key: "company_address", label: "Dirección", placeholder: "Calle 123, Col. Centro" },
+    { key: "company_phone", label: "Teléfono", placeholder: "(123) 456-7890" },
     { key: "company_rfc", label: "RFC", placeholder: "XAXX010101000" },
     { key: "default_tax_rate", label: "IVA por defecto (%)", placeholder: "16.00" },
     { key: "ticket_footer", label: "Pie de ticket", placeholder: "Gracias por su compra" },
   ];
 
+  if (configQuery.isLoading) {
+    return (
+      <Card className="p-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div className="grid gap-1.5" key={i}>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  if (configQuery.isError) {
+    return <ErrorState onRetry={() => void configQuery.refetch()} />;
+  }
+
   return (
-    <Card className="p-4">
-      {configQuery.isLoading ? (
-        <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando configuracion...</p>
-      ) : (
+    <div className="grid gap-4">
+      <Card className="p-4">
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             {configFields.map((field) => (
@@ -157,12 +173,10 @@ function GeneralTab() {
           </div>
 
           {errorMessage ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
               {errorMessage}
             </div>
           ) : null}
-
-          {saved ? <Toast tone="success">Configuracion guardada correctamente.</Toast> : null}
 
           <div className="flex justify-end">
             <Button
@@ -174,8 +188,35 @@ function GeneralTab() {
             </Button>
           </div>
         </form>
-      )}
-    </Card>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-neutral-text-primary mb-3">Estado del sistema</h3>
+        <dl className="grid gap-2 text-sm">
+          <div className="flex items-center justify-between">
+            <dt className="text-neutral-text-secondary">Red</dt>
+            <dd className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-success" />
+              <span className="font-medium">Online</span>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-neutral-text-secondary">Version</dt>
+            <dd className="font-mono text-xs">v1.0.0</dd>
+          </div>
+        </dl>
+      </Card>
+
+      <Card className="border-danger/30 bg-danger/5 p-4">
+        <h3 className="text-sm font-semibold text-danger mb-2">Zona de peligro</h3>
+        <p className="mb-3 text-sm text-neutral-text-secondary">
+          Reiniciar la terminal borrara la sesion actual y datos temporales.
+        </p>
+        <Button onClick={() => window.confirm("¿Reiniciar terminal?") && window.location.reload()} variant="danger">
+          Reiniciar terminal
+        </Button>
+      </Card>
+    </div>
   );
 }
 
@@ -200,63 +241,70 @@ function AuditTab() {
   const logs = auditQuery.data?.items ?? [];
   const totalPages = auditQuery.data?.pages ?? 1;
 
+  if (auditQuery.isLoading) {
+    return <SkeletonTable rows={8} cols={5} />;
+  }
+
+  if (auditQuery.isError) {
+    return <ErrorState onRetry={() => void auditQuery.refetch()} />;
+  }
+
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-          <span>Accion</span>
-          <select
-            className="min-h-11 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            onChange={(e) => {
-              setActionFilter(e.target.value);
-              setPage(1);
-            }}
-            value={actionFilter}
-          >
-            <option value="">Todas</option>
-            <option value="login">Login</option>
-            <option value="create">Crear</option>
-            <option value="update">Actualizar</option>
-            <option value="delete">Eliminar</option>
-            <option value="cancel">Cancelar</option>
-          </select>
-        </label>
-        <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-          <span>Entidad</span>
-          <select
-            className="min-h-11 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            onChange={(e) => {
-              setEntityFilter(e.target.value);
-              setPage(1);
-            }}
-            value={entityFilter}
-          >
-            <option value="">Todas</option>
-            <option value="sale">Venta</option>
-            <option value="product">Producto</option>
-            <option value="user">Usuario</option>
-            <option value="inventory">Inventario</option>
-            <option value="purchase_order">Orden de compra</option>
-            <option value="backup">Backup</option>
-            <option value="config">Configuracion</option>
-          </select>
-        </label>
+        <Select
+          label="Accion"
+          name="action-filter"
+          onChange={(e) => {
+            setActionFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "login", label: "Login" },
+            { value: "create", label: "Crear" },
+            { value: "update", label: "Actualizar" },
+            { value: "delete", label: "Eliminar" },
+            { value: "cancel", label: "Cancelar" },
+          ]}
+          placeholder="Todas"
+          value={actionFilter}
+        />
+        <Select
+          label="Entidad"
+          name="entity-filter"
+          onChange={(e) => {
+            setEntityFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "sale", label: "Venta" },
+            { value: "product", label: "Producto" },
+            { value: "user", label: "Usuario" },
+            { value: "inventory", label: "Inventario" },
+            { value: "purchase_order", label: "Orden de compra" },
+            { value: "backup", label: "Backup" },
+            { value: "config", label: "Configuracion" },
+          ]}
+          placeholder="Todas"
+          value={entityFilter}
+        />
       </div>
 
       <Card className="overflow-hidden">
         <Table>
+          <caption className="sr-only">Tabla de auditoria</caption>
           <thead>
             <tr>
               <th className={tableHeadClass}>Fecha</th>
               <th className={tableHeadClass}>Usuario</th>
-              <th className={tableHeadClass}>Accion</th>
+              <th className={tableHeadClass}>Acción</th>
               <th className={tableHeadClass}>Entidad</th>
               <th className={tableHeadClass}>Detalles</th>
             </tr>
           </thead>
           <tbody>
             {logs.map((log: AuditLog) => (
-              <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={log.id}>
+              <tr className={tableRowClass} key={log.id}>
                 <td className={`${tableCellClass} text-xs text-neutral-text-secondary`}>
                   {new Date(log.created_at).toLocaleString("es-MX", {
                     day: "2-digit",
@@ -297,7 +345,7 @@ function AuditTab() {
               <tr>
                 <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={5}>
                   <ScrollText aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                  Sin registros de auditoria.
+                  Sin registros de auditoría.
                 </td>
               </tr>
             ) : null}
@@ -306,17 +354,8 @@ function AuditTab() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-        <span>
-          Pagina {auditQuery.data?.page ?? page} de {totalPages}
-        </span>
-        <div className="flex gap-2">
-          <Button disabled={page <= 1 || auditQuery.isFetching} onClick={() => setPage((v) => v - 1)} variant="secondary">
-            Anterior
-          </Button>
-          <Button disabled={page >= totalPages || auditQuery.isFetching} onClick={() => setPage((v) => v + 1)} variant="secondary">
-            Siguiente
-          </Button>
-        </div>
+        <span>Página {auditQuery.data?.page ?? page} de {totalPages}</span>
+        <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
       </div>
     </div>
   );
@@ -327,7 +366,6 @@ function AuditTab() {
 function BackupsTab() {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
 
   const backupsQuery = useQuery({
     queryKey: ["backups"],
@@ -338,6 +376,11 @@ function BackupsTab() {
     mutationFn: createBackup,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["backups"] });
+      toast.success("Backup creado correctamente.");
+    },
+    onError: (err) => {
+      const msg = err instanceof AxiosError ? err.response?.data?.error ?? "No se pudo crear el backup." : "No se pudo crear el backup.";
+      toast.error(msg);
     },
   });
 
@@ -352,20 +395,22 @@ function BackupsTab() {
   const verifyMutation = useMutation({
     mutationFn: verifyBackup,
     onSuccess: (result) => {
-      setVerifyMessage(`Backup verificado: ${result.filename} (${result.entries} entradas).`);
+      toast.success(`Backup verificado: ${result.filename} (${result.entries} entradas).`);
     },
     onError: () => {
-      setVerifyMessage("No se pudo verificar el backup.");
+      toast.error("No se pudo verificar el backup.");
     },
   });
 
   const backups: BackupEntry[] = backupsQuery.data ?? [];
 
-  const createError = createMutation.error
-    ? createMutation.error instanceof AxiosError
-      ? createMutation.error.response?.data?.error ?? "No se pudo crear el backup."
-      : "No se pudo crear el backup."
-    : "";
+  if (backupsQuery.isLoading) {
+    return <SkeletonTable rows={4} cols={4} />;
+  }
+
+  if (backupsQuery.isError) {
+    return <ErrorState onRetry={() => void backupsQuery.refetch()} />;
+  }
 
   return (
     <div className="grid gap-3">
@@ -382,31 +427,20 @@ function BackupsTab() {
         </Button>
       </div>
 
-      {createError ? (
-        <Toast tone="danger">{createError}</Toast>
-      ) : null}
-
-      {createMutation.isSuccess ? (
-        <Toast tone="success">Backup creado correctamente.</Toast>
-      ) : null}
-
-      {verifyMessage ? (
-        <Toast tone={verifyMutation.isError ? "danger" : "success"}>{verifyMessage}</Toast>
-      ) : null}
-
       <Card className="overflow-hidden">
         <Table>
+          <caption className="sr-only">Tabla de respaldos</caption>
           <thead>
             <tr>
               <th className={tableHeadClass}>Archivo</th>
-              <th className={`${tableHeadClass} text-right`}>Tamano</th>
+              <th className={`${tableHeadClass} text-right`}>Tamaño</th>
               <th className={tableHeadClass}>Fecha</th>
-              <th className={tableHeadClass}>Acciones</th>
+              <th className={tableHeadClass}>Acciónes</th>
             </tr>
           </thead>
           <tbody>
             {backups.map((backup) => (
-              <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={backup.filename}>
+              <tr className={tableRowClass} key={backup.filename}>
                 <td className={tableCellClass}>
                   <div className="flex items-center gap-2">
                     <HardDrive aria-hidden="true" className="shrink-0 text-neutral-text-secondary" size={16} />
@@ -427,26 +461,29 @@ function BackupsTab() {
                 </td>
                 <td className={tableCellClass}>
                   <div className="flex gap-2">
-                    <Button
-                      aria-label={`Verificar ${backup.filename}`}
-                      className="h-11 w-11 px-0"
-                      disabled={verifyMutation.isPending}
-                      onClick={() => {
-                        setVerifyMessage(null);
-                        verifyMutation.mutate(backup.filename);
-                      }}
-                      variant="secondary"
-                    >
-                      <CheckCircle2 aria-hidden="true" size={17} />
-                    </Button>
-                    <Button
-                      aria-label={`Eliminar ${backup.filename}`}
-                      className="h-11 w-11 px-0"
-                      onClick={() => setConfirmDelete(backup.filename)}
-                      variant="danger"
-                    >
-                      <Trash2 aria-hidden="true" size={17} />
-                    </Button>
+                    <Tooltip content="Verificar">
+                      <Button
+                        aria-label={`Verificar ${backup.filename}`}
+                        className="h-11 w-11 px-0"
+                        disabled={verifyMutation.isPending}
+                        onClick={() => {
+                          verifyMutation.mutate(backup.filename);
+                        }}
+                        variant="secondary"
+                      >
+                        <CheckCircle2 aria-hidden="true" size={17} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content="Eliminar">
+                      <Button
+                        aria-label={`Eliminar ${backup.filename}`}
+                        className="h-11 w-11 px-0"
+                        onClick={() => setConfirmDelete(backup.filename)}
+                        variant="danger"
+                      >
+                        <Trash2 aria-hidden="true" size={17} />
+                      </Button>
+                    </Tooltip>
                   </div>
                 </td>
               </tr>
@@ -486,7 +523,7 @@ function BackupsTab() {
         >
           <p className="text-sm text-neutral-text-secondary">
             Estas seguro de eliminar el backup <span className="font-mono font-semibold">{confirmDelete}</span>?
-            Esta accion no se puede deshacer.
+            Esta acción no se puede deshacer.
           </p>
         </Modal>
       ) : null}

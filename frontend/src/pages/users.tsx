@@ -2,11 +2,11 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Edit, Search, Shield, UserMinus, UserPlus } from "lucide-react";
+import { Edit, Search, Shield, UserMinus, UserPlus, Users } from "lucide-react";
 
 import type { Role, User, UserCreatePayload, UserUpdatePayload } from "../api/users";
 import { createUser, deactivateUser, listRoles, listUsers, updateUser } from "../api/users";
-import { Badge, Button, Card, Input, Modal, Table, tableCellClass, tableHeadClass } from "../components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Toggle, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -108,7 +108,7 @@ export function UsersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-neutral-text-primary">Usuarios</h1>
-          <p className="text-sm text-neutral-text-secondary">Administracion de cuentas y roles</p>
+          <p className="text-sm text-neutral-text-secondary">Administración de cuentas y roles</p>
         </div>
         <Button icon={<UserPlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
           Nuevo
@@ -131,107 +131,96 @@ export function UsersPage() {
               </Button>
             </div>
           </form>
-          <label className="flex items-center gap-2 text-sm text-neutral-text-secondary">
-            <input
-              checked={showInactive}
-              className="h-4 w-4 rounded border-neutral-border accent-primary"
-              onChange={(e) => {
-                setShowInactive(e.target.checked);
-                setPage(1);
-              }}
-              type="checkbox"
-            />
-            Mostrar inactivos
-          </label>
+          <Toggle checked={showInactive} label="Mostrar inactivos" onChange={setShowInactive} />
         </div>
 
-        <Card className="overflow-hidden">
-          <Table>
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Usuario</th>
-                <th className={tableHeadClass}>Rol</th>
-                <th className={tableHeadClass}>Ultimo acceso</th>
-                <th className={tableHeadClass}>Estado</th>
-                <th className={tableHeadClass}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr className="odd:bg-neutral-surface even:bg-neutral-bg/60" key={user.id}>
-                  <td className={tableCellClass}>
-                    <div className="font-semibold text-neutral-text-primary">{user.full_name}</div>
-                    <div className="text-xs text-neutral-text-secondary">@{user.username}</div>
-                  </td>
-                  <td className={tableCellClass}>
-                    <Badge tone={roleTone(user.role)}>
-                      <Shield aria-hidden="true" className="mr-1 inline" size={12} />
-                      {user.role}
-                    </Badge>
-                  </td>
-                  <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                    {user.last_login_at
-                      ? new Date(user.last_login_at).toLocaleString("es-MX", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Nunca"}
-                  </td>
-                  <td className={tableCellClass}>
-                    <Badge tone={user.is_active ? "success" : "danger"}>
-                      {user.is_active ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </td>
-                  <td className={tableCellClass}>
-                    <div className="flex gap-2">
-                      <Button
-                        aria-label={`Editar ${user.full_name}`}
-                        className="h-11 w-11 px-0"
-                        onClick={() => openEditModal(user)}
-                        variant="secondary"
-                      >
-                        <Edit aria-hidden="true" size={17} />
-                      </Button>
-                      <Button
-                        aria-label={`Desactivar ${user.full_name}`}
-                        className="h-11 w-11 px-0"
-                        disabled={deactivateMutation.isPending || !user.is_active}
-                        onClick={() => deactivateMutation.mutate(user.id)}
-                        variant="danger"
-                      >
-                        <UserMinus aria-hidden="true" size={17} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {!usersQuery.isLoading && users.length === 0 ? (
+        {usersQuery.isLoading ? (
+          <SkeletonTable rows={6} cols={5} />
+        ) : usersQuery.isError ? (
+          <ErrorState onRetry={() => void usersQuery.refetch()} />
+        ) : users.length === 0 ? (
+          <EmptyState icon={<Users size={32} />} message="Solo tu por aqui." actionLabel="Nuevo usuario" onAction={openCreateModal} />
+        ) : (
+          <Card className="overflow-hidden">
+            <Table>
+              <caption className="sr-only">Tabla de usuarios</caption>
+              <thead>
                 <tr>
-                  <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={5}>
-                    <Shield aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                    Sin usuarios registrados.
-                  </td>
+                  <th className={tableHeadClass}>Usuario</th>
+                  <th className={tableHeadClass}>Rol</th>
+                  <th className={tableHeadClass}>Último acceso</th>
+                  <th className={tableHeadClass}>Estado</th>
+                  <th className={tableHeadClass}>Acciones</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </Table>
-        </Card>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr className={tableRowClass} key={user.id}>
+                    <td className={tableCellClass}>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={user.full_name} size="sm" />
+                        <div>
+                          <div className="font-semibold text-neutral-text-primary">{user.full_name}</div>
+                          <div className="text-xs text-neutral-text-secondary">@{user.username}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={tableCellClass}>
+                      <Badge tone={roleTone(user.role)}>
+                        <Shield aria-hidden="true" className="mr-1 inline" size={12} />
+                        {user.role}
+                      </Badge>
+                    </td>
+                    <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
+                      {user.last_login_at
+                        ? new Date(user.last_login_at).toLocaleString("es-MX", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Nunca"}
+                    </td>
+                    <td className={tableCellClass}>
+                      <Badge dot tone={user.is_active ? "success" : "danger"}>
+                        {user.is_active ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </td>
+                    <td className={tableCellClass}>
+                      <div className="flex gap-2">
+                        <Tooltip content="Editar">
+                          <Button
+                            aria-label={`Editar ${user.full_name}`}
+                            className="h-11 w-11 px-0"
+                            onClick={() => openEditModal(user)}
+                            variant="secondary"
+                          >
+                            <Edit aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                        <Tooltip content="Desactivar">
+                          <Button
+                            aria-label={`Desactivar ${user.full_name}`}
+                            className="h-11 w-11 px-0"
+                            disabled={deactivateMutation.isPending || !user.is_active}
+                            onClick={() => deactivateMutation.mutate(user.id)}
+                            variant="danger"
+                          >
+                            <UserMinus aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-          <span>
-            Pagina {usersQuery.data?.page ?? page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button disabled={page <= 1 || usersQuery.isFetching} onClick={() => setPage((v) => v - 1)} variant="secondary">
-              Anterior
-            </Button>
-            <Button disabled={page >= totalPages || usersQuery.isFetching} onClick={() => setPage((v) => v + 1)} variant="secondary">
-              Siguiente
-            </Button>
-          </div>
+          <span>Página {usersQuery.data?.page ?? page} de {totalPages}</span>
+          <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
         </div>
       </section>
 
@@ -344,7 +333,7 @@ function UserFormModal({ error, isLoading, onClose, onSubmit, open, roles, user 
             value={form.username}
           />
           <Input
-            label={user ? "Nueva contrasena (opcional)" : "Contrasena"}
+            label={user ? "Nueva contraseña (opcional)" : "Contraseña"}
             name="password"
             onChange={(e) => setField("password", e.target.value)}
             placeholder={user ? "Dejar vacio para mantener" : ""}
@@ -368,25 +357,17 @@ function UserFormModal({ error, isLoading, onClose, onSubmit, open, roles, user 
           value={form.email}
         />
 
-        <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-          <span>Rol</span>
-          <select
-            className="min-h-11 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            onChange={(e) => setField("role_id", e.target.value)}
-            value={form.role_id}
-          >
-            <option value="">Seleccionar rol</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-                {role.description ? ` — ${role.description}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Rol"
+          name="role_id"
+          onChange={(e) => setField("role_id", e.target.value)}
+          options={roles.map((role) => ({ value: role.id, label: `${role.name}${role.description ? ` — ${role.description}` : ""}` }))}
+          placeholder="Seleccionar rol"
+          value={form.role_id}
+        />
 
         {errorMessage ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
             {errorMessage}
           </div>
         ) : null}

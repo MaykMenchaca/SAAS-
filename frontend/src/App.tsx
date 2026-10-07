@@ -1,25 +1,38 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
 
 import { ProtectedRoute } from "./components/auth/protected-route";
 import { AppShell } from "./components/layout/app-shell";
+import { CommandPaletteProvider } from "./components/layout/command-palette-context";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import { useAuthStore } from "./stores/auth-store";
-import { CashCutPage } from "./pages/cash-cut";
-import { DashboardPage } from "./pages/dashboard";
-import { LoginPage } from "./pages/login";
-import { InventoryPage } from "./pages/inventory";
-import { InventoryCountPage } from "./pages/inventory-count";
-import { NotFoundPage } from "./pages/not-found";
-import { PosPage } from "./pages/pos";
-import { ProductsPage } from "./pages/products";
-import { PurchasesPage } from "./pages/purchases";
-import { ReportsPage } from "./pages/reports";
-import { ReturnsPage } from "./pages/returns";
-import { SalesHistoryPage } from "./pages/sales-history";
-import { SettingsPage } from "./pages/settings";
-import { UsersPage } from "./pages/users";
+import { applyTheme, useThemeStore } from "./stores/theme-store";
+
+// Lazy loaded page components
+const CashCutPage = lazy(() => import("./pages/cash-cut").then((m) => ({ default: m.CashCutPage })));
+const DashboardPage = lazy(() => import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })));
+const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
+const InventoryPage = lazy(() => import("./pages/inventory").then((m) => ({ default: m.InventoryPage })));
+const InventoryCountPage = lazy(() => import("./pages/inventory-count").then((m) => ({ default: m.InventoryCountPage })));
+const NotFoundPage = lazy(() => import("./pages/not-found").then((m) => ({ default: m.NotFoundPage })));
+const PosPage = lazy(() => import("./pages/pos").then((m) => ({ default: m.PosPage })));
+const ProductsPage = lazy(() => import("./pages/products").then((m) => ({ default: m.ProductsPage })));
+const PurchasesPage = lazy(() => import("./pages/purchases").then((m) => ({ default: m.PurchasesPage })));
+const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
+const ReturnsPage = lazy(() => import("./pages/returns").then((m) => ({ default: m.ReturnsPage })));
+const SalesHistoryPage = lazy(() => import("./pages/sales-history").then((m) => ({ default: m.SalesHistoryPage })));
+const SettingsPage = lazy(() => import("./pages/settings").then((m) => ({ default: m.SettingsPage })));
+const UsersPage = lazy(() => import("./pages/users").then((m) => ({ default: m.UsersPage })));
+
+function PageLoader() {
+  return (
+    <div className="flex h-full w-full min-h-[300px] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,35 +48,57 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <BrowserRouter>
+          <ThemeEvents />
           <AuthEvents />
-          <Routes>
-            <Route element={<LoginPage />} path="/login" />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppShell />
-                </ProtectedRoute>
-              }
-            >
-              <Route element={<DashboardPage />} index />
-              <Route element={<PosPage />} path="pos" />
-              <Route element={<CashCutPage />} path="corte-caja" />
-              <Route element={<SalesHistoryPage />} path="ventas" />
-              <Route element={<ReturnsPage />} path="devoluciones" />
-              <Route element={<ProductsPage />} path="productos" />
-              <Route element={<InventoryPage />} path="inventario" />
-              <Route element={<InventoryCountPage />} path="inventario/conteo" />
-              <Route element={<PurchasesPage />} path="compras" />
-              <Route element={<UsersPage />} path="usuarios" />
-              <Route element={<ReportsPage />} path="reportes" />
-              <Route element={<SettingsPage />} path="configuracion" />
-            </Route>
-            <Route element={<NotFoundPage />} path="*" />
-          </Routes>
+          <SonnerTheme />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route element={<LoginPage />} path="/login" />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <CommandPaletteProvider>
+                      <AppShell />
+                    </CommandPaletteProvider>
+                  </ProtectedRoute>
+                }
+              >
+                <Route element={<DashboardPage />} index />
+                <Route element={<PosPage />} path="pos" />
+                <Route element={<CashCutPage />} path="corte-caja" />
+                <Route element={<SalesHistoryPage />} path="ventas" />
+                <Route element={<ReturnsPage />} path="devoluciones" />
+                <Route element={<ProductsPage />} path="productos" />
+                <Route element={<InventoryPage />} path="inventario" />
+                <Route element={<InventoryCountPage />} path="inventario/conteo" />
+                <Route element={<PurchasesPage />} path="compras" />
+                <Route element={<UsersPage />} path="usuarios" />
+                <Route element={<ReportsPage />} path="reportes" />
+                <Route element={<SettingsPage />} path="configuracion" />
+              </Route>
+              <Route element={<NotFoundPage />} path="*" />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </ErrorBoundary>
     </QueryClientProvider>
   );
+}
+
+/** Sonner toaster with theme-awareness */
+function SonnerTheme() {
+  const theme = useThemeStore((state) => state.theme);
+  return <Toaster position="bottom-right" richColors theme={theme} />;
+}
+
+function ThemeEvents() {
+  const theme = useThemeStore((state) => state.theme);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  return null;
 }
 
 function AuthEvents() {

@@ -11,7 +11,7 @@ export function NotFoundPage() {
           <SearchX aria-hidden="true" size={24} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Pagina no encontrada</h1>
+          <h1 className="text-2xl font-bold text-neutral-text-primary">Página no encontrada</h1>
           <p className="mt-1 text-sm text-neutral-text-secondary">La ruta solicitada no existe.</p>
         </div>
         <Link

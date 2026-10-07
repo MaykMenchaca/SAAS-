@@ -1,36 +1,50 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors — from DESIGN.md tokens */
-  --color-primary: #1a56db;
-  --color-primary-hover: #1e40af;
-  --color-success: #059669;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
+  /* Colors — Slate Cian (Mix A+B) en OKLCH para perceptual uniformity. */
+  --color-primary: oklch(0.69 0.16 235);
+  --color-primary-hover: oklch(0.59 0.16 235);
+  --color-success: oklch(0.59 0.13 165);
+  --color-warning: oklch(0.65 0.16 55);
+  --color-danger: oklch(0.58 0.21 28);
+  --color-info: oklch(0.76 0.13 230);
 
-  --color-neutral-bg: #f8fafc;
-  --color-neutral-surface: #ffffff;
-  --color-neutral-border: #e2e8f0;
-  --color-neutral-text-primary: #0f172a;
-  --color-neutral-text-secondary: #475569;
-  --color-neutral-text-muted: #94a3b8;
+  --color-neutral-bg: oklch(0.98 0.005 250);
+  --color-neutral-surface: oklch(1 0 0);
+  --color-neutral-surface-raised: oklch(0.96 0.005 250);
+  --color-neutral-border: oklch(0.91 0.005 250);
+  --color-neutral-border-strong: oklch(0.84 0.008 250);
+  --color-outline: oklch(0.71 0.01 250);
+  --color-neutral-text-primary: oklch(0.21 0.04 260);
+  --color-neutral-text-secondary: oklch(0.49 0.02 260);
+  --color-neutral-text-muted: oklch(0.49 0.02 260);
+  --color-neutral-decorative: oklch(0.71 0.01 250);
 
-  --color-sidebar-bg: #1e293b;
-  --color-sidebar-text: #e2e8f0;
+  --color-sidebar-bg: oklch(0.25 0.03 260);
+  --color-sidebar-text: oklch(0.69 0.03 240);
 
-  --color-pos-bg: #f1f5f9;
-  --color-pos-cart: #ffffff;
-  --color-pos-total-bg: #0f172a;
-  --color-pos-total-text: #ffffff;
+  --color-pos-bg: oklch(0.98 0.005 250);
+  --color-pos-cart: oklch(1 0 0);
+  --color-pos-total-bg: oklch(0.25 0.03 260);
+  --color-pos-total-text: oklch(0.97 0.005 240);
+
+  /* Brand palette — LOGO_COLORS para personalización por sucursal */
+  --color-brand-cyan: oklch(0.69 0.16 235);
+  --color-brand-emerald: oklch(0.59 0.13 165);
+  --color-brand-indigo: oklch(0.55 0.21 280);
+  --color-brand-amber: oklch(0.55 0.13 60);
+  --color-brand-rose: oklch(0.58 0.22 17);
+  --color-brand-slate: oklch(0.36 0.04 260);
+  --color-brand-violet: oklch(0.71 0.16 295);
 
   /* Typography */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   /* Rounded */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -39,15 +53,194 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
   --spacing-section: 48px;
+
+  /* Max widths — restore Tailwind defaults (custom spacing tokens shadow these) */
+  --max-width-xs: 20rem;
+  --max-width-sm: 24rem;
+  --max-width-md: 28rem;
+  --max-width-lg: 32rem;
+  --max-width-xl: 36rem;
+  --max-width-2xl: 42rem;
+  --max-width-3xl: 48rem;
+  --max-width-4xl: 56rem;
+  --max-width-5xl: 64rem;
+}
+
+html,
+html.light {
+  color-scheme: light;
+  --color-primary: oklch(0.69 0.16 235);
+  --color-primary-hover: oklch(0.59 0.16 235);
+  --color-success: oklch(0.59 0.13 165);
+  --color-warning: oklch(0.65 0.16 55);
+  --color-danger: oklch(0.58 0.21 28);
+  --color-info: oklch(0.76 0.13 230);
+
+  --color-neutral-bg: oklch(0.98 0.005 250);
+  --color-neutral-surface: oklch(1 0 0);
+  --color-neutral-surface-raised: oklch(0.96 0.005 250);
+  --color-neutral-border: oklch(0.91 0.005 250);
+  --color-neutral-border-strong: oklch(0.84 0.008 250);
+  --color-outline: oklch(0.71 0.01 250);
+  --color-neutral-text-primary: oklch(0.21 0.04 260);
+  --color-neutral-text-secondary: oklch(0.49 0.02 260);
+  --color-neutral-text-muted: oklch(0.49 0.02 260);
+  --color-neutral-decorative: oklch(0.71 0.01 250);
+
+  --color-sidebar-bg: oklch(0.25 0.03 260);
+  --color-sidebar-text: oklch(0.69 0.03 240);
+
+  --color-pos-bg: oklch(0.98 0.005 250);
+  --color-pos-cart: oklch(1 0 0);
+  --color-pos-total-bg: oklch(0.25 0.03 260);
+  --color-pos-total-text: oklch(0.97 0.005 240);
+}
+
+html.dark {
+  color-scheme: dark;
+  --color-primary: oklch(0.71 0.16 290);
+  --color-primary-hover: oklch(0.62 0.21 290);
+  --color-success: oklch(0.77 0.16 165);
+  --color-warning: oklch(0.83 0.18 80);
+  --color-danger: oklch(0.64 0.22 30);
+  --color-info: oklch(0.71 0.17 250);
+
+  --color-neutral-bg: oklch(0.14 0.005 280);
+  --color-neutral-surface: oklch(0.18 0.005 280);
+  --color-neutral-surface-raised: oklch(0.21 0.005 280);
+  --color-neutral-border: oklch(0.27 0.005 280);
+  --color-neutral-border-strong: oklch(0.35 0.005 280);
+  --color-outline: oklch(0.42 0.008 280);
+  --color-neutral-text-primary: oklch(0.98 0 0);
+  --color-neutral-text-secondary: oklch(0.7 0.005 280);
+  --color-neutral-text-muted: oklch(0.7 0.005 280);
+  --color-neutral-decorative: oklch(0.59 0.01 280);
+
+  --color-sidebar-bg: oklch(0.16 0.005 280);
+  --color-sidebar-text: oklch(0.91 0.003 280);
+
+  --color-pos-bg: oklch(0.14 0.005 280);
+  --color-pos-cart: oklch(0.18 0.005 280);
+  --color-pos-total-bg: oklch(0.21 0.005 280);
+  --color-pos-total-text: oklch(0.98 0 0);
 }
 
 body {
   font-family: var(--font-sans);
   background-color: var(--color-neutral-bg);
   color: var(--color-neutral-text-primary);
-  font-size: 0.875rem;
+  font-size: 1rem;
   line-height: 1.5;
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Desktop: densidad de 14px para aprovechar pantallas grandes.
+   Mobile/tablet se queda en 16px para evitar iOS auto-zoom al enfocar inputs. */
+@media (min-width: 1024px) {
+  body { font-size: 0.875rem; }
+}
+
+* {
+  border-color: var(--color-neutral-border);
+}
+
+/* Tight letter-spacing + text-wrap balance on headings — Emil/impeccable spec */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Long-form prose — reduce orphans */
+p, li {
+  text-wrap: pretty;
+}
+
+/* Tabular numbers for mono font — aligns numeric columns */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Easing variables — craft-grade curves */
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Cursor pointer global — Emil: nunca añadir cursor-pointer manualmente en botones */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+/* Smooth theme transition */
+html {
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Animaciones interruptibles via @starting-style — reemplazan @keyframes fadeIn/scaleIn.
+   Patrón Emil: usar transitions (interrumpibles) en lugar de keyframes que reinician desde 0. */
+.fade-in {
+  opacity: 1;
+  transition: opacity 150ms var(--ease-out-strong);
+}
+@starting-style {
+  .fade-in { opacity: 0; }
+}
+
+.scale-in {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms var(--ease-out-strong), transform 200ms var(--ease-out-strong);
+}
+@starting-style {
+  .scale-in { opacity: 0; transform: scale(0.95); }
+}
+
+/* Scrollbar styling — dark mode */
+html.dark {
+  scrollbar-color: var(--color-neutral-border) var(--color-neutral-bg);
+}
+html.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: var(--color-neutral-bg);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-border);
+  border-radius: 4px;
+}
+
+/* Scrollbar styling — light mode */
+html.light {
+  scrollbar-color: var(--color-neutral-border-strong) var(--color-neutral-bg);
+}
+html.light ::-webkit-scrollbar {
+  width: 8px;
+}
+html.light ::-webkit-scrollbar-track {
+  background: var(--color-neutral-bg);
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-border-strong);
+  border-radius: 4px;
+}
+
+.bg-grid-pattern {
+  background-image: linear-gradient(to right, rgba(128, 128, 128, 0.03) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(128, 128, 128, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
 }

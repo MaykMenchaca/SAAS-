@@ -31,6 +31,7 @@ export type Product = {
   is_active: boolean;
   category: Category | null;
   unit: UnitOfMeasure;
+  stock_qty?: string;
 };
 
 export type ProductPayload = {
@@ -64,14 +65,16 @@ type ListProductsParams = {
   page?: number;
   perPage?: number;
   search?: string;
+  category_id?: number;
 };
 
-export async function listProducts({ page = 1, perPage = 20, search = "" }: ListProductsParams) {
+export async function listProducts({ page = 1, perPage = 20, search = "", category_id }: ListProductsParams) {
   const response = await apiClient.get<PaginatedResponse<Product>>("/products/", {
     params: {
       page,
       per_page: perPage,
       search: search || undefined,
+      category_id: category_id || undefined,
     },
   });
   return response.data;
@@ -101,7 +104,37 @@ export async function listCategories() {
   return response.data.items;
 }
 
+export async function createCategory(payload: { name: string; description?: string }) {
+  const response = await apiClient.post<Category>("/categories/", payload);
+  return response.data;
+}
+
+export async function updateCategory(id: number, payload: { name: string; description?: string }) {
+  const response = await apiClient.patch<Category>(`/categories/${id}`, payload);
+  return response.data;
+}
+
+export async function deactivateCategory(id: number) {
+  const response = await apiClient.delete<Category>(`/categories/${id}`);
+  return response.data;
+}
+
 export async function listUnits() {
   const response = await apiClient.get<UnitOfMeasure[]>("/products/units");
+  return response.data;
+}
+
+export async function createUnit(payload: { name: string; abbreviation: string; allows_fractions: boolean }) {
+  const response = await apiClient.post<UnitOfMeasure>("/products/units", payload);
+  return response.data;
+}
+
+export async function updateUnit(id: number, payload: Partial<{ name: string; abbreviation: string; allows_fractions: boolean }>) {
+  const response = await apiClient.patch<UnitOfMeasure>(`/products/units/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteUnit(id: number) {
+  const response = await apiClient.delete<{ success: boolean }>(`/products/units/${id}`);
   return response.data;
 }

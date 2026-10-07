@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { AxiosRequestConfig } from "axios";
 
 const ACCESS_TOKEN_KEY = "pos_access_token";
 const REFRESH_TOKEN_KEY = "pos_refresh_token";
@@ -46,12 +47,81 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// ── JWT auto-refresh with request queue ──────────────────────────
+
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+function processQueue(error: unknown, token: string | null) {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token!);
+    }
+  });
+  failedQueue = [];
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
-      window.dispatchEvent(new Event("auth:expired"));
+  async (error) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest.url?.includes("/auth/refresh") &&
+      !originalRequest.url?.includes("/auth/login") &&
+      !originalRequest._retry
+    ) {
+      // If another refresh is already in progress, queue this request
+      if (isRefreshing) {
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+          }
+          return apiClient(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = getStoredRefreshToken();
+      if (!refreshToken) {
+        isRefreshing = false;
+        window.dispatchEvent(new Event("auth:expired"));
+        return Promise.reject(error);
+      }
+
+      try {
+        const { data } = await axios.post<{ access_token: string }>(
+          `${apiClient.defaults.baseURL}/auth/refresh`,
+          undefined,
+          { headers: { Authorization: `Bearer ${refreshToken}` } },
+        );
+
+        setStoredAccessToken(data.access_token);
+        processQueue(null, data.access_token);
+
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        }
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        window.dispatchEvent(new Event("auth:expired"));
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   },
 );

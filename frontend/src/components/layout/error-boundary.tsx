@@ -28,18 +28,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <main className="grid min-h-screen place-items-center bg-neutral-bg p-6">
-          <Card className="grid max-w-md gap-4 p-6">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-red-50 text-danger">
-              <AlertTriangle aria-hidden="true" size={22} />
+        <main className="grid min-h-screen place-items-center bg-neutral-bg p-8">
+          <Card className="grid max-w-lg gap-6 p-8 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <AlertTriangle aria-hidden="true" size={32} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-neutral-text-primary">Error de pantalla</h1>
-              <p className="mt-1 text-sm text-neutral-text-secondary">
-                Recarga la vista para continuar trabajando.
+              <h1 className="text-2xl font-bold text-neutral-text-primary">Algo salió mal</h1>
+              <p className="mt-2 text-sm leading-relaxed text-neutral-text-secondary">
+                Ocurrió un error inesperado al mostrar esta sección.
+                Recarga la página para continuar trabajando.
+                Si el problema persiste, contacta al administrador.
               </p>
             </div>
-            <Button onClick={() => window.location.reload()}>Recargar</Button>
+            <Button className="mx-auto" onClick={() => window.location.reload()}>
+              Recargar página
+            </Button>
           </Card>
         </main>
       );
