@@ -16,3 +16,7 @@ htmlcov/
 *.egg-info/
 .DS_Store
 Thumbs.db
+
+# Generated output / QA screenshots
+artifacts/
+graphify-out/
