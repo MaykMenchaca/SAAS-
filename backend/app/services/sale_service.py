@@ -7,6 +7,8 @@ from sqlalchemy import text
 from app.extensions import db
 from app.models.product import Product
 from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
+from app.models.user import User
+from app.services import config_service
 from app.services.inventory_service import InventoryService
 
 
@@ -26,19 +28,32 @@ class SaleService:
         Args:
             user_id: Cashier performing the sale.
             session_id: Open CashRegisterSession id.
-            items: List of dicts with product_id, quantity, unit_price, tax_rate,
-                   and optional discount_percent.
+            items: List of dicts with product_id, quantity, and optional discount_percent.
+                   (unit_price and tax_rate are ignored if passed; catalog is authoritative).
             payments: List of dicts with method, amount, and optional reference/change_amount.
 
         Returns:
             The created Sale object.
 
         Raises:
-            ValueError: If session is closed, stock insufficient, or payment insufficient.
+            ValueError: If session is closed, stock insufficient, payment insufficient,
+                        product inactive, fraction not allowed, or discount exceeds limit.
         """
         session = db.session.get(CashRegisterSession, session_id)
         if not session or session.status != "abierta":
             raise ValueError("La sesión de caja no está abierta")
+
+        user = db.session.get(User, user_id)
+        has_discount_perm = (
+            user is not None
+            and (user.role_name == "admin" or "ventas:descuento" in user.permissions)
+        )
+
+        max_disc_str = config_service.get("max_discount_percent") or "0"
+        try:
+            max_discount_limit = Decimal(str(max_disc_str))
+        except Exception:
+            max_discount_limit = Decimal("0")
 
         folio = SaleService._generate_folio()
 
@@ -59,14 +74,36 @@ class SaleService:
         tax_total = Decimal("0")
 
         for item_data in items:
-            qty = Decimal(str(item_data["quantity"]))
-            price = Decimal(str(item_data["unit_price"]))
-            disc_pct = Decimal(str(item_data.get("discount_percent", 0)))
-            tax_rate = Decimal(str(item_data["tax_rate"]))
-
             product = db.session.get(Product, item_data["product_id"])
             if not product:
                 raise ValueError(f"Producto {item_data['product_id']} no encontrado")
+
+            if not product.is_active:
+                raise ValueError(f"El producto '{product.name}' está inactivo")
+
+            qty = Decimal(str(item_data["quantity"]))
+            if qty <= Decimal("0"):
+                raise ValueError("La cantidad debe ser mayor a 0")
+
+            if product.unit and not product.unit.allows_fractions:
+                if qty % Decimal("1") != Decimal("0"):
+                    raise ValueError(
+                        f"El producto '{product.name}' no permite cantidades fraccionarias"
+                    )
+
+            # Precios e impuestos autoritativos desde el catálogo del servidor
+            price = Decimal(str(product.sale_price))
+            tax_rate = Decimal(str(product.tax_rate))
+
+            disc_pct = Decimal(str(item_data.get("discount_percent", 0)))
+            if disc_pct < Decimal("0") or disc_pct > Decimal("100"):
+                raise ValueError("El porcentaje de descuento debe estar entre 0 y 100")
+
+            if disc_pct > max_discount_limit and not has_discount_perm:
+                raise ValueError(
+                    f"El descuento del {disc_pct}% supera el tope permitido ({max_discount_limit}%) "
+                    "y requiere el permiso 'ventas:descuento'"
+                )
 
             line_gross = qty * price
             line_discount = (line_gross * disc_pct / Decimal("100")).quantize(

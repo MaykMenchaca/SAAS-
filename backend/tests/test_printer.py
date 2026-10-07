@@ -11,11 +11,9 @@ def _create_sale(db, seed_admin, seed_open_session, seed_product_for_sale):
             {
                 "product_id": seed_product_for_sale.id,
                 "quantity": 2,
-                "unit_price": "149.90",
-                "tax_rate": "16.00",
             }
         ],
-        payments=[{"method": "efectivo", "amount": "347.77"}],
+        payments=[{"method": "efectivo", "amount": "232.00"}],
     )
 
 
@@ -47,7 +45,7 @@ def test_format_price_label_includes_price_and_barcode(db, seed_product_for_sale
 
     assert "Martillo" in label
     assert "POS-001" in label
-    assert "$149.90" in label
+    assert "$100.00" in label
     assert "CODIGO 750100000001" in label
     assert "750100000001" in label
     assert "\x1dkI" in label

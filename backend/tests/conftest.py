@@ -20,6 +20,7 @@ PERMISSION_CODES = {
     "ventas:crear": "Crear ventas",
     "ventas:ver": "Ver ventas",
     "ventas:cancelar": "Cancelar ventas",
+    "ventas:descuento": "Aplicar descuentos mayores al tope permitido",
     "caja:abrir": "Abrir sesion de caja",
     "caja:cerrar": "Cerrar sesion de caja",
     "caja:ver": "Ver sesiones de caja",
@@ -115,6 +116,7 @@ def seed_roles(db, seed_permissions):
     cajero_role = Role(name="cajero", description="Cajero")
     admin_role.permissions.extend(seed_permissions.values())
     gerente_role.permissions.append(seed_permissions["usuarios:ver"])
+    gerente_role.permissions.append(seed_permissions["ventas:descuento"])
     # Cajero gets POS-related permissions
     for code in ("ventas:crear", "ventas:ver", "caja:abrir", "caja:cerrar", "caja:ver",
                  "productos:ver", "inventario:ver"):
@@ -217,7 +219,7 @@ def seed_product_for_sale(db):
         sku="POS-001",
         name="Martillo",
         unit_id=unit.id,
-        sale_price=Decimal("149.90"),
+        sale_price=Decimal("100.00"),
         avg_cost=Decimal("60.00"),
         tax_rate=Decimal("16.00"),
     )

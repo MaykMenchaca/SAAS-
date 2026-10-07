@@ -56,8 +56,8 @@ class SaleItemInputSchema(Schema):
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
     quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
-    unit_price = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0))
-    tax_rate = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0))
+    unit_price = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
+    tax_rate = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
     discount_percent = fields.Decimal(
         as_string=True, load_default="0", places=2, validate=validate.Range(min=0, max=100)
     )

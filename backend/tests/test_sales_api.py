@@ -83,12 +83,10 @@ def test_admin_can_create_sale(
                 {
                     "product_id": seed_product_for_sale.id,
                     "quantity": 2,
-                    "unit_price": "149.90",
-                    "tax_rate": "16.00",
                 }
             ],
             "payments": [
-                {"method": "efectivo", "amount": "347.77"},
+                {"method": "efectivo", "amount": "232.00"},
             ],
         },
     )
@@ -118,12 +116,10 @@ def test_admin_can_cancel_sale(
                 {
                     "product_id": seed_product_for_sale.id,
                     "quantity": 1,
-                    "unit_price": "149.90",
-                    "tax_rate": "16.00",
                 }
             ],
             "payments": [
-                {"method": "efectivo", "amount": "173.88"},
+                {"method": "efectivo", "amount": "116.00"},
             ],
         },
     )
@@ -154,11 +150,9 @@ def test_admin_can_list_sales(
                 {
                     "product_id": seed_product_for_sale.id,
                     "quantity": 1,
-                    "unit_price": "149.90",
-                    "tax_rate": "16.00",
                 }
             ],
-            "payments": [{"method": "efectivo", "amount": "173.88"}],
+            "payments": [{"method": "efectivo", "amount": "116.00"}],
         },
     )
 
@@ -362,11 +356,9 @@ def test_admin_can_get_sale_detail(
                 {
                     "product_id": seed_product_for_sale.id,
                     "quantity": 1,
-                    "unit_price": "149.90",
-                    "tax_rate": "16.00",
                 }
             ],
-            "payments": [{"method": "efectivo", "amount": "173.88"}],
+            "payments": [{"method": "efectivo", "amount": "116.00"}],
         },
     )
     sale_id = create_resp.get_json()["id"]

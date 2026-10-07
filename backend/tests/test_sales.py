@@ -250,8 +250,14 @@ def test_service_create_sale_success(db):
 def test_service_create_sale_with_discount(db):
     """SaleService correctly applies per-item percentage discounts."""
     from app.services.sale_service import SaleService
+    from app.models.user import Permission
 
     user, register, session = _seed_cash_register_session(db)
+    perm = Permission(code="ventas:descuento", module="ventas", description="Descuento")
+    db.session.add(perm)
+    user.role_rel.permissions.append(perm)
+    db.session.flush()
+
     product = _seed_product_for_sale(db, "SRV-002", "Sierra", "200.00")
 
     sale = SaleService.create_sale(
@@ -432,3 +438,130 @@ def test_service_cancel_already_cancelled_sale(db):
 
     with pytest.raises(ValueError, match="ya está cancelada"):
         SaleService.cancel_sale(sale.id, user.id, "Segunda cancelacion")
+
+
+# --- Regression Tests: Subfase 1.1 (H-01) ---
+
+
+def test_precio_del_cliente_se_ignora(db):
+    """El cliente manda unit_price=0.01 y tax_rate=0 pero el servidor usa el catálogo."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-001", "Tuerca", "34.90")
+
+    # Catalog: price=34.90, tax_rate=16.00 -> 34.90 + 5.58 = 40.48
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "unit_price": "0.01",  # Client tries to force $0.01
+                "tax_rate": "0.00",    # Client tries to force 0% tax
+            }
+        ],
+        payments=[
+            {"method": "efectivo", "amount": "40.48"},
+        ],
+    )
+
+    assert sale.items[0].unit_price == Decimal("34.90")
+    assert sale.items[0].tax_rate == Decimal("16.00")
+    assert sale.subtotal == Decimal("34.90")
+    assert sale.tax_total == Decimal("5.58")
+    assert sale.total == Decimal("40.48")
+
+
+def test_descuento_sobre_tope_rechazado(db):
+    """Cajero sin permiso ventas:descuento no puede superar max_discount_percent."""
+    import pytest
+    from app.services.sale_service import SaleService
+    from app.models.user import Permission
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-002", "Pala", "250.00")
+
+    # Default max_discount_percent is 0; 10% discount must be rejected for cashier without permission
+    with pytest.raises(ValueError, match="descuento"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                    "discount_percent": "10",
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "261.00"}],
+        )
+
+    # If user is granted 'ventas:descuento', discount is allowed
+    perm = Permission(code="ventas:descuento", module="ventas", description="Permiso de descuento")
+    db.session.add(perm)
+    user.role_rel.permissions.append(perm)
+    db.session.commit()
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "discount_percent": "10",
+            }
+        ],
+        payments=[{"method": "efectivo", "amount": "261.00"}],
+    )
+    assert sale.items[0].discount_percent == Decimal("10.00")
+
+
+def test_producto_inactivo_rechazado(db):
+    """No se pueden vender productos inactivos."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-003", "Tornillo Viejo", "5.00")
+    product.is_active = False
+    db.session.commit()
+
+    with pytest.raises(ValueError, match="inactivo"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "5.80"}],
+        )
+
+
+def test_fraccion_en_unidad_entera_rechazada(db):
+    """No se pueden vender fracciones de productos con allows_fractions = False."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-004", "Martillo Entero", "150.00")
+    # Unit 'Pieza' has allows_fractions = False
+    assert product.unit.allows_fractions is False
+
+    with pytest.raises(ValueError, match="fraccion"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": "1.5",
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "261.00"}],
+        )

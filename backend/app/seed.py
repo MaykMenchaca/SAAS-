@@ -32,6 +32,7 @@ PERMISSIONS = {
     "ventas:crear": ("ventas", "Crear ventas"),
     "ventas:ver": ("ventas", "Ver ventas"),
     "ventas:cancelar": ("ventas", "Cancelar ventas"),
+    "ventas:descuento": ("ventas", "Aplicar descuentos mayores al tope permitido"),
     # Cash register
     "caja:abrir": ("caja", "Abrir sesion de caja"),
     "caja:cerrar": ("caja", "Cerrar sesion de caja"),
@@ -57,7 +58,7 @@ ROLES = {
             "usuarios:ver",
             "productos:ver", "productos:crear", "productos:editar", "productos:editar_precio",
             "inventario:ver", "inventario:ajustar",
-            "ventas:ver", "ventas:cancelar",
+            "ventas:ver", "ventas:cancelar", "ventas:descuento",
             "caja:abrir", "caja:cerrar", "caja:ver",
             "compras:ver", "compras:crear", "compras:editar", "compras:recibir",
             "reportes:ver",
