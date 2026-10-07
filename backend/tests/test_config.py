@@ -178,3 +178,12 @@ def test_install_scripts_no_usan_credenciales_hardcodeadas():
     assert 'secrets' in install_prod.lower()
 
 
+def test_run_py_no_expone_debug_ni_red():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    run_code = (root / "backend" / "run.py").read_text(encoding="utf-8")
+    assert "debug=True" not in run_code
+    assert 'host="0.0.0.0"' not in run_code
+
+
+

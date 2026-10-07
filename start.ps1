@@ -1,7 +1,9 @@
-# POS System — Local Development Startup
+# POS System — Local Development Startup (SOLO DESARROLLO)
 # Starts both backend (Flask) and frontend (Vite) servers
+# Para uso en tienda o produccion ejecute start-production.ps1
 
-Write-Host "=== POS System - Inicio Local ===" -ForegroundColor Cyan
+Write-Host "=== POS System - SOLO DESARROLLO (Para produccion use start-production.ps1) ===" -ForegroundColor Yellow
+Write-Host "Aviso: Este script es exclusivamente para desarrollo local.`n" -ForegroundColor Gray
 
 # Check PostgreSQL is running
 try {

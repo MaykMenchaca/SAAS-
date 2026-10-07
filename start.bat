@@ -1,9 +1,10 @@
 @echo off
-title POS Retail VRNTAS - Inicio del Sistema
+title POS Retail VRNTAS - SOLO DESARROLLO
 color 0B
 
 echo ============================================================
-echo               POS Retail VRNTAS - Inicio Local
+echo        POS Retail VRNTAS - SOLO DESARROLLO
+echo   (Para uso en tienda o produccion ejecute start-production.ps1)
 echo ============================================================
 echo.
 
