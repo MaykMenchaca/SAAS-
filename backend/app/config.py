@@ -30,8 +30,13 @@ class TestConfig(Config):
     TESTING = True
     SECRET_KEY = "test-secret-key-at-least-32-chars-long-strictly-for-testing-123456"
     JWT_SECRET_KEY = "test-jwt-secret-key-at-least-32-chars-long-strictly-for-testing-654321"
-    SQLALCHEMY_DATABASE_URI = (
-        "postgresql://pos_user:pos_pass@localhost:5432/pos_test_db"
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "TEST_DATABASE_URL",
+        (
+            Config.SQLALCHEMY_DATABASE_URI.rsplit("/", 1)[0] + "/pos_test_db"
+            if Config.SQLALCHEMY_DATABASE_URI
+            else "postgresql://pos_user@localhost:5432/pos_test_db"
+        ),
     )
 
 
