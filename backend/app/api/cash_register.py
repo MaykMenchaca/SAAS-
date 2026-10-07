@@ -22,6 +22,17 @@ session_schema = CashRegisterSessionSchema()
 sessions_schema = CashRegisterSessionSchema(many=True)
 
 
+@cash_register_bp.route("/", methods=["GET"])
+@require_permission("caja:ver")
+def list_registers():
+    """List all active cash registers."""
+    registers = CashRegister.query.filter_by(is_active=True).order_by(CashRegister.name).all()
+    return jsonify([
+        {"id": r.id, "name": r.name, "is_active": r.is_active}
+        for r in registers
+    ]), 200
+
+
 @cash_register_bp.route("/open", methods=["POST"])
 @require_permission("caja:abrir")
 def open_session():
@@ -89,6 +100,15 @@ def close_session(session_id):
     session.difference = Decimal(str(data["closing_amount"])) - expected_cash
 
     db.session.commit()
+
+    # Trigger automatic backup on session close (Fase 4)
+    try:
+        from app.services.backup_service import create_backup
+        create_backup()
+    except Exception as e:
+        # Do not block the session closure response if pg_dump is missing or fails
+        from flask import current_app
+        current_app.logger.error(f"[BACKUP ERROR] Error creating automated backup on session close: {e}")
 
     return jsonify(session_schema.dump(session)), 200
 

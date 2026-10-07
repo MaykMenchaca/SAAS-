@@ -22,9 +22,9 @@ class CategoryUpdateSchema(Schema):
 
 class UnitOfMeasureSchema(Schema):
     id = fields.Int(dump_only=True)
-    name = fields.Str(dump_only=True)
-    abbreviation = fields.Str(dump_only=True)
-    allows_fractions = fields.Bool(dump_only=True)
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=50))
+    abbreviation = fields.Str(required=True, validate=validate.Length(min=1, max=10))
+    allows_fractions = fields.Bool(load_default=False)
 
 
 class ProductSchema(Schema):
@@ -46,6 +46,10 @@ class ProductSchema(Schema):
     updated_at = fields.DateTime(dump_only=True)
     category = fields.Nested(CategorySchema, dump_only=True, allow_none=True)
     unit = fields.Nested(UnitOfMeasureSchema, dump_only=True)
+    stock_qty = fields.Method("get_stock_qty", dump_only=True)
+
+    def get_stock_qty(self, obj):
+        return str(obj.stock.quantity) if obj.stock else "0.000"
 
 
 class ProductCreateSchema(Schema):

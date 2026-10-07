@@ -47,7 +47,7 @@ def set_bulk(updates: dict) -> dict:
     """Set multiple config values at once. Returns all config."""
     for key, value in updates.items():
         set_value(key, str(value))
-    db.session.flush()
+    db.session.commit()
     return get_all()
 
 

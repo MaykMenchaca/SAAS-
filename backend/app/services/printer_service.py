@@ -86,7 +86,7 @@ class PrinterService:
         return "\n".join(lines)
 
     @staticmethod
-    def send_to_printer(content: str, printer_path: str | os.PathLike | None = None) -> bool:
+    def send_to_printer(content: str, printer_path: str | os.PathLike | None = None, kick_drawer: bool = False) -> bool:
         """Write ESC/POS bytes to the configured printer device/file.
 
         In production this can point at a raw device path, shared printer file,
@@ -96,7 +96,8 @@ class PrinterService:
         if not target:
             raise ValueError("Ruta de impresora no configurada")
 
-        payload = b"\x1b@" + content.encode("cp437", errors="replace") + b"\n\x1di"
+        drawer_kick = b"\x1bp\x00\x19\x96" if kick_drawer else b""
+        payload = b"\x1b@" + drawer_kick + content.encode("cp437", errors="replace") + b"\n\x1di"
         Path(target).write_bytes(payload)
         return True
 

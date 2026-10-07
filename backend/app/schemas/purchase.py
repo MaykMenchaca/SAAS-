@@ -67,7 +67,7 @@ class PurchaseOrderCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
-    supplier_id = fields.Int(required=True, validate=validate.Range(min=1))
+    supplier_id = fields.Int(load_default=None, allow_none=True)
     items = fields.List(
         fields.Nested(PurchaseOrderItemInputSchema),
         required=True,

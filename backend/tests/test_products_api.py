@@ -209,3 +209,71 @@ def test_admin_can_list_and_deactivate_category(client, admin_token, db):
 
     assert delete_response.status_code == 200
     assert delete_response.get_json()["is_active"] is False
+
+
+def test_admin_can_create_unit(client, admin_token):
+    response = client.post(
+        "/api/products/units",
+        json={"name": "Kilo", "abbreviation": "kg", "allows_fractions": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["name"] == "Kilo"
+    assert data["abbreviation"] == "kg"
+    assert data["allows_fractions"] is True
+
+
+def test_admin_can_update_unit(client, admin_token, db):
+    from app.models.product import UnitOfMeasure
+
+    unit = UnitOfMeasure(name="Metro", abbreviation="m")
+    db.session.add(unit)
+    db.session.commit()
+
+    response = client.patch(
+        f"/api/products/units/{unit.id}",
+        json={"name": "Metro lineal", "abbreviation": "ml"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["name"] == "Metro lineal"
+    assert data["abbreviation"] == "ml"
+
+
+def test_admin_can_delete_unit(client, admin_token, db):
+    from app.models.product import UnitOfMeasure
+
+    unit = UnitOfMeasure(name="Rollo", abbreviation="rl")
+    db.session.add(unit)
+    db.session.commit()
+
+    response = client.delete(
+        f"/api/products/units/{unit.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+
+
+def test_cannot_delete_unit_in_use(client, admin_token, db):
+    from app.models.product import UnitOfMeasure, Product
+
+    unit = UnitOfMeasure(name="Caja", abbreviation="cj")
+    db.session.add(unit)
+    db.session.flush()
+    product = Product(sku="BOX-01", name="Caja clavos", unit_id=unit.id, sale_price=Decimal("50.00"))
+    db.session.add(product)
+    db.session.commit()
+
+    response = client.delete(
+        f"/api/products/units/{unit.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 422
+    assert "error" in response.get_json()

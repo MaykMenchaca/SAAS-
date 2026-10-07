@@ -11,6 +11,12 @@ class Config:
         "postgresql://pos_user:pos_pass@localhost:5432/pos_db",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "jwt-dev-secret")
     JWT_ACCESS_TOKEN_EXPIRES = 28800  # 8 horas
     BACKUP_DIR = os.getenv("BACKUP_DIR", "backups")

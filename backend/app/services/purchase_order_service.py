@@ -17,7 +17,7 @@ class PurchaseOrderService:
     @staticmethod
     def create_order(
         user_id: int,
-        supplier_id: int,
+        supplier_id: int | None,
         items: list,
         notes: str | None = None,
         expected_date: str | None = None,
@@ -26,7 +26,7 @@ class PurchaseOrderService:
 
         Args:
             user_id: User creating the order.
-            supplier_id: Supplier for this order.
+            supplier_id: Supplier for this order (optional).
             items: List of dicts with product_id, quantity, unit_cost, tax_rate.
             notes: Optional notes.
             expected_date: Optional expected delivery date (YYYY-MM-DD).
@@ -37,9 +37,27 @@ class PurchaseOrderService:
         Raises:
             ValueError: If supplier not found or items invalid.
         """
-        supplier = db.session.get(Supplier, supplier_id)
-        if not supplier or not supplier.is_active:
-            raise ValueError("Proveedor no encontrado o inactivo")
+        if not supplier_id:
+            supplier = Supplier.query.filter_by(name="Sin Proveedor").first()
+            if not supplier:
+                supplier = Supplier(
+                    name="Sin Proveedor",
+                    rfc=None,
+                    contact_name="Por defecto",
+                    phone=None,
+                    email=None,
+                    address=None,
+                    payment_terms=None,
+                    notes="Proveedor por defecto para compras sin proveedor asignado.",
+                    is_active=True
+                )
+                db.session.add(supplier)
+                db.session.flush()
+            supplier_id = supplier.id
+        else:
+            supplier = db.session.get(Supplier, supplier_id)
+            if not supplier or not supplier.is_active:
+                raise ValueError("Proveedor no encontrado o inactivo")
 
         folio = PurchaseOrderService._generate_folio()
 

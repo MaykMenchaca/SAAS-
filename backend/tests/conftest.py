@@ -37,7 +37,10 @@ def flask_app():
     with application.app_context():
         _db.drop_all()
         _db.create_all()
-        # Create sequences not managed by SQLAlchemy's create_all
+        # Create sequences and extensions not managed by SQLAlchemy's create_all
+        _db.session.execute(
+            _db.text("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        )
         _db.session.execute(
             _db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1")
         )

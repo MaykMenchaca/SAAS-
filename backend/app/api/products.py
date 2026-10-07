@@ -7,7 +7,7 @@ from app.schemas.product import (
     UnitOfMeasureSchema,
 )
 from app.services.product_service import ProductService
-from app.utils.decorators import require_permission
+from app.utils.decorators import require_permission, audit_action
 from app.utils.pagination import paginate
 
 products_bp = Blueprint("products", __name__)
@@ -17,6 +17,7 @@ products_schema = ProductSchema(many=True)
 product_create_schema = ProductCreateSchema()
 product_update_schema = ProductUpdateSchema()
 units_schema = UnitOfMeasureSchema(many=True)
+unit_schema = UnitOfMeasureSchema()
 
 
 @products_bp.route("/", methods=["GET"])
@@ -39,6 +40,35 @@ def list_units():
     return jsonify(units_schema.dump(ProductService.list_units())), 200
 
 
+@products_bp.route("/units", methods=["POST"])
+@require_permission("productos:crear")
+def create_unit():
+    data = unit_schema.load(request.get_json(silent=True) or {})
+    unit = ProductService.create_unit(data)
+    return jsonify(unit_schema.dump(unit)), 201
+
+
+@products_bp.route("/units/<int:unit_id>", methods=["PATCH"])
+@require_permission("productos:editar")
+def update_unit(unit_id):
+    unit = ProductService.get_unit(unit_id)
+    if not unit:
+        return jsonify({"error": "Unidad de medida no encontrada"}), 404
+    data = unit_schema.load(request.get_json(silent=True) or {}, partial=True)
+    unit = ProductService.update_unit(unit, data)
+    return jsonify(unit_schema.dump(unit)), 200
+
+
+@products_bp.route("/units/<int:unit_id>", methods=["DELETE"])
+@require_permission("productos:desactivar")
+def delete_unit(unit_id):
+    unit = ProductService.get_unit(unit_id)
+    if not unit:
+        return jsonify({"error": "Unidad de medida no encontrada"}), 404
+    ProductService.delete_unit(unit)
+    return jsonify({"success": True}), 200
+
+
 @products_bp.route("/<int:product_id>", methods=["GET"])
 @require_permission("productos:ver")
 def get_product(product_id):
@@ -50,6 +80,7 @@ def get_product(product_id):
 
 @products_bp.route("/", methods=["POST"])
 @require_permission("productos:crear")
+@audit_action("crear", entity_type="producto")
 def create_product():
     data = product_create_schema.load(request.get_json(silent=True) or {})
     product = ProductService.create_product(data)
@@ -58,6 +89,7 @@ def create_product():
 
 @products_bp.route("/<int:product_id>", methods=["PATCH"])
 @require_permission("productos:editar")
+@audit_action("editar", entity_type="producto")
 def update_product(product_id):
     product = ProductService.get_product(product_id)
     if not product:
@@ -70,6 +102,7 @@ def update_product(product_id):
 
 @products_bp.route("/<int:product_id>", methods=["DELETE"])
 @require_permission("productos:desactivar")
+@audit_action("desactivar", entity_type="producto")
 def deactivate_product(product_id):
     product = ProductService.get_product(product_id)
     if not product:

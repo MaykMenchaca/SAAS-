@@ -1,5 +1,5 @@
 from marshmallow import ValidationError
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.extensions import db
 from app.models.product import Category, Product, UnitOfMeasure
@@ -23,14 +23,70 @@ class ProductService:
                     Product.sku.ilike(pattern),
                     Product.barcode.ilike(pattern),
                     Product.name.ilike(pattern),
+                    func.similarity(Product.name, search) > 0.25
                 )
             )
+            return query.order_by(func.similarity(Product.name, search).desc(), Product.name.asc())
 
         return query.order_by(Product.name.asc())
 
     @staticmethod
     def list_units():
         return UnitOfMeasure.query.order_by(UnitOfMeasure.name.asc()).all()
+
+    @staticmethod
+    def get_unit(unit_id):
+        return UnitOfMeasure.query.filter_by(id=unit_id).first()
+
+    @staticmethod
+    def create_unit(data):
+        ProductService._validate_unique_unit(data.get("name"), data.get("abbreviation"))
+        unit = UnitOfMeasure(**data)
+        db.session.add(unit)
+        db.session.commit()
+        return unit
+
+    @staticmethod
+    def update_unit(unit, data):
+        if "name" in data or "abbreviation" in data:
+            ProductService._validate_unique_unit(
+                data.get("name", unit.name),
+                data.get("abbreviation", unit.abbreviation),
+                exclude_unit_id=unit.id
+            )
+
+        for field, value in data.items():
+            setattr(unit, field, value)
+
+        db.session.commit()
+        return unit
+
+    @staticmethod
+    def delete_unit(unit):
+        associated_products = Product.query.filter_by(unit_id=unit.id).first()
+        if associated_products:
+            raise ValidationError({"error": ["No se puede eliminar la unidad porque esta asociada a productos"]})
+        db.session.delete(unit)
+        db.session.commit()
+        return True
+
+    @staticmethod
+    def _validate_unique_unit(name, abbreviation, exclude_unit_id=None):
+        errors = {}
+        if name:
+            query = UnitOfMeasure.query.filter_by(name=name)
+            if exclude_unit_id is not None:
+                query = query.filter(UnitOfMeasure.id != exclude_unit_id)
+            if query.first():
+                errors["name"] = ["Unidad con este nombre ya existe"]
+        if abbreviation:
+            query = UnitOfMeasure.query.filter_by(abbreviation=abbreviation)
+            if exclude_unit_id is not None:
+                query = query.filter(UnitOfMeasure.id != exclude_unit_id)
+            if query.first():
+                errors["abbreviation"] = ["Unidad con esta abreviatura ya existe"]
+        if errors:
+            raise ValidationError(errors)
 
     @staticmethod
     def get_product(product_id, include_inactive=True):

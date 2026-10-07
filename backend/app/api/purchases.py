@@ -113,7 +113,7 @@ def create_order():
     try:
         order = PurchaseOrderService.create_order(
             user_id=user_id,
-            supplier_id=data["supplier_id"],
+            supplier_id=data.get("supplier_id"),
             items=data["items"],
             notes=data.get("notes"),
             expected_date=data.get("expected_date"),
