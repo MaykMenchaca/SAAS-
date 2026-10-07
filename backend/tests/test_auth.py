@@ -202,3 +202,47 @@ def test_must_change_password_bloquea(client, db, seed_roles):
     users_res_after = client.get("/api/users/", headers={"Authorization": f"Bearer {new_token}"})
     assert users_res_after.status_code == 200
 
+
+def test_login_rate_limit(client):
+    from app.services.rate_limiter import login_limiter
+    login_limiter.reset()
+
+    # Los primeros 5 intentos no deben ser bloqueados con 429
+    for i in range(5):
+        res = client.post("/api/auth/login", json={
+            "username": f"user_attempt_{i}",
+            "password": "wrong_password",
+        })
+        assert res.status_code != 429
+
+    # El 6.º intento da 429 Too Many Requests
+    res6 = client.post("/api/auth/login", json={
+        "username": "user_attempt_6",
+        "password": "wrong_password",
+    })
+    assert res6.status_code == 429
+
+
+
+def test_login_user_lockout_tras_10_fallos(client):
+    from app.services.rate_limiter import login_limiter
+    login_limiter.reset()
+
+    for i in range(10):
+        res = client.post(
+            "/api/auth/login",
+            environ_overrides={"REMOTE_ADDR": f"10.0.0.{i+1}"},
+            json={"username": "bloqueable", "password": "wrong"},
+        )
+        assert res.status_code == 401
+
+    res11 = client.post(
+        "/api/auth/login",
+        environ_overrides={"REMOTE_ADDR": "10.0.0.99"},
+        json={"username": "bloqueable", "password": "wrong"},
+    )
+    assert res11.status_code == 429
+    assert "bloqueado" in res11.get_json()["error"]
+
+
+

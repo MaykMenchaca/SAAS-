@@ -73,6 +73,14 @@ def db_session(flask_app):
             _db.session.commit()
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    from app.services.rate_limiter import login_limiter
+    login_limiter.reset()
+    yield
+    login_limiter.reset()
+
+
 @pytest.fixture
 def app(flask_app):
     return flask_app

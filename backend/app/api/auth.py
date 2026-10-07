@@ -7,16 +7,30 @@ from app.services.auth_service import AuthService
 auth_bp = Blueprint("auth", __name__)
 
 
+from app.services.rate_limiter import login_limiter
+
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
+    ip = request.remote_addr or "127.0.0.1"
     data = request.get_json(silent=True) or {}
-    username = data.get("username")
+    username = (data.get("username") or "").strip()
     password = data.get("password")
+
+    if login_limiter.is_ip_limited(ip):
+        return jsonify({"error": "Demasiados intentos de acceso. Intente de nuevo en un minuto."}), 429
+
+    if login_limiter.is_user_locked(username):
+        return jsonify({"error": "Usuario bloqueado temporalmente por demasiados intentos fallidos. Intente de nuevo en 5 minutos."}), 429
+
+    login_limiter.record_ip_attempt(ip)
+
     if not username or not password:
         return jsonify({"error": "Username y password son requeridos"}), 400
 
     result = AuthService.authenticate(username, password)
     if result:
+        login_limiter.record_login_success(username)
         log_action(
             action="login",
             entity_type="user",
@@ -25,6 +39,8 @@ def login():
             username=result["user"]["username"],
         )
         return jsonify(result), 200
+
+    login_limiter.record_login_failure(username)
     log_action(
         action="login_failed",
         details={"username": username},
