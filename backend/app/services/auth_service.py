@@ -13,6 +13,7 @@ class AuthService:
             "full_name": user.full_name,
             "role": user.role_name,
             "permissions": user.permissions,
+            "must_change_password": bool(user.must_change_password),
         }
 
     @staticmethod
@@ -23,6 +24,7 @@ class AuthService:
             "full_name": payload["full_name"],
             "role": payload["role"],
             "permissions": payload["permissions"],
+            "must_change_password": bool(user.must_change_password),
         }
 
     @staticmethod
@@ -43,6 +45,7 @@ class AuthService:
                     additional_claims=claims,
                 ),
                 "user": AuthService._user_payload(user),
+                "must_change_password": bool(user.must_change_password),
             }
         return None
 

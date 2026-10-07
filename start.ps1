@@ -51,7 +51,7 @@ Write-Host "`n=== Sistema POS Listo ===" -ForegroundColor Green
 Write-Host "  Backend:  http://localhost:5000" -ForegroundColor White
 Write-Host "  Frontend: http://localhost:5173" -ForegroundColor White
 Write-Host "  API Health: http://localhost:5000/api/health" -ForegroundColor White
-Write-Host "`n  Login: admin / admin123" -ForegroundColor Cyan
+Write-Host "`n  Login: admin (contrasena configurada en seed o instalador)" -ForegroundColor Cyan
 Write-Host "`nPresiona Ctrl+C para detener ambos servidores...`n" -ForegroundColor Gray
 
 try {

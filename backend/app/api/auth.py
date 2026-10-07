@@ -55,3 +55,38 @@ def refresh():
 def logout():
     log_action(action="logout", entity_type="user")
     return jsonify({"message": "Sesion cerrada"}), 200
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_password():
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+    if not current_password or not new_password:
+        return jsonify({"error": "current_password y new_password son requeridos"}), 400
+
+    from app.models.user import User
+    from app.extensions import db
+    from flask_jwt_extended import create_access_token
+
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user or not user.check_password(current_password):
+        return jsonify({"error": "Contraseña actual incorrecta"}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"error": "La nueva contraseña debe tener al menos 8 caracteres"}), 400
+
+    user.set_password(new_password)
+    user.must_change_password = False
+    db.session.commit()
+
+    claims = AuthService._token_claims(user)
+    new_token = create_access_token(identity=str(user.id), additional_claims=claims)
+    return jsonify({
+        "message": "Contraseña actualizada exitosamente",
+        "access_token": new_token,
+        "must_change_password": False,
+    }), 200
+

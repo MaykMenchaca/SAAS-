@@ -69,8 +69,7 @@ echo   - Accede al Sistema:   http://localhost:3000
 echo   - Estado de la API:    http://localhost:5000/api/health
 echo.
 echo   Login de Acceso:
-echo   - Usuario: admin
-echo   - Contrasena: admin123
+echo   - Usuario: admin (usa la contrasena definida en la instalacion o seed)
 echo.
 echo   * Para apagar los servidores, cierra las dos ventanas CMD de
 echo     consola ("POS Backend Server" y "POS Frontend Server")

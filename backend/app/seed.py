@@ -124,10 +124,12 @@ def seed_roles(perm_map):
 
 
 def seed_admin_user():
-    """Create the default admin user."""
-    existing = User.query.filter_by(username="admin").first()
-    if existing:
-        click.echo("  Admin: ya existe")
+    """Create the default admin user only if no users exist in the system."""
+    import os
+    import secrets
+
+    if User.query.first():
+        click.echo("  Admin: ya existen usuarios en el sistema, omitiendo")
         return
 
     admin_role = Role.query.filter_by(name="admin").first()
@@ -135,16 +137,31 @@ def seed_admin_user():
         click.echo("  Admin: ERROR — rol 'admin' no encontrado")
         return
 
+    admin_password = os.getenv("POS_ADMIN_PASSWORD")
+    generated = False
+    if not admin_password:
+        admin_password = secrets.token_urlsafe(16)
+        generated = True
+
     user = User(
         username="admin",
         email="admin@pos.local",
         full_name="Administrador",
         role_id=admin_role.id,
+        must_change_password=True,
     )
-    user.set_password("admin123")
+    user.set_password(admin_password)
     db.session.add(user)
     db.session.flush()
-    click.echo("  Admin: creado (usuario: admin, password: admin123)")
+
+    if generated:
+        click.echo("  ================================================================")
+        click.echo(f"  Admin creado con contraseña generada: {admin_password}")
+        click.echo("  Guárdela ahora. Debe cambiarse en el primer inicio de sesión.")
+        click.echo("  ================================================================")
+    else:
+        click.echo("  Admin: creado desde POS_ADMIN_PASSWORD (debe cambiarse en primer inicio)")
+
 
 
 def seed_units():

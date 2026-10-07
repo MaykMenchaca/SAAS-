@@ -10,6 +10,7 @@ class UserSchema(Schema):
     role = fields.Method("get_role", dump_only=True)
     permissions = fields.Method("get_permissions", dump_only=True)
     is_active = fields.Bool(dump_only=True)
+    must_change_password = fields.Bool(dump_only=True)
     last_login_at = fields.DateTime(dump_only=True, allow_none=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)

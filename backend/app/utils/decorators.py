@@ -9,6 +9,8 @@ def require_permission(permission):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
+            if claims.get("must_change_password"):
+                return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
             if permission not in claims.get("permissions", []):
                 return jsonify({"error": "Permiso insuficiente"}), 403
             return fn(*args, **kwargs)
@@ -22,6 +24,8 @@ def require_role(role):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
+            if claims.get("must_change_password"):
+                return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
             if claims.get("role") != role:
                 return jsonify({"error": "Rol insuficiente"}), 403
             return fn(*args, **kwargs)

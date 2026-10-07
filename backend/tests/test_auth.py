@@ -145,3 +145,60 @@ def test_logout(client, admin_token):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
+
+
+def test_seed_no_recrea_admin_si_hay_usuarios(db, seed_admin):
+    from app.models.user import User
+    from app.seed import seed_admin_user
+
+    initial_count = User.query.count()
+    assert initial_count >= 1
+
+    seed_admin_user()
+    assert User.query.count() == initial_count
+
+
+def test_must_change_password_bloquea(client, db, seed_roles):
+    from app.models.user import User
+
+    user = User(
+        username="temp_user",
+        email="temp@test.com",
+        full_name="Temp User",
+        role_id=seed_roles["admin"].id,
+        must_change_password=True,
+    )
+    user.set_password("initial_pass_123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_res = client.post("/api/auth/login", json={
+        "username": "temp_user",
+        "password": "initial_pass_123",
+    })
+    assert login_res.status_code == 200
+    login_data = login_res.get_json()
+    assert login_data.get("must_change_password") is True
+    token = login_data["access_token"]
+
+    # Endpoint protegido debe bloquear con 403 password_change_required
+    users_res = client.get("/api/users/", headers={"Authorization": f"Bearer {token}"})
+    assert users_res.status_code == 403
+    assert users_res.get_json().get("code") == "password_change_required"
+
+    # Cambiar contrasena
+    change_res = client.post(
+        "/api/auth/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "current_password": "initial_pass_123",
+            "new_password": "new_secure_pass_456",
+        },
+    )
+    assert change_res.status_code == 200
+    new_token = change_res.get_json()["access_token"]
+
+    # Con el nuevo token, el acceso ya no se bloquea
+    users_res_after = client.get("/api/users/", headers={"Authorization": f"Bearer {new_token}"})
+    assert users_res_after.status_code == 200
+
