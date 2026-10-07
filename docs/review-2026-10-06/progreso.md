@@ -6,16 +6,16 @@
 Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuente de verdad del avance.
 
 ## Fase 0: Contención inmediata · rama `fix/fase-0`
-- [ ] 0.1 Cerrar `printer_path` / escritura arbitraria (H-02)
-- [ ] 0.2.1 Rotar secretos del `.env` local (H-10)
-- [ ] 0.2.2 `config.py` sin fallbacks + validación al arrancar (H-10)
-- [ ] 0.2.3 Instaladores generan secretos y contraseña de BD (H-10)
-- [ ] 0.2.4 PostgreSQL: contraseña de `pos_user` y `listen_addresses` ⚠️ confirmar (H-10)
-- [ ] 0.2.5 Seed sin `admin123` + `must_change_password` (H-11)
-- [ ] 0.2.6 Rate limit del login (H-11)
-- [ ] 0.3 Respaldos fuera de git y `BACKUP_DIR` fuera del repo (H-14)
-- [ ] 0.4 `run.py` sin debug; `start.*` marcados como desarrollo (H-15)
-- [ ] **Gate fase 0**
+- [x] 0.1 Cerrar `printer_path` / escritura arbitraria (H-02) · commit b22b865 · tests: `test_printer_path_del_cliente_se_ignora`, `test_impresora_no_disponible_da_503`, `test_send_to_printer_rechaza_rutas_unc_y_relativas` · `printer_path` ignorado del cliente, rutas UNC y relativas bloqueadas, `OSError` -> 503
+- [x] 0.2.1 Rotar secretos del `.env` local (H-10) · `.env` local actualizado · `SECRET_KEY` y `JWT_SECRET_KEY` de 64 bytes generados independientemente (sesiones previas invalidadas)
+- [x] 0.2.2 `config.py` sin fallbacks + validación al arrancar (H-10) · commit 6e53927 · tests: `test_config_rechaza_secretos_debiles` · `validate_secrets` aborta si faltan secretos, si miden <32 caracteres, si son iguales o contienen "cambiar"
+- [x] 0.2.3 Instaladores generan secretos y contraseña de BD (H-10) · commit dbfeaf7 · tests: `test_install_scripts_no_usan_credenciales_hardcodeadas` · `install-production` y `setup-db` generan secretos y pass de `pos_user`, autodetectan psql y verifican `$LASTEXITCODE`
+- [x] 0.2.4 PostgreSQL: contraseña de `pos_user` y `listen_addresses` ⚠️ confirmar (H-10) · commit 0b39d5e · respaldo `pre-fase-0.dump` generado con `pg_dump`, `pos_user` con contraseña rotada, `listen_addresses='localhost'` configurado en `postgresql.conf`
+- [x] 0.2.5 Seed sin `admin123` + `must_change_password` (H-11) · commit 3a800d8 · tests: `test_seed_no_recrea_admin_si_hay_usuarios`, `test_must_change_password_bloquea` · admin creado solo en base vacia, `must_change_password` bloquea con 403, `/change-password` implementado, `admin123` eliminado
+- [x] 0.2.6 Rate limit del login (H-11) · commit d730f4b · tests: `test_login_rate_limit`, `test_login_user_lockout_tras_10_fallos` · rate limit en memoria (5/min por IP, bloqueo de 5 min tras 10 fallos por usuario)
+- [x] 0.3 Respaldos fuera de git y `BACKUP_DIR` fuera del repo (H-14) · commit 840ae92 · tests: `test_backups_ignorados_por_git`, `test_backup_dir_default_outside_repo` · `.gitignore` actualizado, `BACKUP_DIR` por defecto en ProgramData fuera del repo
+- [x] 0.4 `run.py` sin debug; `start.*` marcados como desarrollo (H-15) · commit 46cd40d · tests: `test_run_py_no_expone_debug_ni_red` · `FLASK_DEBUG` default `False`, host default `127.0.0.1`, scripts marcados como SOLO DESARROLLO
+- [x] **Gate fase 0** · APROBADO (2026-10-06, 193 tests backend passed, frontend build OK, verificaciones automáticas de gate.ps1 en verde)
 
 ## Fase 1: Integridad de dinero e inventario · ramas `fix/fase-1-backend` (A) / `fix/fase-1-frontend` (B)
 - [ ] 1.1 Precio, IVA y descuento autoritativos; inactivos y fracciones (H-01) ⚠️ tope de descuento · A
@@ -85,6 +85,8 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
 |---|---|---|
+| 2026-10-06 | Subfase 0.2.4: Respaldo y rotación en PostgreSQL | Usuario aprobó respaldo con pg_dump, rotación de contraseña de pos_user y listen_addresses='localhost' |
 
 ## Hallazgos nuevos
 _(Problemas encontrados durante la ejecución, fuera del alcance de la subfase. El orquestador decide en qué fase entran.)_
+
