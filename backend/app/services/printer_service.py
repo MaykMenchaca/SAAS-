@@ -96,9 +96,20 @@ class PrinterService:
         if not target:
             raise ValueError("Ruta de impresora no configurada")
 
+        target_str = str(target).strip()
+        if target_str.startswith(("\\\\", "//")):
+            raise ValueError("Ruta de impresora no válida")
+
+        path = Path(target_str)
+        if not path.is_absolute():
+            raise ValueError("La ruta de la impresora debe ser absoluta")
+
         drawer_kick = b"\x1bp\x00\x19\x96" if kick_drawer else b""
         payload = b"\x1b@" + drawer_kick + content.encode("cp437", errors="replace") + b"\n\x1di"
-        Path(target).write_bytes(payload)
+        try:
+            path.write_bytes(payload)
+        except OSError as exc:
+            raise RuntimeError(f"Impresora no disponible: {exc}") from exc
         return True
 
     @staticmethod

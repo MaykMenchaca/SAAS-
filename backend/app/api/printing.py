@@ -12,7 +12,7 @@ printing_bp = Blueprint("printing", __name__)
 
 def _print_options():
     data = request.get_json(silent=True) or {}
-    return bool(data.get("send", False)), data.get("printer_path")
+    return bool(data.get("send", False))
 
 
 @printing_bp.route("/sales/<int:sale_id>/ticket", methods=["POST"])
@@ -23,7 +23,7 @@ def print_sale_ticket(sale_id):
     if not sale:
         return jsonify({"error": "Venta no encontrada"}), 404
 
-    send, printer_path = _print_options()
+    send = _print_options()
     content = PrinterService.format_sale_ticket(sale)
     sent = False
 
@@ -31,9 +31,11 @@ def print_sale_ticket(sale_id):
         # Determine if cash payment exists to kick the drawer
         has_cash_payment = any(p.method.lower() == "efectivo" for p in sale.payments)
         try:
-            sent = PrinterService.send_to_printer(content, printer_path, kick_drawer=has_cash_payment)
+            sent = PrinterService.send_to_printer(content, kick_drawer=has_cash_payment)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
 
     return jsonify({
         "sale_id": sale.id,
@@ -51,15 +53,17 @@ def print_product_label(product_id):
     if not product:
         return jsonify({"error": "Producto no encontrado"}), 404
 
-    send, printer_path = _print_options()
+    send = _print_options()
     content = PrinterService.format_price_label(product)
     sent = False
 
     if send:
         try:
-            sent = PrinterService.send_to_printer(content, printer_path)
+            sent = PrinterService.send_to_printer(content)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
 
     return jsonify({
         "product_id": product.id,

@@ -111,3 +111,47 @@ def test_admin_can_preview_product_label(client, admin_token, db, seed_product_f
     assert data["sent"] is False
     assert data["product_id"] == seed_product_for_sale.id
     assert "750100000001" in data["content"]
+
+
+def test_printer_path_del_cliente_se_ignora(
+    client, regular_user_token, db, seed_admin, seed_open_session, seed_product_for_sale, tmp_path
+):
+    sale = _create_sale(db, seed_admin, seed_open_session, seed_product_for_sale)
+    pwn_file = tmp_path / "pwn.txt"
+
+    response = client.post(
+        f"/api/printing/sales/{sale.id}/ticket",
+        headers={"Authorization": f"Bearer {regular_user_token}"},
+        json={"send": True, "printer_path": str(pwn_file)},
+    )
+
+    assert not pwn_file.exists()
+
+
+def test_impresora_no_disponible_da_503(
+    client, regular_user_token, db, seed_admin, seed_open_session, seed_product_for_sale, monkeypatch, tmp_path
+):
+    sale = _create_sale(db, seed_admin, seed_open_session, seed_product_for_sale)
+    non_existent_target = tmp_path / "carpeta_inexistente" / "impresora.prn"
+    monkeypatch.setenv("PRINTER_DEVICE_PATH", str(non_existent_target))
+
+    response = client.post(
+        f"/api/printing/sales/{sale.id}/ticket",
+        headers={"Authorization": f"Bearer {regular_user_token}"},
+        json={"send": True},
+    )
+
+    assert response.status_code == 503
+    assert "Impresora no disponible" in response.get_json().get("error", "")
+
+
+def test_send_to_printer_rechaza_rutas_unc_y_relativas():
+    import pytest
+    from app.services.printer_service import PrinterService
+
+    with pytest.raises(ValueError):
+        PrinterService.send_to_printer("test", r"\\servidor\impresora")
+
+    with pytest.raises(ValueError):
+        PrinterService.send_to_printer("test", "archivo_relativo.txt")
+
