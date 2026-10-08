@@ -565,3 +565,78 @@ def test_fraccion_en_unidad_entera_rechazada(db):
             ],
             payments=[{"method": "efectivo", "amount": "261.00"}],
         )
+
+
+# --- Regression Tests: Subfase 1.2.1 (H-04) ---
+
+
+def test_quote_igual_a_venta(db, client, admin_token, seed_open_session, seed_product_for_sale):
+    """POST /api/sales/quote calcula exactamente las mismas líneas y totales que la venta."""
+    items = [
+        {"product_id": seed_product_for_sale.id, "quantity": 2, "discount_percent": "5"},
+    ]
+
+    quote_resp = client.post(
+        "/api/sales/quote",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"items": items},
+    )
+    assert quote_resp.status_code == 200
+    quote_data = quote_resp.get_json()
+
+    # Create the real sale with same items
+    # 2 * 100 = 200, 5% disc = 10, subtotal = 190, 16% tax = 30.40, total = 220.40
+    sale_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": items,
+            "payments": [{"method": "efectivo", "amount": quote_data["total"]}],
+        },
+    )
+    assert sale_resp.status_code == 201
+    sale_data = sale_resp.get_json()
+
+    assert quote_data["subtotal"] == sale_data["subtotal"]
+    assert quote_data["discount_total"] == sale_data["discount_total"]
+    assert quote_data["tax_total"] == sale_data["tax_total"]
+    assert quote_data["total"] == sale_data["total"]
+    assert len(quote_data["lines"]) == len(sale_data["items"])
+    assert quote_data["lines"][0]["unit_price"] == sale_data["items"][0]["unit_price"]
+    assert quote_data["lines"][0]["discount_amount"] == sale_data["items"][0]["discount_amount"]
+    assert quote_data["lines"][0]["tax_rate"] == sale_data["items"][0]["tax_rate"]
+    assert quote_data["lines"][0]["subtotal"] == sale_data["items"][0]["subtotal"]
+
+
+def test_redondeo_half_even_por_linea(db, client, admin_token):
+    """2 items a $12.85 con 16% IVA dan exactamente $29.82 por redondeo HALF_EVEN por línea."""
+    from app.services.sale_service import SaleService
+
+    p1 = _seed_product_for_sale(db, sku="RND-001", name="Clavo A", price="12.85")
+    p2 = _seed_product_for_sale(db, sku="RND-002", name="Clavo B", price="12.85")
+
+    items = [
+        {"product_id": p1.id, "quantity": 1},
+        {"product_id": p2.id, "quantity": 1},
+    ]
+
+    pricing = SaleService.price_lines(items)
+    # Line 1: 12.85 * 0.16 = 2.056 -> round half even -> 2.06. Total line = 14.91
+    # Line 2: 12.85 * 0.16 = 2.056 -> round half even -> 2.06. Total line = 14.91
+    # Subtotal: 25.70, Tax: 4.12, Total: 29.82
+    # (Global tax would have been 25.70 * 0.16 = 4.112 -> 4.11, Total 29.81)
+    assert pricing["subtotal"] == Decimal("25.70")
+    assert pricing["tax_total"] == Decimal("4.12")
+    assert pricing["total"] == Decimal("29.82")
+
+    # Verify through quote endpoint as well
+    resp = client.post(
+        "/api/sales/quote",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"items": items},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["total"] == "29.82"
+    assert data["tax_total"] == "4.12"

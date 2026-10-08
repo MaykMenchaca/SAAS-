@@ -89,6 +89,36 @@ class SaleCancelSchema(Schema):
     reason = fields.Str(required=True, validate=validate.Length(min=1))
 
 
+class SaleQuoteSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    items = fields.List(fields.Nested(SaleItemInputSchema), required=True, validate=validate.Length(min=1))
+    session_id = fields.Int(required=False, load_default=None, allow_none=True)
+
+
+class SaleQuoteLineSchema(Schema):
+    product_id = fields.Int()
+    product_name = fields.Str()
+    product_sku = fields.Str()
+    quantity = fields.Decimal(as_string=True, places=3)
+    unit_price = fields.Decimal(as_string=True, places=2)
+    discount_percent = fields.Decimal(as_string=True, places=2)
+    discount_amount = fields.Decimal(as_string=True, places=2)
+    tax_rate = fields.Decimal(as_string=True, places=2)
+    tax_amount = fields.Decimal(as_string=True, places=2)
+    subtotal = fields.Decimal(as_string=True, places=2)
+    total = fields.Decimal(as_string=True, places=2)
+
+
+class SaleQuoteResponseSchema(Schema):
+    lines = fields.List(fields.Nested(SaleQuoteLineSchema))
+    subtotal = fields.Decimal(as_string=True, places=2)
+    discount_total = fields.Decimal(as_string=True, places=2)
+    tax_total = fields.Decimal(as_string=True, places=2)
+    total = fields.Decimal(as_string=True, places=2)
+
+
 # --- Output schemas ---
 
 

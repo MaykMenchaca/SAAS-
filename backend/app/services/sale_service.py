@@ -16,34 +16,20 @@ class SaleService:
     """Handles sale creation with inventory deduction and payment validation."""
 
     @staticmethod
-    def create_sale(user_id: int, session_id: int, items: list, payments: list) -> Sale:
-        """Create a complete sale atomically.
+    def price_lines(items: list, user_id: int | None = None) -> dict:
+        """Calculate authoritative pricing lines, taxes, and totals.
 
-        1. Validates cash register session is open
-        2. Generates folio from PostgreSQL sequence
-        3. Creates sale items with discount calculation
-        4. Deducts inventory for each item (with row-level locking)
-        5. Validates payment covers the total
+        Validates product existence, active status, unit fractions, and discount limits.
+        Uses Decimal arithmetic with per-line HALF_EVEN rounding for taxes and discounts.
 
-        Args:
-            user_id: Cashier performing the sale.
-            session_id: Open CashRegisterSession id.
-            items: List of dicts with product_id, quantity, and optional discount_percent.
-                   (unit_price and tax_rate are ignored if passed; catalog is authoritative).
-            payments: List of dicts with method, amount, and optional reference/change_amount.
-
-        Returns:
-            The created Sale object.
-
-        Raises:
-            ValueError: If session is closed, stock insufficient, payment insufficient,
-                        product inactive, fraction not allowed, or discount exceeds limit.
+        Returns dict with:
+            lines: list of dicts with calculated pricing per item
+            subtotal: Decimal
+            discount_total: Decimal
+            tax_total: Decimal
+            total: Decimal
         """
-        session = db.session.get(CashRegisterSession, session_id)
-        if not session or session.status != "abierta":
-            raise ValueError("La sesión de caja no está abierta")
-
-        user = db.session.get(User, user_id)
+        user = db.session.get(User, user_id) if user_id else None
         has_discount_perm = (
             user is not None
             and (user.role_name == "admin" or "ventas:descuento" in user.permissions)
@@ -55,20 +41,7 @@ class SaleService:
         except Exception:
             max_discount_limit = Decimal("0")
 
-        folio = SaleService._generate_folio()
-
-        sale = Sale(
-            folio=folio,
-            session_id=session_id,
-            user_id=user_id,
-            subtotal=Decimal("0"),
-            discount_total=Decimal("0"),
-            tax_total=Decimal("0"),
-            total=Decimal("0"),
-        )
-        db.session.add(sale)
-        db.session.flush()
-
+        lines = []
         subtotal = Decimal("0")
         discount_total = Decimal("0")
         tax_total = Decimal("0")
@@ -113,40 +86,105 @@ class SaleService:
             line_tax = (line_subtotal * tax_rate / Decimal("100")).quantize(
                 Decimal("0.01")
             )
+            line_total = line_subtotal + line_tax
 
-            sale_item = SaleItem(
-                sale_id=sale.id,
-                product_id=product.id,
-                product_name=product.name,
-                product_sku=product.sku,
-                quantity=qty,
-                unit_price=price,
-                discount_percent=disc_pct,
-                discount_amount=line_discount,
-                tax_rate=tax_rate,
-                subtotal=line_subtotal,
-                cost_at_sale=product.avg_cost,
-            )
-            db.session.add(sale_item)
-
-            # Deduct inventory (atomic with SELECT FOR UPDATE)
-            InventoryService.move_stock(
-                product_id=product.id,
-                quantity=qty,
-                movement_type="salida",
-                reference_type="venta",
-                reference_id=sale.id,
-                user_id=user_id,
-            )
+            lines.append({
+                "product_id": product.id,
+                "product_name": product.name,
+                "product_sku": product.sku,
+                "quantity": qty,
+                "unit_price": price,
+                "discount_percent": disc_pct,
+                "discount_amount": line_discount,
+                "tax_rate": tax_rate,
+                "subtotal": line_subtotal,
+                "tax_amount": line_tax,
+                "total": line_total,
+                "cost_at_sale": product.avg_cost,
+            })
 
             subtotal += line_subtotal
             discount_total += line_discount
             tax_total += line_tax
 
-        sale.subtotal = subtotal
-        sale.discount_total = discount_total
-        sale.tax_total = tax_total
-        sale.total = subtotal + tax_total
+        return {
+            "lines": lines,
+            "subtotal": subtotal,
+            "discount_total": discount_total,
+            "tax_total": tax_total,
+            "total": subtotal + tax_total,
+        }
+
+    @staticmethod
+    def create_sale(user_id: int, session_id: int, items: list, payments: list) -> Sale:
+        """Create a complete sale atomically.
+
+        1. Validates cash register session is open
+        2. Calculates authoritative pricing via price_lines
+        3. Generates folio from PostgreSQL sequence
+        4. Creates sale items with discount calculation
+        5. Deducts inventory for each item (with row-level locking)
+        6. Validates payment covers the total
+
+        Args:
+            user_id: Cashier performing the sale.
+            session_id: Open CashRegisterSession id.
+            items: List of dicts with product_id, quantity, and optional discount_percent.
+                   (unit_price and tax_rate are ignored if passed; catalog is authoritative).
+            payments: List of dicts with method, amount, and optional reference/change_amount.
+
+        Returns:
+            The created Sale object.
+
+        Raises:
+            ValueError: If session is closed, stock insufficient, payment insufficient,
+                        product inactive, fraction not allowed, or discount exceeds limit.
+        """
+        session = db.session.get(CashRegisterSession, session_id)
+        if not session or session.status != "abierta":
+            raise ValueError("La sesión de caja no está abierta")
+
+        pricing = SaleService.price_lines(items, user_id=user_id)
+
+        folio = SaleService._generate_folio()
+
+        sale = Sale(
+            folio=folio,
+            session_id=session_id,
+            user_id=user_id,
+            subtotal=pricing["subtotal"],
+            discount_total=pricing["discount_total"],
+            tax_total=pricing["tax_total"],
+            total=pricing["total"],
+        )
+        db.session.add(sale)
+        db.session.flush()
+
+        for line in pricing["lines"]:
+            sale_item = SaleItem(
+                sale_id=sale.id,
+                product_id=line["product_id"],
+                product_name=line["product_name"],
+                product_sku=line["product_sku"],
+                quantity=line["quantity"],
+                unit_price=line["unit_price"],
+                discount_percent=line["discount_percent"],
+                discount_amount=line["discount_amount"],
+                tax_rate=line["tax_rate"],
+                subtotal=line["subtotal"],
+                cost_at_sale=line["cost_at_sale"],
+            )
+            db.session.add(sale_item)
+
+            # Deduct inventory (atomic with SELECT FOR UPDATE)
+            InventoryService.move_stock(
+                product_id=line["product_id"],
+                quantity=line["quantity"],
+                movement_type="salida",
+                reference_type="venta",
+                reference_id=sale.id,
+                user_id=user_id,
+            )
 
         # Process payments
         payment_total = Decimal("0")

@@ -6,6 +6,8 @@ from app.schemas.sale import (
     SaleCancelSchema,
     SaleCreateSchema,
     SaleListSchema,
+    SaleQuoteResponseSchema,
+    SaleQuoteSchema,
     SaleReturnCreateSchema,
     SaleReturnSchema,
     SaleSchema,
@@ -20,10 +22,28 @@ sales_bp = Blueprint("sales", __name__)
 
 sale_create_schema = SaleCreateSchema()
 sale_cancel_schema = SaleCancelSchema()
+sale_quote_schema = SaleQuoteSchema()
+sale_quote_response_schema = SaleQuoteResponseSchema()
 sale_return_create_schema = SaleReturnCreateSchema()
 sale_schema = SaleSchema()
 sale_return_schema = SaleReturnSchema()
 sale_list_schema = SaleListSchema(many=True)
+
+
+@sales_bp.route("/quote", methods=["POST"])
+@require_permission("ventas:crear")
+def quote_sale():
+    """Calculate authoritative sale lines, taxes, and totals without creating a sale."""
+    data = sale_quote_schema.load(request.get_json(silent=True) or {})
+    identity = get_jwt_identity()
+    user_id = int(identity) if identity else None
+
+    try:
+        pricing = SaleService.price_lines(items=data["items"], user_id=user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(sale_quote_response_schema.dump(pricing)), 200
 
 
 @sales_bp.route("/", methods=["POST"])
