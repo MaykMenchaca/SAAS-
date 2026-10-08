@@ -61,6 +61,15 @@ class InventoryCountService:
             )
             db.session.add(item)
 
+        from app.services.audit_service import log_action
+        log_action(
+            action="count_create",
+            entity_type="inventory_count",
+            entity_id=count.id,
+            details={"notes": notes, "total_items": len(stocks)},
+            user_id=user_id,
+        )
+
         db.session.commit()
         return count
 
@@ -156,6 +165,15 @@ class InventoryCountService:
         count.closed_at = datetime.now(timezone.utc)
         count.closed_by = user_id
 
+        from app.services.audit_service import log_action
+        log_action(
+            action="count_close",
+            entity_type="inventory_count",
+            entity_id=count.id,
+            details={"status": "cerrado", "notes": count.notes},
+            user_id=user_id,
+        )
+
         db.session.commit()
         return count
 
@@ -182,6 +200,15 @@ class InventoryCountService:
         count.status = "cancelado"
         count.closed_at = datetime.now(timezone.utc)
         count.closed_by = user_id
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="count_cancel",
+            entity_type="inventory_count",
+            entity_id=count.id,
+            details={"status": "cancelado", "notes": count.notes},
+            user_id=user_id,
+        )
 
         db.session.commit()
         return count

@@ -40,6 +40,17 @@ def create_supplier():
 
     supplier = Supplier(**data)
     db.session.add(supplier)
+    db.session.flush()
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="crear",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        details={"name": supplier.name},
+        new_value={"name": supplier.name, "contact_name": supplier.contact_name, "rfc": supplier.rfc},
+    )
+
     db.session.commit()
 
     return jsonify(supplier_schema.dump(supplier)), 201
@@ -78,8 +89,20 @@ def update_supplier(supplier_id):
     if not supplier:
         return jsonify({"error": "Proveedor no encontrado"}), 404
 
+    previous_value = {key: getattr(supplier, key) for key in data.keys()}
     for key, value in data.items():
         setattr(supplier, key, value)
+    new_value = {key: getattr(supplier, key) for key in data.keys()}
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="editar",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        details={"name": supplier.name},
+        previous_value=previous_value,
+        new_value=new_value,
+    )
 
     db.session.commit()
 
@@ -94,7 +117,19 @@ def deactivate_supplier(supplier_id):
     if not supplier:
         return jsonify({"error": "Proveedor no encontrado"}), 404
 
+    prev_active = supplier.is_active
     supplier.is_active = False
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="desactivar",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        details={"name": supplier.name},
+        previous_value={"is_active": prev_active},
+        new_value={"is_active": False},
+    )
+
     db.session.commit()
 
     return jsonify(supplier_schema.dump(supplier)), 200

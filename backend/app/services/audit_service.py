@@ -15,8 +15,13 @@ def log_action(
     details: dict | None = None,
     user_id: int | None = None,
     username: str | None = None,
+    commit: bool = False,
+    previous_value: dict | None = None,
+    new_value: dict | None = None,
 ):
     """Record an audit log entry.
+    # in-transaction: participates in caller's active db transaction by default,
+    or commits immediately if commit=True.
 
     If user_id/username are not provided, they are extracted from the
     current JWT (if present).
@@ -38,17 +43,27 @@ def log_action(
     except RuntimeError:
         pass
 
+    log_details = dict(details) if details else {}
+    if previous_value is not None:
+        log_details["previous_value"] = previous_value
+    if new_value is not None:
+        log_details["new_value"] = new_value
+    if not log_details:
+        log_details = None
+
     entry = AuditLog(
         user_id=user_id,
         username=username,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
-        details=details,
+        details=log_details,
         ip_address=ip_address,
     )
     db.session.add(entry)
     db.session.flush()
+    if commit:
+        db.session.commit()
     return entry
 
 

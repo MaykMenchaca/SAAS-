@@ -43,6 +43,17 @@ class ProductService:
         ProductService._validate_unique_unit(data.get("name"), data.get("abbreviation"))
         unit = UnitOfMeasure(**data)
         db.session.add(unit)
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="unit_of_measure",
+            entity_id=unit.id,
+            details={"name": unit.name, "abbreviation": unit.abbreviation},
+            new_value={"name": unit.name, "abbreviation": unit.abbreviation},
+        )
+
         db.session.commit()
         return unit
 
@@ -55,8 +66,20 @@ class ProductService:
                 exclude_unit_id=unit.id
             )
 
+        previous_value = {field: getattr(unit, field) for field in data.keys()}
         for field, value in data.items():
             setattr(unit, field, value)
+        new_value = {field: getattr(unit, field) for field in data.keys()}
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="editar",
+            entity_type="unit_of_measure",
+            entity_id=unit.id,
+            details={"name": unit.name},
+            previous_value=previous_value,
+            new_value=new_value,
+        )
 
         db.session.commit()
         return unit
@@ -66,6 +89,20 @@ class ProductService:
         associated_products = Product.query.filter_by(unit_id=unit.id).first()
         if associated_products:
             raise ValidationError({"error": ["No se puede eliminar la unidad porque esta asociada a productos"]})
+
+        unit_id = unit.id
+        unit_name = unit.name
+        previous_value = {"name": unit.name, "abbreviation": unit.abbreviation}
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="eliminar",
+            entity_type="unit_of_measure",
+            entity_id=unit_id,
+            details={"name": unit_name},
+            previous_value=previous_value,
+        )
+
         db.session.delete(unit)
         db.session.commit()
         return True
@@ -106,6 +143,23 @@ class ProductService:
 
         product = Product(**data)
         db.session.add(product)
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="product",
+            entity_id=product.id,
+            details={"sku": product.sku, "name": product.name},
+            new_value={
+                "sku": product.sku,
+                "name": product.name,
+                "sale_price": str(product.sale_price) if product.sale_price is not None else None,
+                "category_id": product.category_id,
+                "unit_id": product.unit_id,
+            },
+        )
+
         db.session.commit()
         return product
 
@@ -119,15 +173,45 @@ class ProductService:
             exclude_product_id=product.id,
         )
 
+        previous_value = {
+            field: str(getattr(product, field)) if getattr(product, field) is not None else None
+            for field in data.keys()
+        }
         for field, value in data.items():
             setattr(product, field, value)
+        new_value = {
+            field: str(getattr(product, field)) if getattr(product, field) is not None else None
+            for field in data.keys()
+        }
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="editar",
+            entity_type="product",
+            entity_id=product.id,
+            details={"sku": product.sku, "name": product.name},
+            previous_value=previous_value,
+            new_value=new_value,
+        )
 
         db.session.commit()
         return product
 
     @staticmethod
     def deactivate_product(product):
+        prev_active = product.is_active
         product.is_active = False
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="desactivar",
+            entity_type="product",
+            entity_id=product.id,
+            details={"sku": product.sku, "name": product.name},
+            previous_value={"is_active": prev_active},
+            new_value={"is_active": False},
+        )
+
         db.session.commit()
         return product
 
@@ -201,6 +285,17 @@ class CategoryService:
         CategoryService._validate_unique_category(data["name"])
         category = Category(**data)
         db.session.add(category)
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="category",
+            entity_id=category.id,
+            details={"name": category.name},
+            new_value={"name": category.name},
+        )
+
         db.session.commit()
         return category
 
@@ -209,15 +304,39 @@ class CategoryService:
         if "name" in data:
             CategoryService._validate_unique_category(data["name"], exclude_category_id=category.id)
 
+        previous_value = {field: getattr(category, field) for field in data.keys()}
         for field, value in data.items():
             setattr(category, field, value)
+        new_value = {field: getattr(category, field) for field in data.keys()}
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="editar",
+            entity_type="category",
+            entity_id=category.id,
+            details={"name": category.name},
+            previous_value=previous_value,
+            new_value=new_value,
+        )
 
         db.session.commit()
         return category
 
     @staticmethod
     def deactivate_category(category):
+        prev_active = category.is_active
         category.is_active = False
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="desactivar",
+            entity_type="category",
+            entity_id=category.id,
+            details={"name": category.name},
+            previous_value={"is_active": prev_active},
+            new_value={"is_active": False},
+        )
+
         db.session.commit()
         return category
 

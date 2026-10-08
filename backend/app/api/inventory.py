@@ -108,6 +108,21 @@ def adjust_stock():
         user_id=user_id,
         notes=data.get("notes"),
     )
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="adjust",
+        entity_type="stock",
+        entity_id=stock.id,
+        details={
+            "product_id": stock.product_id,
+            "product_name": product.name,
+            "new_stock": str(stock.quantity),
+            "notes": data.get("notes"),
+        },
+        user_id=user_id,
+    )
+
     db.session.commit()
 
     return jsonify({

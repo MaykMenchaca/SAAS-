@@ -53,6 +53,22 @@ class UserService:
         user.set_password(data["password"])
 
         db.session.add(user)
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username, "role_id": user.role_id},
+            new_value={
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "role_id": user.role_id,
+            },
+        )
+
         db.session.commit()
         return user
 
@@ -67,19 +83,54 @@ class UserService:
             exclude_user_id=user.id,
         )
 
+        previous_value = {
+            field: getattr(user, field)
+            for field in ("username", "email", "full_name", "role_id", "is_active")
+            if field in data
+        }
+
         for field in ("username", "email", "full_name", "role_id", "is_active"):
             if field in data:
                 setattr(user, field, data[field])
 
+        new_value = {
+            field: getattr(user, field)
+            for field in ("username", "email", "full_name", "role_id", "is_active")
+            if field in data
+        }
+
         if "password" in data:
             user.set_password(data["password"])
+            new_value["password"] = "[CHANGED]"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="editar",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            previous_value=previous_value,
+            new_value=new_value,
+        )
 
         db.session.commit()
         return user
 
     @staticmethod
     def deactivate_user(user):
+        prev_active = user.is_active
         user.is_active = False
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="desactivar",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            previous_value={"is_active": prev_active},
+            new_value={"is_active": False},
+        )
+
         db.session.commit()
         return user
 

@@ -37,6 +37,7 @@ def login():
             entity_id=result["user"]["id"],
             user_id=result["user"]["id"],
             username=result["user"]["username"],
+            commit=True,
         )
         return jsonify(result), 200
 
@@ -44,6 +45,7 @@ def login():
     log_action(
         action="login_failed",
         details={"username": username},
+        commit=True,
     )
     return jsonify({"error": "Credenciales invalidas"}), 401
 
@@ -69,7 +71,7 @@ def refresh():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required()
 def logout():
-    log_action(action="logout", entity_type="user")
+    log_action(action="logout", entity_type="user", commit=True)
     return jsonify({"message": "Sesion cerrada"}), 200
 
 
@@ -96,6 +98,14 @@ def change_password():
 
     user.set_password(new_password)
     user.must_change_password = False
+
+    log_action(
+        action="change_password",
+        entity_type="user",
+        entity_id=user.id,
+        user_id=user.id,
+        username=user.username,
+    )
     db.session.commit()
 
     claims = AuthService._token_claims(user)

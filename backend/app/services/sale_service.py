@@ -270,6 +270,15 @@ class SaleService:
             )
             db.session.add(payment)
 
+        from app.services.audit_service import log_action
+        log_action(
+            action="create",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={"folio": sale.folio, "total": str(sale.total)},
+            user_id=user_id,
+        )
+
         try:
             db.session.commit()
         except IntegrityError:
@@ -324,6 +333,16 @@ class SaleService:
         sale.status = "cancelada"
         sale.cancelled_by = user_id
         sale.cancel_reason = reason
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="cancel",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={"folio": sale.folio, "reason": reason},
+            user_id=user_id,
+        )
+
         db.session.commit()
         return sale
 
@@ -471,6 +490,21 @@ class SaleService:
         )
 
         sale.status = "devolucion_total" if all_returned else "devolucion_parcial"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="return",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={
+                "folio": sale.folio,
+                "refund_total": str(refund_total),
+                "refund_method": refund_method,
+                "session_id": session_id,
+                "reason": reason,
+            },
+            user_id=user_id,
+        )
 
         db.session.commit()
         return sale_return

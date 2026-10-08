@@ -7,7 +7,7 @@ from app.schemas.product import (
     UnitOfMeasureSchema,
 )
 from app.services.product_service import ProductService
-from app.utils.decorators import require_permission, audit_action
+from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
 
 products_bp = Blueprint("products", __name__)
@@ -80,7 +80,6 @@ def get_product(product_id):
 
 @products_bp.route("/", methods=["POST"])
 @require_permission("productos:crear")
-@audit_action("crear", entity_type="producto")
 def create_product():
     data = product_create_schema.load(request.get_json(silent=True) or {})
     product = ProductService.create_product(data)
@@ -89,7 +88,6 @@ def create_product():
 
 @products_bp.route("/<int:product_id>", methods=["PATCH"])
 @require_permission("productos:editar")
-@audit_action("editar", entity_type="producto")
 def update_product(product_id):
     product = ProductService.get_product(product_id)
     if not product:
@@ -102,7 +100,6 @@ def update_product(product_id):
 
 @products_bp.route("/<int:product_id>", methods=["DELETE"])
 @require_permission("productos:desactivar")
-@audit_action("desactivar", entity_type="producto")
 def deactivate_product(product_id):
     product = ProductService.get_product(product_id)
     if not product:

@@ -67,13 +67,6 @@ def create_sale():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    log_action(
-        action="create",
-        entity_type="sale",
-        entity_id=sale.id,
-        details={"folio": sale.folio, "total": str(sale.total)},
-    )
-
     return jsonify(sale_schema.dump(sale)), 201
 
 
@@ -93,13 +86,6 @@ def cancel_sale(sale_id):
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-
-    log_action(
-        action="cancel",
-        entity_type="sale",
-        entity_id=sale.id,
-        details={"folio": sale.folio, "reason": data["reason"]},
-    )
 
     return jsonify(sale_schema.dump(sale)), 200
 

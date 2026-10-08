@@ -118,6 +118,26 @@ class PurchaseOrderService:
         order.tax_total = tax_total
         order.total = subtotal + tax_total
 
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            user_id=user_id,
+            details={
+                "folio": order.folio,
+                "supplier_id": supplier_id,
+                "total": str(order.total),
+                "items_count": len(items),
+            },
+            new_value={
+                "folio": order.folio,
+                "supplier_id": supplier_id,
+                "status": order.status,
+                "total": str(order.total),
+            },
+        )
+
         db.session.commit()
         return order
 
@@ -140,7 +160,19 @@ class PurchaseOrderService:
         if order.status != "borrador":
             raise ValueError("Solo se pueden enviar órdenes en borrador")
 
+        prev_status = order.status
         order.status = "enviada"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="enviar",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            details={"folio": order.folio, "status": "enviada"},
+            previous_value={"status": prev_status},
+            new_value={"status": "enviada"},
+        )
+
         db.session.commit()
         return order
 
@@ -168,7 +200,19 @@ class PurchaseOrderService:
                 "Solo se pueden cancelar órdenes en borrador o enviadas"
             )
 
+        prev_status = order.status
         order.status = "cancelada"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="cancelar",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            details={"folio": order.folio, "status": "cancelada"},
+            previous_value={"status": prev_status},
+            new_value={"status": "cancelada"},
+        )
+
         db.session.commit()
         return order
 
@@ -248,7 +292,23 @@ class PurchaseOrderService:
         all_received = all(
             oi.received_quantity >= oi.quantity for oi in order.items
         )
+        prev_status = order.status
         order.status = "recibida" if all_received else "parcial"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="recibir",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            user_id=user_id,
+            details={
+                "folio": order.folio,
+                "status": order.status,
+                "received_items": len(items),
+            },
+            previous_value={"status": prev_status},
+            new_value={"status": order.status},
+        )
 
         db.session.commit()
         return order

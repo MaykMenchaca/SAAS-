@@ -60,6 +60,21 @@ def open_session():
         status="abierta",
     )
     db.session.add(session)
+    db.session.flush()
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="open",
+        entity_type="cash_register_session",
+        entity_id=session.id,
+        details={
+            "cash_register_id": register.id,
+            "cash_register_name": register.name,
+            "opening_amount": str(session.opening_amount),
+        },
+        user_id=user_id,
+    )
+
     db.session.commit()
 
     return jsonify(session_schema.dump(session)), 201
@@ -117,6 +132,20 @@ def close_session(session_id):
     session.closed_at = datetime.now(timezone.utc)
     session.expected_cash = expected_cash
     session.difference = Decimal(str(data["closing_amount"])) - expected_cash
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="close",
+        entity_type="cash_register_session",
+        entity_id=session.id,
+        details={
+            "closing_amount": str(session.closing_amount),
+            "expected_cash": str(session.expected_cash),
+            "difference": str(session.difference),
+            "close_notes": session.close_notes,
+        },
+        user_id=user_id,
+    )
 
     db.session.commit()
 
