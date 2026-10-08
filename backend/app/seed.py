@@ -37,6 +37,7 @@ PERMISSIONS = {
     "caja:abrir": ("caja", "Abrir sesion de caja"),
     "caja:cerrar": ("caja", "Cerrar sesion de caja"),
     "caja:ver": ("caja", "Ver sesiones de caja"),
+    "caja:supervisar": ("caja", "Supervisar, vender y cerrar cajas de otros usuarios"),
     # Purchases
     "compras:ver": ("compras", "Ver proveedores y ordenes de compra"),
     "compras:crear": ("compras", "Crear ordenes de compra"),
@@ -59,7 +60,7 @@ ROLES = {
             "productos:ver", "productos:crear", "productos:editar", "productos:editar_precio",
             "inventario:ver", "inventario:ajustar",
             "ventas:ver", "ventas:cancelar", "ventas:descuento",
-            "caja:abrir", "caja:cerrar", "caja:ver",
+            "caja:abrir", "caja:cerrar", "caja:ver", "caja:supervisar",
             "compras:ver", "compras:crear", "compras:editar", "compras:recibir",
             "reportes:ver",
         ],

@@ -24,6 +24,7 @@ PERMISSION_CODES = {
     "caja:abrir": "Abrir sesion de caja",
     "caja:cerrar": "Cerrar sesion de caja",
     "caja:ver": "Ver sesiones de caja",
+    "caja:supervisar": "Supervisar, vender y cerrar cajas de otros usuarios",
     "compras:ver": "Ver proveedores y ordenes de compra",
     "compras:crear": "Crear ordenes de compra",
     "compras:editar": "Editar proveedores y ordenes",
@@ -117,6 +118,9 @@ def seed_roles(db, seed_permissions):
     admin_role.permissions.extend(seed_permissions.values())
     gerente_role.permissions.append(seed_permissions["usuarios:ver"])
     gerente_role.permissions.append(seed_permissions["ventas:descuento"])
+    gerente_role.permissions.append(seed_permissions["caja:supervisar"])
+    gerente_role.permissions.append(seed_permissions["caja:cerrar"])
+    gerente_role.permissions.append(seed_permissions["ventas:crear"])
     # Cajero gets POS-related permissions
     for code in ("ventas:crear", "ventas:ver", "caja:abrir", "caja:cerrar", "caja:ver",
                  "productos:ver", "inventario:ver"):

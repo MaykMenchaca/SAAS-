@@ -144,6 +144,18 @@ class SaleService:
         if not session or session.status != "abierta":
             raise ValueError("La sesión de caja no está abierta")
 
+        # Validar pertenencia de la sesión: el usuario debe ser el dueño o tener 'caja:supervisar' / admin (H-16)
+        if session.user_id != user_id:
+            user = db.session.get(User, user_id) if user_id else None
+            has_supervise = (
+                user is not None
+                and (user.role_name == "admin" or "caja:supervisar" in user.permissions)
+            )
+            if not has_supervise:
+                raise PermissionError(
+                    "No tienes permiso para realizar ventas en la sesión de caja de otro usuario"
+                )
+
         pricing = SaleService.price_lines(items, user_id=user_id)
 
         folio = SaleService._generate_folio()
@@ -186,24 +198,61 @@ class SaleService:
                 user_id=user_id,
             )
 
-        # Process payments
-        payment_total = Decimal("0")
+        # Process payments (H-16: el servidor calcula el cambio exacto e ignora al cliente)
+        if not payments:
+            raise ValueError("Debe registrar al menos un método de pago")
+
+        cash_total = Decimal("0")
+        non_cash_total = Decimal("0")
+        normalized_payments = []
+
         for pay_data in payments:
             amount = Decimal(str(pay_data["amount"]))
-            payment = Payment(
-                sale_id=sale.id,
-                method=pay_data["method"],
-                amount=amount,
-                reference=pay_data.get("reference"),
-                change_amount=Decimal(str(pay_data.get("change_amount", 0))),
-            )
-            db.session.add(payment)
-            payment_total += amount
+            if amount <= Decimal("0"):
+                raise ValueError("El monto del pago debe ser mayor a 0")
 
+            method = pay_data.get("method")
+            if method == "efectivo":
+                cash_total += amount
+            else:
+                non_cash_total += amount
+
+            normalized_payments.append({
+                "method": method,
+                "amount": amount,
+                "reference": pay_data.get("reference"),
+            })
+
+        # Rechazar sobrepagos con métodos distintos a efectivo (tarjeta o transferencia)
+        if non_cash_total > sale.total:
+            raise ValueError("No se permite sobrepago con tarjeta o transferencia")
+
+        payment_total = cash_total + non_cash_total
         if payment_total < sale.total:
             raise ValueError(
                 f"Pago insuficiente: total ${sale.total}, recibido ${payment_total}"
             )
+
+        # El cambio se calcula autoritativamente: total recibido - total venta.
+        # Como non_cash_total <= sale.total, el excedente proviene exclusivamente del efectivo.
+        total_change = payment_total - sale.total
+
+        # Encontrar el último pago en efectivo para asignarle el cambio
+        last_cash_idx = None
+        for idx, p in enumerate(normalized_payments):
+            if p["method"] == "efectivo":
+                last_cash_idx = idx
+
+        for idx, p in enumerate(normalized_payments):
+            pay_change = total_change if idx == last_cash_idx else Decimal("0.00")
+            payment = Payment(
+                sale_id=sale.id,
+                method=p["method"],
+                amount=p["amount"],
+                reference=p["reference"],
+                change_amount=pay_change,
+            )
+            db.session.add(payment)
 
         db.session.commit()
         return sale

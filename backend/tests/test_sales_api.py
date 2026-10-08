@@ -372,3 +372,122 @@ def test_admin_can_get_sale_detail(
     assert data["id"] == sale_id
     assert "items" in data
     assert "payments" in data
+
+
+# --- Regression Tests: Subfase 1.3 (H-16) ---
+
+
+def test_cajero_no_puede_cerrar_caja_ajena(client, db, seed_roles, seed_cash_register):
+    """Un cajero sin permiso caja:supervisar recibe 403 al intentar cerrar la caja de otro usuario."""
+    from decimal import Decimal
+    from app.models.user import User
+    from app.models.sale import CashRegisterSession
+
+    cajero1 = User(username="caj_c1", email="c1@test.com", full_name="Caj 1", role_id=seed_roles["cajero"].id)
+    cajero1.set_password("caj123")
+    cajero2 = User(username="caj_c2", email="c2@test.com", full_name="Caj 2", role_id=seed_roles["cajero"].id)
+    cajero2.set_password("caj123")
+    db.session.add_all([cajero1, cajero2])
+    db.session.flush()
+
+    session1 = CashRegisterSession(
+        cash_register_id=seed_cash_register.id,
+        user_id=cajero1.id,
+        opening_amount=Decimal("500.00"),
+        status="abierta",
+    )
+    db.session.add(session1)
+    db.session.commit()
+
+    login_resp = client.post("/api/auth/login", json={"username": "caj_c2", "password": "caj123"})
+    token2 = login_resp.get_json()["access_token"]
+
+    close_resp = client.post(
+        f"/api/cash-register/{session1.id}/close",
+        headers={"Authorization": f"Bearer {token2}"},
+        json={"closing_amount": "500.00"},
+    )
+    assert close_resp.status_code == 403
+    assert "otro usuario" in close_resp.get_json()["error"]
+
+
+def test_supervisor_o_admin_puede_cerrar_caja_ajena(client, db, seed_roles, seed_cash_register, admin_token):
+    """Un admin o usuario con caja:supervisar puede cerrar la sesión de otro cajero."""
+    from decimal import Decimal
+    from app.models.user import User
+    from app.models.sale import CashRegisterSession
+
+    cajero = User(username="caj_c3", email="c3@test.com", full_name="Caj 3", role_id=seed_roles["cajero"].id)
+    cajero.set_password("caj123")
+    db.session.add(cajero)
+    db.session.flush()
+
+    session = CashRegisterSession(
+        cash_register_id=seed_cash_register.id,
+        user_id=cajero.id,
+        opening_amount=Decimal("500.00"),
+        status="abierta",
+    )
+    db.session.add(session)
+    db.session.commit()
+
+    close_resp = client.post(
+        f"/api/cash-register/{session.id}/close",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"closing_amount": "500.00"},
+    )
+    assert close_resp.status_code == 200
+
+
+def test_cajero_no_puede_vender_en_sesion_ajena_api(client, db, seed_roles, seed_cash_register, seed_product_for_sale):
+    """Un cajero recibe 403 al intentar registrar una venta en la sesión de otro usuario."""
+    from decimal import Decimal
+    from app.models.user import User
+    from app.models.sale import CashRegisterSession
+
+    cajero1 = User(username="caj_v1", email="v1@test.com", full_name="Cajero V1", role_id=seed_roles["cajero"].id)
+    cajero1.set_password("caj123")
+    cajero2 = User(username="caj_v2", email="v2@test.com", full_name="Cajero V2", role_id=seed_roles["cajero"].id)
+    cajero2.set_password("caj123")
+    db.session.add_all([cajero1, cajero2])
+    db.session.flush()
+
+    session1 = CashRegisterSession(
+        cash_register_id=seed_cash_register.id,
+        user_id=cajero1.id,
+        opening_amount=Decimal("500.00"),
+        status="abierta",
+    )
+    db.session.add(session1)
+    db.session.commit()
+
+    login_resp = client.post("/api/auth/login", json={"username": "caj_v2", "password": "caj123"})
+    token2 = login_resp.get_json()["access_token"]
+
+    resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {token2}"},
+        json={
+            "session_id": session1.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 1}],
+            "payments": [{"method": "efectivo", "amount": "116.00"}],
+        },
+    )
+    assert resp.status_code == 403
+    assert "otro usuario" in resp.get_json()["error"]
+
+
+def test_sobrepago_tarjeta_rechazado_api(client, admin_token, seed_open_session, seed_product_for_sale):
+    """Sobrepago con tarjeta o transferencia en el endpoint POST /api/sales/ devuelve 400."""
+    resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 1}],
+            "payments": [{"method": "tarjeta", "amount": "150.00"}],
+        },
+    )
+    assert resp.status_code == 400
+    assert "sobrepago" in resp.get_json()["error"].lower()
+

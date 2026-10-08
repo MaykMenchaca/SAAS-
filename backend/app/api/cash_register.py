@@ -7,6 +7,7 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models.sale import CashRegister, CashRegisterSession, Payment, Sale
+from app.models.user import User
 from app.schemas.sale import (
     CashRegisterSessionCloseSchema,
     CashRegisterSessionOpenSchema,
@@ -76,6 +77,16 @@ def close_session(session_id):
 
     if session.status != "abierta":
         return jsonify({"error": "La sesión ya está cerrada"}), 400
+
+    user_id = int(get_jwt_identity())
+    if session.user_id != user_id:
+        user = db.session.get(User, user_id)
+        has_supervise = (
+            user is not None
+            and (user.role_name == "admin" or "caja:supervisar" in user.permissions)
+        )
+        if not has_supervise:
+            return jsonify({"error": "No tienes permiso para cerrar la sesión de caja de otro usuario"}), 403
 
     from datetime import datetime, timezone
 

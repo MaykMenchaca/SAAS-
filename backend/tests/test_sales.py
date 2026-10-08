@@ -640,3 +640,131 @@ def test_redondeo_half_even_por_linea(db, client, admin_token):
     data = resp.get_json()
     assert data["total"] == "29.82"
     assert data["tax_total"] == "4.12"
+
+
+# --- Regression Tests: Subfase 1.3 (H-16) ---
+
+
+def test_cambio_calculado_en_servidor_ignora_cliente(db):
+    """El servidor calcula el cambio exacto e ignora el change_amount enviado por el cliente."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-001", "Pintura", "100.00")
+
+    # Venta de 1 producto a 100 + 16% IVA = 116.00
+    # Cliente manda pago en efectivo de 150.00 pero falsea change_amount = "99.00"
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "150.00", "change_amount": "99.00"}],
+    )
+
+    assert sale.total == Decimal("116.00")
+    assert len(sale.payments) == 1
+    assert sale.payments[0].amount == Decimal("150.00")
+    # Cambio debe ser 150.00 - 116.00 = 34.00, ignorando los 99.00
+    assert sale.payments[0].change_amount == Decimal("34.00")
+
+
+def test_sobrepago_tarjeta_rechazado(db):
+    """No se permite sobrepago con métodos distintos a efectivo (tarjeta)."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-002", "Brocha", "100.00")
+
+    # Venta total = 116.00, intenta pagar con tarjeta 120.00
+    with pytest.raises(ValueError, match="sobrepago"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "tarjeta", "amount": "120.00"}],
+        )
+
+
+def test_sobrepago_transferencia_rechazado(db):
+    """No se permite sobrepago con métodos distintos a efectivo (transferencia)."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-003", "Rodillo", "100.00")
+
+    with pytest.raises(ValueError, match="sobrepago"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "transferencia", "amount": "200.00"}],
+        )
+
+
+def test_pago_mixto_cambio_solo_de_efectivo(db):
+    """En pago mixto tarjeta + efectivo, el cambio solo se resta del efectivo."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-004", "Sellador", "100.00")
+
+    # Venta total = 116.00.
+    # Tarjeta = 50.00 (no excede el total). Efectivo = 80.00.
+    # Total recibido = 130.00. Cambio = 130.00 - 116.00 = 14.00.
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[
+            {"method": "tarjeta", "amount": "50.00", "change_amount": "5.00"},
+            {"method": "efectivo", "amount": "80.00", "change_amount": "0.00"},
+        ],
+    )
+
+    card_pay = [p for p in sale.payments if p.method == "tarjeta"][0]
+    cash_pay = [p for p in sale.payments if p.method == "efectivo"][0]
+
+    assert card_pay.change_amount == Decimal("0.00")
+    assert cash_pay.change_amount == Decimal("14.00")
+
+
+def test_cajero_no_puede_vender_en_sesion_ajena(db, seed_roles):
+    """Un cajero no puede realizar ventas en la sesión de caja de otro cajero."""
+    import pytest
+    from app.services.sale_service import SaleService
+    from app.models.sale import CashRegister, CashRegisterSession
+    from app.models.user import User
+
+    register = CashRegister(name="Caja H16")
+    db.session.add(register)
+    db.session.flush()
+
+    cajero1 = User(username="cajero_a", email="ca@test.com", full_name="Cajero A", role_id=seed_roles["cajero"].id)
+    cajero1.set_password("pass123")
+    cajero2 = User(username="cajero_b", email="cb@test.com", full_name="Cajero B", role_id=seed_roles["cajero"].id)
+    cajero2.set_password("pass123")
+    db.session.add_all([cajero1, cajero2])
+    db.session.flush()
+
+    session1 = CashRegisterSession(
+        cash_register_id=register.id,
+        user_id=cajero1.id,
+        opening_amount=Decimal("500.00"),
+        status="abierta",
+    )
+    db.session.add(session1)
+    db.session.flush()
+
+    product = _seed_product_for_sale(db, "H16-005", "Lija", "50.00")
+
+    # Cajero 2 intenta vender en la sesión del Cajero 1
+    with pytest.raises((PermissionError, ValueError), match="otro usuario|sesión"):
+        SaleService.create_sale(
+            user_id=cajero2.id,
+            session_id=session1.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "efectivo", "amount": "58.00"}],
+        )
+
