@@ -821,14 +821,25 @@ function PaymentModal({
         payments: paymentInputs,
       };
 
-    if (navigator.onLine) {
-      try {
-        await saleMutation.mutateAsync(payload);
-        return;
-      } catch (err) {
-        console.warn("Fallo envio online, procediendo a modo offline:", err);
+      if (navigator.onLine) {
+        try {
+          await saleMutation.mutateAsync(payload);
+          return;
+        } catch (err) {
+          // H-03: Solo pasar a offline ante errores de red reales (!err.response o timeout).
+          // Si el servidor respondió con 4xx o 5xx, NO pasar a offline:
+          // mantener modal abierto, mostrar error del servidor y conservar el carrito.
+          const isHttpError = err instanceof AxiosError && Boolean(err.response);
+          if (isHttpError) {
+            const serverMsg =
+              err.response?.data?.error ?? "Error al procesar la venta en el servidor.";
+            toast.error(serverMsg);
+            return;
+          }
+
+          console.warn("Fallo de red al enviar online, procediendo a modo offline:", err);
+        }
       }
-    }
 
     // Proceso Offline: Generar ticket simulado
     const totals = getCartTotals(cart);
