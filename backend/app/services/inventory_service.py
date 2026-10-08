@@ -17,17 +17,19 @@ class InventoryService:
         reference_id: int,
         user_id: int,
         notes: str | None = None,
+        is_delta: bool = False,
     ) -> Stock:
         """Execute an atomic stock movement.
 
         Args:
             product_id: Product to move stock for.
-            quantity: Amount to add/subtract/set.
+            quantity: Amount to add/subtract/set, or delta if is_delta is True.
             movement_type: "entrada" | "salida" | "ajuste".
             reference_type: Source of the movement (venta, compra, conteo, etc.).
             reference_id: ID of the source record.
             user_id: User performing the operation.
             notes: Optional notes.
+            is_delta: If True and movement_type is "ajuste", quantity is applied as a delta.
 
         Returns:
             The updated Stock record.
@@ -54,6 +56,7 @@ class InventoryService:
 
         if movement_type == "entrada":
             stock.quantity += quantity
+            movement_qty = quantity
         elif movement_type == "salida":
             if stock.quantity < quantity:
                 raise ValueError(
@@ -61,15 +64,21 @@ class InventoryService:
                     f"{quantity} solicitado"
                 )
             stock.quantity -= quantity
+            movement_qty = quantity
         elif movement_type == "ajuste":
-            stock.quantity = quantity
+            if is_delta:
+                stock.quantity = previous_stock + quantity
+                movement_qty = abs(quantity)
+            else:
+                stock.quantity = quantity
+                movement_qty = quantity
         else:
             raise ValueError(f"Tipo de movimiento no válido: {movement_type}")
 
         movement = StockMovement(
             product_id=product_id,
             movement_type=movement_type,
-            quantity=quantity,
+            quantity=movement_qty,
             previous_stock=previous_stock,
             new_stock=stock.quantity,
             reference_type=reference_type,

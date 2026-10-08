@@ -285,6 +285,73 @@ class TestCloseCount:
         assert resp.status_code == 400
         assert "cerrado o cancelado" in resp.get_json()["error"]
 
+    def test_close_adjusts_stock_by_difference_preserving_intermediate_sales(
+        self, client, admin_token, db, seed_admin, seed_products_with_stock
+    ):
+        """H-20: Closing a count must apply adjustments as differences (counted - expected),
+        preserving any sales or inventory changes made between count capture and count closing.
+        """
+        from app.models.inventory import Stock, StockMovement
+        from app.services.inventory_service import InventoryService
+
+        p1 = seed_products_with_stock[0]  # Initial stock = 100.000
+
+        # 1. Create count session (expected = 100.000)
+        resp = client.post(
+            "/api/inventory/counts",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={},
+        )
+        count_id = resp.get_json()["id"]
+
+        # 2. Capture physical count: found 95 items (difference = -5.000)
+        resp_cap = client.patch(
+            f"/api/inventory/counts/{count_id}/items/{p1.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"counted_quantity": "95.000"},
+        )
+        assert resp_cap.status_code == 200
+        assert resp_cap.get_json()["difference"] == "-5.000"
+
+        # 3. Intermediate sale occurs before count is closed: 10 units sold
+        # Stock drops from 100.000 to 90.000
+        InventoryService.move_stock(
+            product_id=p1.id,
+            quantity=Decimal("10.000"),
+            movement_type="salida",
+            reference_type="venta",
+            reference_id=999,
+            user_id=seed_admin.id,
+            notes="Venta intermedia durante el conteo",
+        )
+        db.session.commit()
+
+        s_intermediate = Stock.query.filter_by(product_id=p1.id).first()
+        assert s_intermediate.quantity == Decimal("90.000")
+
+        # 4. Close the count session
+        resp_close = client.post(
+            f"/api/inventory/counts/{count_id}/close",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp_close.status_code == 200
+
+        # 5. Verify final stock: 90.000 + (-5.000) = 85.000 (NOT reset to 95.000!)
+        s_final = Stock.query.filter_by(product_id=p1.id).first()
+        assert s_final.quantity == Decimal("85.000")
+
+        # 6. Verify StockMovement audit trail
+        m = (
+            StockMovement.query
+            .filter_by(product_id=p1.id, reference_type="conteo", reference_id=count_id)
+            .first()
+        )
+        assert m is not None
+        assert m.movement_type == "ajuste"
+        assert m.quantity == Decimal("5.000")
+        assert m.previous_stock == Decimal("90.000")
+        assert m.new_stock == Decimal("85.000")
+
 
 class TestCancelCount:
     def test_cancel_does_not_adjust_stock(self, client, admin_token, db, seed_products_with_stock):
@@ -389,3 +456,36 @@ class TestAfterClosedNewCountAllowed:
             json={},
         )
         assert resp.status_code == 201
+
+
+class TestInventoryCountConstraints:
+    def test_inventory_count_item_unique_constraint(self, db, seed_admin, seed_products_with_stock):
+        """H-20: InventoryCountItem must enforce unique constraint on (inventory_count_id, product_id)."""
+        from sqlalchemy.exc import IntegrityError
+        from app.models.inventory import InventoryCount, InventoryCountItem
+
+        p1 = seed_products_with_stock[0]
+
+        count = InventoryCount(user_id=seed_admin.id, status="pendiente")
+        db.session.add(count)
+        db.session.flush()
+
+        item1 = InventoryCountItem(
+            inventory_count_id=count.id,
+            product_id=p1.id,
+            expected_quantity=Decimal("100.000"),
+        )
+        db.session.add(item1)
+        db.session.commit()
+
+        # Attempt to add a duplicate item for the same product in the same count
+        item2 = InventoryCountItem(
+            inventory_count_id=count.id,
+            product_id=p1.id,
+            expected_quantity=Decimal("100.000"),
+        )
+        db.session.add(item2)
+        with pytest.raises(IntegrityError):
+            db.session.commit()
+        db.session.rollback()
+

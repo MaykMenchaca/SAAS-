@@ -27,10 +27,10 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 1.4.3 Offline solo ante error de red (H-03) · commit aad070e · build: `npm run build` OK · Ante respuestas HTTP 4xx/5xx (`err.response`) el modal permanece abierto mostrando el error del servidor y conservando el carrito intacto; solo fallos de red reales (`!err.response` o timeout) activan la contingencia offline
 - [x] 1.5.1 Devolución agrupa los items + bloqueo (H-06) · commit 56a697e · tests: `test_devolucion_duplicada_agrupada_rechazada` · Bloqueo pesimista con `with_for_update()` en `return_sale` y agrupación previa por `sale_item_id` previniendo sobre-devolución por líneas duplicadas
 - [x] 1.5.2 No cancelar una venta con devolución (H-07) · commit c8bcdb1 · tests: `test_cancelar_venta_con_devolucion_rechazada` · Bloqueo pesimista con `with_for_update()` en `cancel_sale`, rechazo estricto si la venta no está en estado 'completada' o si tiene devoluciones registradas para evitar doble reingreso de inventario
-- [x] 1.5.3 `SaleReturn.session_id` y `refund_method` (H-08) · A
-- [x] 1.5.4 Input de devolución según unidad + invalidación (H-25) · B
-- [x] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · A
-- [ ] 1.7 Conteo físico por diferencia (H-20) · A
+- [x] 1.5.3 `SaleReturn.session_id` y `refund_method` (H-08) · commit 28abc0e · tests: `test_devolucion_con_sesion_y_metodo_reembolso`, `test_devolucion_api_valida_sesion_abierta_y_metodo` · Modelo `SaleReturn` y migración `8d492bbd291e` con `session_id` y `refund_method`
+- [x] 1.5.4 Input de devolución según unidad + invalidación (H-25) · commit 8c9c73a · build: `npm run build` OK · `SaleItemSchema` expone `allows_fractions`, `returned_quantity`, `available_quantity`; `pages/returns.tsx` usa step/min dinámicos (0.001 vs 1), deshabilita ítems devueltos en su totalidad, sincroniza cantidades con `useEffect`, `refetchOnMount: 'always'` e invalida queries tras devolver
+- [x] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · commit 87b0b02 · tests: `test_corte_caja_descuenta_reembolsos_efectivo_qa08`, `test_caja_summary_descuenta_reembolsos`, `test_reportes_y_dashboard_descuentan_devoluciones_y_reembolsos` · Corte de caja (`close_session`) y `/summary` calculan `expected_cash` sumando ventas en `('completada', 'devolucion_parcial', 'devolucion_total')` y restando reembolsos en efectivo; QA-08 da exactamente $0.00; reportes y dashboard deducen devoluciones
+- [x] 1.7 Conteo físico por diferencia (H-20) · commit 84a502c · tests: `test_close_adjusts_stock_by_difference_preserving_intermediate_sales`, `test_inventory_count_item_unique_constraint` · Ajuste por conteo físico aplicado como delta (`is_delta=True`) bajo bloqueo pesimista preservando ventas intermedias, UNIQUE constraint en `(inventory_count_id, product_id)` y migración `b193f48a0c21`
 - [ ] 1.8 Suite de regresión de dinero completa · A
 - [ ] **Gate fase 1**
 

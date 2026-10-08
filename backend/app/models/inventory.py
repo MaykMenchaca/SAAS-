@@ -106,6 +106,13 @@ class InventoryCount(db.Model):
 class InventoryCountItem(db.Model):
     """A single product line in a physical inventory count."""
     __tablename__ = "inventory_count_items"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "inventory_count_id",
+            "product_id",
+            name="uq_inventory_count_items_count_product",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     inventory_count_id = db.Column(

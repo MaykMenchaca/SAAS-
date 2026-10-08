@@ -143,12 +143,13 @@ class InventoryCountService:
             if item.difference != Decimal("0"):
                 InventoryService.move_stock(
                     product_id=item.product_id,
-                    quantity=item.counted_quantity,
+                    quantity=item.difference,
                     movement_type="ajuste",
                     reference_type="conteo",
                     reference_id=count.id,
                     user_id=user_id,
-                    notes=f"Ajuste por conteo físico (esperado: {item.expected_quantity}, contado: {item.counted_quantity})",
+                    notes=f"Ajuste por conteo físico: diferencia {item.difference} (esperado: {item.expected_quantity}, contado: {item.counted_quantity})",
+                    is_delta=True,
                 )
 
         count.status = "cerrado"
