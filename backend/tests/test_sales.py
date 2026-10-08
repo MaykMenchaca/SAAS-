@@ -845,3 +845,37 @@ def test_client_uuid_idempotencia_en_api(client, admin_token, seed_open_session,
     assert stock_final == initial_stock - Decimal("1.000")
 
 
+# --- Regression Tests: Subfase 1.5.1 (H-06) ---
+
+
+def test_devolucion_duplicada_agrupada_rechazada(db):
+    """Devolver líneas repetidas del mismo sale_item_id cuya suma exceda lo disponible debe ser rechazado."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H06-001", "Tornillo", "10.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "11.60"}],
+    )
+
+    sale_item = sale.items[0]
+
+    # Intentar devolver 2 veces 1 unidad del mismo sale_item_id (total = 2 > 1 vendido)
+    with pytest.raises(ValueError, match="excede lo disponible"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Prueba duplicados",
+            items=[
+                {"sale_item_id": sale_item.id, "quantity": 1},
+                {"sale_item_id": sale_item.id, "quantity": 1},
+            ],
+        )
+
+
+

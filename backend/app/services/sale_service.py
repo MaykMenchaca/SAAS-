@@ -335,11 +335,14 @@ class SaleService:
         Raises:
             ValueError: If sale not found, already cancelled, or quantity exceeds sold.
         """
-        sale = db.session.get(Sale, sale_id)
+        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
         if not sale:
             raise ValueError("Venta no encontrada")
         if sale.status == "cancelada":
             raise ValueError("No se puede devolver una venta cancelada")
+
+        if not items:
+            raise ValueError("Debe incluir al menos un artículo para la devolución")
 
         # Build a map of already-returned quantities per sale_item
         already_returned: dict[int, Decimal] = {}
@@ -348,6 +351,32 @@ class SaleService:
             for ri in ret.items:
                 already_returned[ri.sale_item_id] = (
                     already_returned.get(ri.sale_item_id, Decimal("0")) + ri.quantity
+                )
+
+        # Agrupar las cantidades por sale_item_id para evitar sobre-devolución por duplicados (H-06)
+        grouped_quantities: dict[int, Decimal] = {}
+        for item_data in items:
+            si_id = item_data.get("sale_item_id")
+            if not si_id:
+                raise ValueError("sale_item_id es requerido")
+            qty = Decimal(str(item_data.get("quantity", 0)))
+            if qty <= Decimal("0"):
+                raise ValueError("La cantidad a devolver debe ser mayor a 0")
+            grouped_quantities[si_id] = grouped_quantities.get(si_id, Decimal("0")) + qty
+
+        # Validar disponibilidad para cada item agrupado antes de aplicar cambios
+        for si_id, total_qty in grouped_quantities.items():
+            sale_item = db.session.get(SaleItem, si_id)
+            if not sale_item or sale_item.sale_id != sale_id:
+                raise ValueError(f"Item {si_id} no pertenece a esta venta")
+
+            prev_returned = already_returned.get(sale_item.id, Decimal("0"))
+            available = sale_item.quantity - prev_returned
+
+            if total_qty > available:
+                raise ValueError(
+                    f"Cantidad a devolver ({total_qty}) excede lo disponible ({available}) "
+                    f"para {sale_item.product_name}"
                 )
 
         sale_return = SaleReturn(
@@ -361,21 +390,8 @@ class SaleService:
 
         refund_total = Decimal("0")
 
-        for item_data in items:
-            sale_item = db.session.get(SaleItem, item_data["sale_item_id"])
-            if not sale_item or sale_item.sale_id != sale_id:
-                raise ValueError(f"Item {item_data['sale_item_id']} no pertenece a esta venta")
-
-            qty = Decimal(str(item_data["quantity"]))
-            prev_returned = already_returned.get(sale_item.id, Decimal("0"))
-            available = sale_item.quantity - prev_returned
-
-            if qty > available:
-                raise ValueError(
-                    f"Cantidad a devolver ({qty}) excede lo disponible ({available}) "
-                    f"para {sale_item.product_name}"
-                )
-
+        for si_id, qty in grouped_quantities.items():
+            sale_item = db.session.get(SaleItem, si_id)
             # Calculate proportional refund
             price_per_unit = sale_item.subtotal / sale_item.quantity
             tax_per_unit = price_per_unit * sale_item.tax_rate / Decimal("100")
@@ -405,12 +421,9 @@ class SaleService:
         sale_return.refund_total = refund_total
 
         # Determine if the return is partial or total
-        total_returned: dict[int, Decimal] = {}
-        for si_id, prev_qty in already_returned.items():
-            total_returned[si_id] = prev_qty
-        for item_data in items:
-            si_id = item_data["sale_item_id"]
-            total_returned[si_id] = total_returned.get(si_id, Decimal("0")) + Decimal(str(item_data["quantity"]))
+        total_returned: dict[int, Decimal] = dict(already_returned)
+        for si_id, qty in grouped_quantities.items():
+            total_returned[si_id] = total_returned.get(si_id, Decimal("0")) + qty
 
         all_returned = all(
             total_returned.get(si.id, Decimal("0")) >= si.quantity
