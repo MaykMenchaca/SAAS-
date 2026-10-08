@@ -36,8 +36,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 
 ## Fase 2: Trazabilidad y acceso
 - [x] 2.1 Auditoría persiste + cobertura completa (H-09, H-39) · commit 35caa02 · tests: `TestAuditPersistenceAndCoverage` (22 tests en `test_audit.py` y 238 en suite total) · `log_action` participa en la transacción del servicio antes de `db.session.commit()` (o commit inmediato con `commit=True` para login fallido), y registra valor anterior y nuevo en ventas, devoluciones, caja, ajustes, conteos físicos, usuarios, órdenes de compra, recepciones, proveedores, categorías, unidades y productos
-- [x] 2.2 Revocación de tokens: blocklist y `token_version` (H-17) · commit 0c4a792 · tests: `TestTokenRevocationAndBlocklist` (19 tests en `test_auth.py` y 243 en suite total) · Tabla `TokenBlocklist` y migración `c28471e981aa`, `token_version` en `User` incrementado en desactivación, cambio de rol y contraseña; `token_in_blocklist_loader` y `user_lookup_loader` activos; `JWT_ACCESS_TOKEN_EXPIRES` ajustado a 30 min (1800s)
-- [ ] 2.3 Permisos en la UI + branding + `editar_precio` (H-19) · A+B
+- [x] 2.3 Permisos en la UI + branding + `editar_precio` (H-19) · commit 9bc8fe8 · tests: `test_get_branding`, `test_update_product_price_requires_permission`, `test_update_product_avg_cost_is_ignored` · Endpoint público `GET /api/config/branding` (sin 403 para no-admin), `avg_cost` read-only en actualización de productos, permiso `productos:editar_precio` exigido en `PATCH /api/products/<id>`; frontend con `can()`, `useCan()`, `<RequirePermission>`, navegación en AppShell y CommandPalette filtradas por permisos, IndexRedirect para cajeros/operadores, y consulta de badges condicionada a permisos
 - [ ] 2.4 Aislamiento entre usuarios: caché y store del POS (H-18) · B
 - [ ] 2.5 Confirmaciones + protección del último admin (H-40) · A+B
 - [ ] **Gate fase 2**
@@ -157,9 +156,23 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
   - Escenario QA-08 probado y validado con sobrante exacto de `$0.00`.
 - **Resumen de caja (`GET /api/cash-register/<id>/summary`):**
   - Incluye ventas en estados de devolución y deduce los reembolsos por método de pago y en `grand_total`.
-- **Dashboard y reportes (`GET /api/reports/dashboard`, `/sales`, `/top-products`, `/gross-margin`):**
-  - Consideran ventas en estados `completada`, `devolucion_parcial`, `devolucion_total`.
-  - Deducen `SaleReturn.refund_total` en ingresos/periodos y `SaleReturnItem.quantity`/`refund_amount` en productos más vendidos y márgenes brutos.
+### `GET /api/config/branding` — Información visual de marca pública (Subfase 2.3, H-19)
+- **Propósito:** Permite a todos los operadores y clientes autenticados (incluso con roles sin permiso de administración como cajeros) consultar los datos visuales de la tienda (nombre, subtítulo, ícono y color del logo) sin provocar un 403 Forbidden.
+- **Autenticación:** Requerida o accesible en la aplicación POS.
+- **Response (200 OK):**
+  ```json
+  {
+    "business_name": "Ferretería El Clavo",
+    "company_name": "Ferretería El Clavo",
+    "company_subtitle": "VRNTAS POS",
+    "company_logo_icon": "ShoppingCart",
+    "company_logo_color": "primary",
+    "business_rfc": "XAXX010101000",
+    "business_address": "Av. Principal #123",
+    "business_phone": "555-123-4567",
+    "logo_url": ""
+  }
+  ```
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
