@@ -30,41 +30,63 @@ type PosState = {
   removeOfflineSale: (index: number) => void;
 };
 
-function calcLineTotal(item: CartItem): number {
+/**
+ * Redondeo bancario (HALF_EVEN) para centavos.
+ * Si la parte fraccionaria es exactamente 0.5, redondea al entero par más cercano.
+ */
+export function roundHalfEvenCents(cents: number): number {
+  const floor = Math.floor(cents);
+  const diff = cents - floor;
+  const EPSILON = 1e-9;
+  if (Math.abs(diff - 0.5) < EPSILON) {
+    return floor % 2 === 0 ? floor : floor + 1;
+  }
+  return Math.round(cents);
+}
+
+export function calcLineTotal(item: CartItem): number {
   const qty = item.quantity;
-  const price = Number(item.unit_price);
-  const disc = Number(item.discount_percent) / 100;
-  const tax = Number(item.tax_rate) / 100;
-  const gross = qty * price;
-  const afterDisc = gross - gross * disc;
-  return afterDisc + afterDisc * tax;
+  const priceCents = Math.round(Number(item.unit_price) * 100);
+  const discPct = Number(item.discount_percent || 0);
+  const taxRate = Number(item.tax_rate || 0);
+
+  const grossCents = qty * priceCents;
+  const discCents = roundHalfEvenCents(grossCents * (discPct / 100));
+  const subtotalCents = grossCents - discCents;
+  const taxCents = roundHalfEvenCents(subtotalCents * (taxRate / 100));
+  const totalCents = subtotalCents + taxCents;
+
+  return totalCents / 100;
 }
 
 export function getCartTotals(cart: CartItem[]) {
-  let subtotal = 0;
-  let discountTotal = 0;
-  let taxTotal = 0;
+  let subtotalCents = 0;
+  let discountTotalCents = 0;
+  let taxTotalCents = 0;
 
   for (const item of cart) {
     const qty = item.quantity;
-    const price = Number(item.unit_price);
-    const disc = Number(item.discount_percent) / 100;
-    const tax = Number(item.tax_rate) / 100;
-    const gross = qty * price;
-    const lineDiscount = gross * disc;
-    const afterDisc = gross - lineDiscount;
-    const lineTax = afterDisc * tax;
+    const priceCents = Math.round(Number(item.unit_price) * 100);
+    const discPct = Number(item.discount_percent || 0);
+    const taxRate = Number(item.tax_rate || 0);
 
-    subtotal += afterDisc;
-    discountTotal += lineDiscount;
-    taxTotal += lineTax;
+    const grossCents = qty * priceCents;
+    const lineDiscountCents = roundHalfEvenCents(grossCents * (discPct / 100));
+    const lineSubtotalCents = grossCents - lineDiscountCents;
+    const lineTaxCents = roundHalfEvenCents(lineSubtotalCents * (taxRate / 100));
+
+    subtotalCents += lineSubtotalCents;
+    discountTotalCents += lineDiscountCents;
+    taxTotalCents += lineTaxCents;
   }
 
+  const totalCents = subtotalCents + taxTotalCents;
+
   return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    discountTotal: Math.round(discountTotal * 100) / 100,
-    taxTotal: Math.round(taxTotal * 100) / 100,
-    total: Math.round((subtotal + taxTotal) * 100) / 100,
+    subtotal: subtotalCents / 100,
+    discountTotal: discountTotalCents / 100,
+    taxTotal: taxTotalCents / 100,
+    total: totalCents / 100,
   };
 }
 
@@ -146,5 +168,3 @@ export const usePosStore = create<PosState>()(
     },
   ),
 );
-
-export { calcLineTotal };

@@ -142,6 +142,42 @@ export async function getSessionSummary(sessionId: number) {
 
 // ── Sales API ──────────────────────────────────────────────────────
 
+export type SaleQuoteLine = {
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  quantity: string;
+  unit_price: string;
+  discount_percent: string;
+  discount_amount: string;
+  tax_rate: string;
+  tax_amount: string;
+  subtotal: string;
+  total: string;
+};
+
+export type SaleQuoteResponse = {
+  lines: SaleQuoteLine[];
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  total: string;
+};
+
+export type SaleQuotePayload = {
+  items: Array<{
+    product_id: number;
+    quantity: number;
+    discount_percent?: string;
+  }>;
+  session_id?: number;
+};
+
+export async function quoteSale(payload: SaleQuotePayload) {
+  const response = await apiClient.post<SaleQuoteResponse>("/sales/quote", payload);
+  return response.data;
+}
+
 export async function createSale(payload: CreateSalePayload) {
   const response = await apiClient.post<Sale>("/sales/", payload);
   return response.data;

@@ -10,7 +10,7 @@ import { listProducts, listCategories } from "../api/products";
 import { previewSaleTicket, printSaleTicket } from "../api/printing";
 import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
-import { createSale, listCashRegisters, listSessions, openCashRegister } from "../api/sales";
+import { createSale, listCashRegisters, listSessions, openCashRegister, quoteSale } from "../api/sales";
 import { Badge, Button, Card, Input, Modal } from "../components/ui";
 import { useAuthStore } from "../stores/auth-store";
 import type { CartItem } from "../stores/pos-store";
@@ -647,7 +647,7 @@ export const MXN_BILL_DENOMINATIONS = [50, 100, 200, 500, 1000] as const;
 
 function PaymentModal({
   sessionId,
-  total,
+  total: initialTotal,
   onClose,
   onSuccess,
   defaultMethod,
@@ -662,11 +662,51 @@ function PaymentModal({
   const clearCart = usePosStore((s) => s.clearCart);
   const queryClient = useQueryClient();
 
+  const [total, setTotal] = useState(initialTotal);
   const [initialPaymentId] = useState(() => ++paymentIdCounter);
   const [payments, setPayments] = useState<PaymentEntry[]>(() => [
-    { id: initialPaymentId, method: defaultMethod, amount: total.toFixed(2), reference: "" },
+    { id: initialPaymentId, method: defaultMethod, amount: initialTotal.toFixed(2), reference: "" },
   ]);
   const [activePaymentId, setActivePaymentId] = useState(initialPaymentId);
+
+  // Pedir cotización oficial al backend al abrir el modal (H-04: si difiere del cálculo local, gana el quote)
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchQuote() {
+      try {
+        const quote = await quoteSale({
+          session_id: sessionId,
+          items: cart.map((c) => ({
+            product_id: c.product_id,
+            quantity: c.quantity,
+            discount_percent: c.discount_percent || "0",
+          })),
+        });
+        if (!isMounted) return;
+        const officialTotal = Number(quote.total);
+        if (!isNaN(officialTotal)) {
+          setTotal(officialTotal);
+          // Si el usuario aún no ha modificado los pagos, actualizar el monto prellenado
+          setPayments((prev) => {
+            if (prev.length === 1 && prev[0].id === initialPaymentId) {
+              return [{ ...prev[0], amount: officialTotal.toFixed(2) }];
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.warn("No se pudo obtener quote del servidor, usando total local:", err);
+      }
+    }
+
+    if (cart.length > 0) {
+      fetchQuote();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sessionId, cart, initialPaymentId]);
 
   // Calculate totals
   const paidTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
