@@ -878,4 +878,43 @@ def test_devolucion_duplicada_agrupada_rechazada(db):
         )
 
 
+# --- Regression Tests: Subfase 1.5.2 (H-07) ---
+
+
+def test_cancelar_venta_con_devolucion_rechazada(db):
+    """No se puede cancelar una venta que ya tiene devoluciones asociadas."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H07-001", "Desarmador", "50.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 2}],
+        payments=[{"method": "efectivo", "amount": "116.00"}],
+    )
+    sale_item = sale.items[0]
+
+    # Procesar devolución parcial de 1 unidad
+    SaleService.return_sale(
+        sale_id=sale.id,
+        user_id=user.id,
+        reason="Defecto menor",
+        items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+    )
+
+    assert sale.status == "devolucion_parcial"
+
+    # Intentar cancelar la venta completa debe fallar para evitar doble reingreso de stock
+    with pytest.raises(ValueError, match="devoluc"):
+        SaleService.cancel_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cancelación indebida",
+        )
+
+
+
 

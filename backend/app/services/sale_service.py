@@ -296,11 +296,19 @@ class SaleService:
         Raises:
             ValueError: If sale is already cancelled.
         """
-        sale = db.session.get(Sale, sale_id)
+        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
         if not sale:
             raise ValueError("Venta no encontrada")
         if sale.status == "cancelada":
             raise ValueError("La venta ya está cancelada")
+        if sale.status in ("devolucion_parcial", "devolucion_total"):
+            raise ValueError("No se puede cancelar una venta que tiene devoluciones asociadas")
+        if sale.status != "completada":
+            raise ValueError(f"No se puede cancelar una venta en estado '{sale.status}'")
+
+        has_returns = SaleReturn.query.filter_by(sale_id=sale_id).first() is not None
+        if has_returns:
+            raise ValueError("No se puede cancelar una venta que tiene devoluciones asociadas")
 
         # Return inventory for each item
         for item in sale.items:
