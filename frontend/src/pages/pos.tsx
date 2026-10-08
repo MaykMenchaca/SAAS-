@@ -668,6 +668,8 @@ function PaymentModal({
     { id: initialPaymentId, method: defaultMethod, amount: initialTotal.toFixed(2), reference: "" },
   ]);
   const [activePaymentId, setActivePaymentId] = useState(initialPaymentId);
+  const isSubmittingRef = useRef(false);
+  const clientUuidRef = useRef<string>(crypto.randomUUID());
 
   // Pedir cotización oficial al backend al abrir el modal (H-04: si difiere del cálculo local, gana el quote)
   useEffect(() => {
@@ -790,23 +792,34 @@ function PaymentModal({
   });
 
   async function handlePay() {
-    const items: SaleItemInput[] = cart.map((c) => ({
-      product_id: c.product_id,
-      quantity: c.quantity,
-      unit_price: c.unit_price,
-      tax_rate: c.tax_rate,
-      discount_percent: c.discount_percent,
-    }));
+    if (isSubmittingRef.current || saleMutation.isPending) {
+      return;
+    }
+    isSubmittingRef.current = true;
 
-    const paymentInputs: PaymentInput[] = payments.map((p) => ({
-      method: p.method,
-      amount: p.amount,
-      reference: p.method !== "efectivo" && p.reference ? p.reference : undefined,
-      change_amount:
-        p === lastCashPayment && cashChange > 0 ? cashChange.toFixed(2) : "0.00",
-    }));
+    try {
+      const items: SaleItemInput[] = cart.map((c) => ({
+        product_id: c.product_id,
+        quantity: c.quantity,
+        unit_price: c.unit_price,
+        tax_rate: c.tax_rate,
+        discount_percent: c.discount_percent,
+      }));
 
-    const payload: CreateSalePayload = { session_id: sessionId, items, payments: paymentInputs };
+      const paymentInputs: PaymentInput[] = payments.map((p) => ({
+        method: p.method,
+        amount: p.amount,
+        reference: p.method !== "efectivo" && p.reference ? p.reference : undefined,
+        change_amount:
+          p === lastCashPayment && cashChange > 0 ? cashChange.toFixed(2) : "0.00",
+      }));
+
+      const payload: CreateSalePayload = {
+        session_id: sessionId,
+        client_uuid: clientUuidRef.current,
+        items,
+        payments: paymentInputs,
+      };
 
     if (navigator.onLine) {
       try {
@@ -857,10 +870,13 @@ function PaymentModal({
     // Guardar en cola
     usePosStore.getState().addOfflineSale(payload);
 
-    // Limpiar carrito y disparar éxito
-    clearCart();
-    toast.warning("Sin conexion. Transaccion registrada localmente para sincronizar mas tarde.");
-    onSuccess(mockSale);
+      // Limpiar carrito y disparar éxito
+      clearCart();
+      toast.warning("Sin conexion. Transaccion registrada localmente para sincronizar mas tarde.");
+      onSuccess(mockSale);
+    } finally {
+      isSubmittingRef.current = false;
+    }
   }
 
   const errorMessage = saleMutation.error
@@ -881,7 +897,7 @@ function PaymentModal({
             Cancelar
           </Button>
           <Button
-            disabled={!isPaymentSufficient || saleMutation.isPending || cart.length === 0}
+            disabled={!isPaymentSufficient || saleMutation.isPending || isSubmittingRef.current || cart.length === 0}
             onClick={handlePay}
             className="h-10 px-6 font-bold"
           >

@@ -44,6 +44,7 @@ export type Payment = {
 export type Sale = {
   id: number;
   folio: string;
+  client_uuid?: string | null;
   session_id: number;
   user_id: number;
   username: string;
@@ -61,6 +62,7 @@ export type Sale = {
 export type SaleListItem = {
   id: number;
   folio: string;
+  client_uuid?: string | null;
   total: string;
   status: string;
   created_at: string;
@@ -84,6 +86,7 @@ export type PaymentInput = {
 
 export type CreateSalePayload = {
   session_id: number;
+  client_uuid?: string;
   items: SaleItemInput[];
   payments: PaymentInput[];
 };
