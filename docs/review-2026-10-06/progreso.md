@@ -22,7 +22,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 1.2.1 `POST /sales/quote` + `price_lines` compartido (H-04) · commit a12b25f · tests: `test_quote_igual_a_venta`, `test_redondeo_half_even_por_linea` · Cálculo de precios unificado en `SaleService.price_lines` compartido entre quote y venta, redondeo `HALF_EVEN` por línea
 - [x] 1.2.2 `getCartTotals` en centavos HALF_EVEN + uso del quote (H-04) · commit 9455ab1 · build: `npm run build` OK · Aritmética en centavos y redondeo `HALF_EVEN` en pos-store; cotización oficial obtenida al abrir PaymentModal usando `quote.total` en 'Exacto' y monto prellenado
 - [x] 1.3 Cambio calculado en el servidor; sesión propia (H-16) · commit 7e5c3e5 · tests: `test_cambio_calculado_en_servidor_ignora_cliente`, `test_sobrepago_tarjeta_rechazado`, `test_sobrepago_transferencia_rechazado`, `test_pago_mixto_cambio_solo_de_efectivo`, `test_cajero_no_puede_vender_en_sesion_ajena`, `test_cajero_no_puede_cerrar_caja_ajena`, `test_supervisor_o_admin_puede_cerrar_caja_ajena`, `test_cajero_no_puede_vender_en_sesion_ajena_api`, `test_sobrepago_tarjeta_rechazado_api` · Cambio calculado de forma autoritativa en servidor ignorando `change_amount` del cliente, sobrepago con métodos no-efectivo rechazado con 400/ValueError, IDOR prevenido en venta y cierre de caja exigiendo sesión propia o permiso `caja:supervisar` (403)
-- [ ] 1.4.1 `client_uuid` idempotente (H-05) · A
+- [x] 1.4.1 `client_uuid` idempotente (H-05) · commit a860910 · tests: `test_client_uuid_idempotencia_en_servicio`, `test_client_uuid_idempotencia_en_api` · Columna `sales.client_uuid` (UNIQUE), migración `e5c2b1890a12`, `SaleService.create_sale` y API devuelven venta existente ante reintento previniendo duplicación de inventario y cobros
 - [ ] 1.4.2 Guard de doble clic en `handlePay` (H-05) · B
 - [ ] 1.4.3 Offline solo ante error de red (H-03) · B
 - [ ] 1.5.1 Devolución agrupa los items + bloqueo (H-06) · A
@@ -125,6 +125,14 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
   ```
 - **Errores:**
   - `400 Bad Request`: `{"error": "<mensaje>"}` si el producto está inactivo, no existe, se envían fracciones en enteros, o el descuento excede el tope sin permiso.
+
+### `POST /api/sales/` — Idempotencia con `client_uuid` (Subfase 1.4.1, H-05)
+- **Propósito:** Creación atómica e idempotente de ventas. Si se envía `client_uuid` y ya existe una venta procesada con ese identificador, el servidor responde con la venta existente (200/201) sin duplicar deducción de stock ni pagos.
+- **Autenticación:** Requerida (`Bearer <token>`, permiso `ventas:crear`).
+- **Campo añadido en Request Body (JSON):**
+  - `client_uuid`: string UUID v4 (ej. `"550e8400-e29b-41d4-a716-446655440000"`). Opcional para compatibilidad, requerido para el frontend POS.
+- **Campos en Response:**
+  - `client_uuid`: string UUID devuelto en `SaleSchema` y `SaleListSchema`.
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
