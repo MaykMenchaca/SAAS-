@@ -118,7 +118,11 @@ def return_sale(sale_id):
             user_id=user_id,
             reason=data["reason"],
             items=data["items"],
+            session_id=data.get("session_id"),
+            refund_method=data.get("refund_method", "efectivo"),
         )
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

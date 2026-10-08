@@ -916,5 +916,98 @@ def test_cancelar_venta_con_devolucion_rechazada(db):
         )
 
 
+# --- Regression Tests: Subfase 1.5.3 (H-08) ---
+
+
+def test_devolucion_registra_session_id_y_refund_method(db):
+    """SaleReturn registra session_id y refund_method correctamente."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-001", "Martillo", "100.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 2}],
+        payments=[{"method": "efectivo", "amount": "232.00"}],
+    )
+    sale_item = sale.items[0]
+
+    # Devolución especificando sesión y método de reembolso
+    ret = SaleService.return_sale(
+        sale_id=sale.id,
+        user_id=user.id,
+        reason="Defecto",
+        items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+        session_id=session.id,
+        refund_method="tarjeta",
+    )
+
+    assert ret.session_id == session.id
+    assert ret.refund_method == "tarjeta"
+    assert ret.session.id == session.id
+
+
+def test_devolucion_sesion_cerrada_rechazada(db):
+    """No se puede registrar una devolución en una sesión de caja cerrada."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-002", "Pinzas", "80.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "92.80"}],
+    )
+    sale_item = sale.items[0]
+
+    # Cerramos la sesión
+    session.status = "cerrada"
+    db.session.commit()
+
+    with pytest.raises(ValueError, match="La sesión de caja no está abierta"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cambio",
+            items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+            session_id=session.id,
+            refund_method="efectivo",
+        )
+
+
+def test_devolucion_metodo_reembolso_invalido_rechazado(db):
+    """Método de reembolso desconocido debe ser rechazado."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-003", "Cinta", "20.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "23.20"}],
+    )
+    sale_item = sale.items[0]
+
+    with pytest.raises(ValueError, match="Método de reembolso inválido"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cambio",
+            items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+            session_id=session.id,
+            refund_method="cripto",
+        )
+
+
+
+
 
 

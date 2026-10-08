@@ -328,7 +328,14 @@ class SaleService:
         return sale
 
     @staticmethod
-    def return_sale(sale_id: int, user_id: int, reason: str, items: list) -> SaleReturn:
+    def return_sale(
+        sale_id: int,
+        user_id: int,
+        reason: str,
+        items: list,
+        session_id: int | None = None,
+        refund_method: str = "efectivo",
+    ) -> SaleReturn:
         """Process a return (partial or full) for a sale.
 
         Args:
@@ -336,13 +343,36 @@ class SaleService:
             user_id: User performing the return.
             reason: Reason for the return.
             items: List of dicts with sale_item_id and quantity to return.
+            session_id: Optional CashRegisterSession id to track cash refunds.
+            refund_method: Refund method ('efectivo', 'tarjeta', 'transferencia').
 
         Returns:
             The SaleReturn object.
 
         Raises:
-            ValueError: If sale not found, already cancelled, or quantity exceeds sold.
+            ValueError: If sale not found, already cancelled, quantity exceeds sold,
+                        or session is invalid/closed.
+            PermissionError: If cashier attempts return in another's session without permission.
         """
+        if refund_method not in ("efectivo", "tarjeta", "transferencia"):
+            raise ValueError(f"Método de reembolso inválido: {refund_method}")
+
+        if session_id is not None:
+            session = db.session.get(CashRegisterSession, session_id)
+            if not session or session.status != "abierta":
+                raise ValueError("La sesión de caja no está abierta")
+
+            if session.user_id != user_id:
+                user = db.session.get(User, user_id) if user_id else None
+                has_supervise = (
+                    user is not None
+                    and (user.role_name == "admin" or "caja:supervisar" in user.permissions)
+                )
+                if not has_supervise:
+                    raise PermissionError(
+                        "No tienes permiso para realizar devoluciones en la sesión de caja de otro usuario"
+                    )
+
         sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
         if not sale:
             raise ValueError("Venta no encontrada")
@@ -390,6 +420,8 @@ class SaleService:
         sale_return = SaleReturn(
             sale_id=sale_id,
             user_id=user_id,
+            session_id=session_id,
+            refund_method=refund_method,
             reason=reason,
             refund_total=Decimal("0"),
         )

@@ -52,6 +52,7 @@ class CashRegisterSession(db.Model):
     cash_register = db.relationship("CashRegister", back_populates="sessions")
     user = db.relationship("User", foreign_keys=[user_id])
     sales = db.relationship("Sale", back_populates="session", lazy="dynamic")
+    returns = db.relationship("SaleReturn", back_populates="session", lazy="dynamic")
 
 
 class Sale(db.Model):
@@ -166,6 +167,18 @@ class SaleReturn(db.Model):
         db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
     )
     reason = db.Column(db.Text, nullable=False)
+    session_id = db.Column(
+        db.Integer,
+        db.ForeignKey("cash_register_sessions.id"),
+        nullable=True,
+        index=True,
+    )
+    refund_method = db.Column(
+        db.String(30),
+        nullable=False,
+        default="efectivo",
+        server_default="efectivo",
+    )  # efectivo, tarjeta, transferencia
     refund_total = db.Column(db.Numeric(12, 2), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
@@ -176,6 +189,7 @@ class SaleReturn(db.Model):
 
     sale = db.relationship("Sale")
     user = db.relationship("User", foreign_keys=[user_id])
+    session = db.relationship("CashRegisterSession", back_populates="returns")
     items = db.relationship(
         "SaleReturnItem", back_populates="sale_return", cascade="all, delete-orphan"
     )

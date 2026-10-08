@@ -179,6 +179,11 @@ class SaleReturnCreateSchema(Schema):
         unknown = EXCLUDE
 
     reason = fields.Str(required=True, validate=validate.Length(min=1))
+    session_id = fields.Int(allow_none=True)
+    refund_method = fields.Str(
+        load_default="efectivo",
+        validate=validate.OneOf(["efectivo", "tarjeta", "transferencia"]),
+    )
     items = fields.List(
         fields.Nested(SaleReturnItemInputSchema), required=True, validate=validate.Length(min=1)
     )
@@ -195,6 +200,8 @@ class SaleReturnItemSchema(Schema):
 class SaleReturnSchema(Schema):
     id = fields.Int(dump_only=True)
     sale_id = fields.Int(dump_only=True)
+    session_id = fields.Int(dump_only=True, allow_none=True)
+    refund_method = fields.Str(dump_only=True)
     status = fields.Method("get_sale_status")
     reason = fields.Str(dump_only=True)
     refund_total = fields.Decimal(as_string=True, places=2, dump_only=True)

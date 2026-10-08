@@ -491,3 +491,40 @@ def test_sobrepago_tarjeta_rechazado_api(client, admin_token, seed_open_session,
     assert resp.status_code == 400
     assert "sobrepago" in resp.get_json()["error"].lower()
 
+
+# --- Regression Tests: Subfase 1.5.3 (H-08) ---
+
+
+def test_api_return_with_session_and_refund_method(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """POST /api/sales/<id>/return registra session_id y refund_method."""
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 2}],
+            "payments": [{"method": "efectivo", "amount": "232.00"}],
+        },
+    )
+    assert create_resp.status_code == 201
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    return_resp = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Garantía",
+            "session_id": seed_open_session.id,
+            "refund_method": "tarjeta",
+            "items": [{"sale_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert return_resp.status_code == 200
+    data = return_resp.get_json()
+    assert data["session_id"] == seed_open_session.id
+    assert data["refund_method"] == "tarjeta"
+
+
