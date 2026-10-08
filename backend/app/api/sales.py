@@ -60,6 +60,7 @@ def create_sale():
             session_id=data["session_id"],
             items=data["items"],
             payments=data["payments"],
+            client_uuid=data.get("client_uuid"),
         )
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403

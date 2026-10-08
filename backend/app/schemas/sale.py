@@ -78,6 +78,7 @@ class SaleCreateSchema(Schema):
         unknown = EXCLUDE
 
     session_id = fields.Int(required=True, validate=validate.Range(min=1))
+    client_uuid = fields.Str(required=False, load_default=None, allow_none=True, validate=validate.Length(max=36))
     items = fields.List(fields.Nested(SaleItemInputSchema), required=True, validate=validate.Length(min=1))
     payments = fields.List(fields.Nested(PaymentInputSchema), required=True, validate=validate.Length(min=1))
 
@@ -147,6 +148,7 @@ class PaymentSchema(Schema):
 class SaleSchema(Schema):
     id = fields.Int(dump_only=True)
     folio = fields.Str(dump_only=True)
+    client_uuid = fields.Str(dump_only=True, allow_none=True)
     session_id = fields.Int(dump_only=True)
     user_id = fields.Int(dump_only=True)
     username = fields.Method("get_username")
@@ -207,6 +209,7 @@ class SaleListSchema(Schema):
     """Lighter schema for sale listings (no items/payments)."""
     id = fields.Int(dump_only=True)
     folio = fields.Str(dump_only=True)
+    client_uuid = fields.Str(dump_only=True, allow_none=True)
     total = fields.Decimal(as_string=True, places=2, dump_only=True)
     status = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)

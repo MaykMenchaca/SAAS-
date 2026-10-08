@@ -768,3 +768,80 @@ def test_cajero_no_puede_vender_en_sesion_ajena(db, seed_roles):
             payments=[{"method": "efectivo", "amount": "58.00"}],
         )
 
+
+# --- Regression Tests: Subfase 1.4.1 (H-05) ---
+
+
+def test_client_uuid_idempotencia_en_servicio(db):
+    """Llamar a create_sale dos veces con el mismo client_uuid devuelve la venta existente sin duplicar inventario."""
+    from app.services.sale_service import SaleService
+    from app.models.inventory import Stock
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H05-001", "Cinta Metrica", "100.00")
+
+    initial_stock = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    client_uuid = "550e8400-e29b-41d4-a716-446655440000"
+
+    items = [{"product_id": product.id, "quantity": 1}]
+    payments = [{"method": "efectivo", "amount": "116.00"}]
+
+    # Primer intento
+    sale1 = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=items,
+        payments=payments,
+        client_uuid=client_uuid,
+    )
+    assert sale1.client_uuid == client_uuid
+    stock_after_first = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    assert stock_after_first == initial_stock - Decimal("1.000")
+
+    # Segundo intento con el mismo client_uuid
+    sale2 = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=items,
+        payments=payments,
+        client_uuid=client_uuid,
+    )
+
+    assert sale2.id == sale1.id
+    assert sale2.folio == sale1.folio
+    stock_after_second = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    assert stock_after_second == stock_after_first
+
+
+def test_client_uuid_idempotencia_en_api(client, admin_token, seed_open_session, seed_product_for_sale, db):
+    """POST /api/sales/ con el mismo client_uuid devuelve la venta existente."""
+    from app.models.inventory import Stock
+
+    initial_stock = db.session.query(Stock).filter_by(product_id=seed_product_for_sale.id).first().quantity
+    client_uuid = "550e8400-e29b-41d4-a716-446655440001"
+
+    payload = {
+        "session_id": seed_open_session.id,
+        "client_uuid": client_uuid,
+        "items": [{"product_id": seed_product_for_sale.id, "quantity": 1}],
+        "payments": [{"method": "efectivo", "amount": "116.00"}],
+    }
+
+    # Primer POST
+    resp1 = client.post("/api/sales/", headers={"Authorization": f"Bearer {admin_token}"}, json=payload)
+    assert resp1.status_code in (200, 201)
+    data1 = resp1.get_json()
+    assert data1["client_uuid"] == client_uuid
+
+    # Segundo POST idéntico (simulando reintento por doble clic o pérdida de conexión)
+    resp2 = client.post("/api/sales/", headers={"Authorization": f"Bearer {admin_token}"}, json=payload)
+    assert resp2.status_code in (200, 201)
+    data2 = resp2.get_json()
+    assert data2["id"] == data1["id"]
+    assert data2["folio"] == data1["folio"]
+
+    # Verificar que el stock solo se redujo una vez
+    stock_final = db.session.query(Stock).filter_by(product_id=seed_product_for_sale.id).first().quantity
+    assert stock_final == initial_stock - Decimal("1.000")
+
+

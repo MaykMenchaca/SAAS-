@@ -59,6 +59,7 @@ class Sale(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     folio = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    client_uuid = db.Column(db.String(36), unique=True, nullable=True, index=True)
     session_id = db.Column(
         db.Integer,
         db.ForeignKey("cash_register_sessions.id"),

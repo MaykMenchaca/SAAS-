@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.product import Product
@@ -116,30 +117,44 @@ class SaleService:
         }
 
     @staticmethod
-    def create_sale(user_id: int, session_id: int, items: list, payments: list) -> Sale:
+    def create_sale(
+        user_id: int,
+        session_id: int,
+        items: list,
+        payments: list,
+        client_uuid: str | None = None,
+    ) -> Sale:
         """Create a complete sale atomically.
 
-        1. Validates cash register session is open
-        2. Calculates authoritative pricing via price_lines
-        3. Generates folio from PostgreSQL sequence
-        4. Creates sale items with discount calculation
-        5. Deducts inventory for each item (with row-level locking)
-        6. Validates payment covers the total
+        1. Validates client_uuid idempotency (returns existing sale if already processed)
+        2. Validates cash register session is open and owned (or supervised)
+        3. Calculates authoritative pricing via price_lines
+        4. Generates folio from PostgreSQL sequence
+        5. Creates sale items with discount calculation
+        6. Deducts inventory for each item (with row-level locking)
+        7. Validates payments and calculates exact change in server
 
         Args:
             user_id: Cashier performing the sale.
             session_id: Open CashRegisterSession id.
             items: List of dicts with product_id, quantity, and optional discount_percent.
                    (unit_price and tax_rate are ignored if passed; catalog is authoritative).
-            payments: List of dicts with method, amount, and optional reference/change_amount.
+            payments: List of dicts with method, amount, and optional reference.
+            client_uuid: Optional client-generated UUID for idempotency.
 
         Returns:
-            The created Sale object.
+            The created (or existing idempotent) Sale object.
 
         Raises:
             ValueError: If session is closed, stock insufficient, payment insufficient,
                         product inactive, fraction not allowed, or discount exceeds limit.
+            PermissionError: If cashier attempts to sell in another user's session without permission.
         """
+        if client_uuid:
+            existing_sale = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+            if existing_sale:
+                return existing_sale
+
         session = db.session.get(CashRegisterSession, session_id)
         if not session or session.status != "abierta":
             raise ValueError("La sesión de caja no está abierta")
@@ -164,6 +179,7 @@ class SaleService:
             folio=folio,
             session_id=session_id,
             user_id=user_id,
+            client_uuid=str(client_uuid) if client_uuid else None,
             subtotal=pricing["subtotal"],
             discount_total=pricing["discount_total"],
             tax_total=pricing["tax_total"],
@@ -254,7 +270,15 @@ class SaleService:
             )
             db.session.add(payment)
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            if client_uuid:
+                existing = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+                if existing:
+                    return existing
+            raise
         return sale
 
     @staticmethod
