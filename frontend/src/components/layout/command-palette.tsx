@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { listProducts } from "../../api/products";
 import { cn } from "../../lib/cn";
 import { useThemeStore } from "../../stores/theme-store";
+import { useCan } from "../auth/require-permission";
 import { useCommandPalette } from "./command-palette-context";
 
 type CommandSection = "pages" | "products" | "actions";
@@ -51,6 +52,7 @@ const SECTION_ORDER: CommandSection[] = ["actions", "pages", "products"];
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
+  const can = useCan();
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,64 +84,74 @@ export function CommandPalette() {
   const productsQuery = useQuery({
     queryKey: ["command-palette-products", debouncedQuery],
     queryFn: () => listProducts({ page: 1, perPage: 6, search: debouncedQuery }),
-    enabled: open && debouncedQuery.length >= 2,
+    enabled: open && can("productos:ver") && debouncedQuery.length >= 2,
     staleTime: 30_000,
   });
 
-  const actions = useMemo<Command[]>(() => [
-    {
-      id: "action-new-sale",
-      label: "Nueva venta",
-      hint: "Ir al punto de venta",
-      section: "actions",
-      keywords: ["pos", "vender", "cobrar"],
-      icon: ShoppingCart,
-      shortcut: "F5",
-      run: () => navigate("/pos"),
-    },
-    {
-      id: "action-close-shift",
-      label: "Corte de caja",
-      hint: "Cerrar turno",
-      section: "actions",
-      keywords: ["cerrar", "turno", "arqueo"],
-      icon: Calculator,
-      run: () => navigate("/corte-caja"),
-    },
-    {
-      id: "action-new-purchase",
-      label: "Nueva compra",
-      hint: "Crear orden de compra",
-      section: "actions",
-      keywords: ["proveedor", "orden", "comprar"],
-      icon: Plus,
-      run: () => navigate("/compras"),
-    },
-    {
-      id: "action-toggle-theme",
-      label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
-      section: "actions",
-      keywords: ["tema", "oscuro", "claro", "dark", "light"],
-      icon: theme === "dark" ? Sun : Moon,
-      run: () => toggleTheme(),
-    },
-  ], [navigate, theme, toggleTheme]);
+  const actions = useMemo<Command[]>(() => {
+    const list: (Command & { permission?: string })[] = [
+      {
+        id: "action-new-sale",
+        label: "Nueva venta",
+        hint: "Ir al punto de venta",
+        section: "actions",
+        keywords: ["pos", "vender", "cobrar"],
+        icon: ShoppingCart,
+        shortcut: "F5",
+        permission: "ventas:crear",
+        run: () => navigate("/pos"),
+      },
+      {
+        id: "action-close-shift",
+        label: "Corte de caja",
+        hint: "Cerrar turno",
+        section: "actions",
+        keywords: ["cerrar", "turno", "arqueo"],
+        icon: Calculator,
+        permission: "caja:ver",
+        run: () => navigate("/corte-caja"),
+      },
+      {
+        id: "action-new-purchase",
+        label: "Nueva compra",
+        hint: "Crear orden de compra",
+        section: "actions",
+        keywords: ["proveedor", "orden", "comprar"],
+        icon: Plus,
+        permission: "compras:crear",
+        run: () => navigate("/compras"),
+      },
+      {
+        id: "action-toggle-theme",
+        label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
+        section: "actions",
+        keywords: ["tema", "oscuro", "claro", "dark", "light"],
+        icon: theme === "dark" ? Sun : Moon,
+        run: () => toggleTheme(),
+      },
+    ];
+    return list.filter((item) => !item.permission || can(item.permission));
+  }, [navigate, theme, toggleTheme, can]);
 
-  const pages = useMemo<Command[]>(() => [
-    { id: "page-dashboard", label: "Dashboard", section: "pages", keywords: ["inicio", "home", "resumen"], icon: LayoutDashboard, run: () => navigate("/") },
-    { id: "page-pos", label: "Punto de Venta", section: "pages", keywords: ["pos", "venta", "cobrar"], icon: ShoppingCart, run: () => navigate("/pos") },
-    { id: "page-inventory", label: "Inventario", section: "pages", keywords: ["stock", "existencias"], icon: Boxes, run: () => navigate("/inventario") },
-    { id: "page-products", label: "Productos", section: "pages", keywords: ["catalogo", "sku"], icon: Package, run: () => navigate("/productos") },
-    { id: "page-purchases", label: "Compras", section: "pages", keywords: ["proveedores", "ordenes"], icon: Truck, run: () => navigate("/compras") },
-    { id: "page-sales-history", label: "Historial de Ventas", section: "pages", keywords: ["tickets", "ventas previas"], icon: ReceiptText, run: () => navigate("/ventas") },
-    { id: "page-cash-cut", label: "Corte de Caja", section: "pages", keywords: ["arqueo", "cierre"], icon: Calculator, run: () => navigate("/corte-caja") },
-    { id: "page-returns", label: "Devoluciones", section: "pages", keywords: ["reembolso", "regresar"], icon: CornerDownLeft, run: () => navigate("/devoluciones") },
-    { id: "page-users", label: "Usuarios", section: "pages", keywords: ["operadores", "cajeros"], icon: Users, run: () => navigate("/usuarios") },
-    { id: "page-reports", label: "Reportes", section: "pages", keywords: ["analytics", "graficos"], icon: BarChart3, run: () => navigate("/reportes") },
-    { id: "page-settings", label: "Configuración", section: "pages", keywords: ["ajustes", "preferencias"], icon: Settings, run: () => navigate("/configuracion") },
-  ], [navigate]);
+  const pages = useMemo<Command[]>(() => {
+    const list: (Command & { permission?: string })[] = [
+      { id: "page-dashboard", label: "Dashboard", section: "pages", keywords: ["inicio", "home", "resumen"], icon: LayoutDashboard, permission: "reportes:ver", run: () => navigate("/") },
+      { id: "page-pos", label: "Punto de Venta", section: "pages", keywords: ["pos", "venta", "cobrar"], icon: ShoppingCart, permission: "ventas:crear", run: () => navigate("/pos") },
+      { id: "page-inventory", label: "Inventario", section: "pages", keywords: ["stock", "existencias"], icon: Boxes, permission: "inventario:ver", run: () => navigate("/inventario") },
+      { id: "page-products", label: "Productos", section: "pages", keywords: ["catalogo", "sku"], icon: Package, permission: "productos:ver", run: () => navigate("/productos") },
+      { id: "page-purchases", label: "Compras", section: "pages", keywords: ["proveedores", "ordenes"], icon: Truck, permission: "compras:ver", run: () => navigate("/compras") },
+      { id: "page-sales-history", label: "Historial de Ventas", section: "pages", keywords: ["tickets", "ventas previas"], icon: ReceiptText, permission: "ventas:ver", run: () => navigate("/ventas") },
+      { id: "page-cash-cut", label: "Corte de Caja", section: "pages", keywords: ["arqueo", "cierre"], icon: Calculator, permission: "caja:ver", run: () => navigate("/corte-caja") },
+      { id: "page-returns", label: "Devoluciones", section: "pages", keywords: ["reembolso", "regresar"], icon: CornerDownLeft, permission: "ventas:cancelar", run: () => navigate("/devoluciones") },
+      { id: "page-users", label: "Usuarios", section: "pages", keywords: ["operadores", "cajeros"], icon: Users, permission: "usuarios:ver", run: () => navigate("/usuarios") },
+      { id: "page-reports", label: "Reportes", section: "pages", keywords: ["analytics", "graficos"], icon: BarChart3, permission: "reportes:ver", run: () => navigate("/reportes") },
+      { id: "page-settings", label: "Configuración", section: "pages", keywords: ["ajustes", "preferencias"], icon: Settings, permission: "admin", run: () => navigate("/configuracion") },
+    ];
+    return list.filter((item) => !item.permission || can(item.permission));
+  }, [navigate, can]);
 
   const productCommands = useMemo<Command[]>(() => {
+    if (!can("productos:ver")) return [];
     const items = productsQuery.data?.items ?? [];
     return items.map((p) => ({
       id: `product-${p.id}`,
@@ -149,7 +161,7 @@ export function CommandPalette() {
       icon: Package,
       run: () => navigate("/productos"),
     }));
-  }, [productsQuery.data, navigate]);
+  }, [productsQuery.data, navigate, can]);
 
   // Filtrado: si hay query, matchea contra label + keywords; productos vienen pre-filtrados.
   const filtered = useMemo<Command[]>(() => {

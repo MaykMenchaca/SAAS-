@@ -4,6 +4,23 @@ import { apiClient } from "./client";
 
 export type ConfigMap = Record<string, string>;
 
+export type BrandingInfo = {
+  business_name: string;
+  company_name?: string;
+  company_subtitle?: string;
+  company_logo_icon?: string;
+  company_logo_color?: string;
+  business_rfc?: string;
+  business_address?: string;
+  business_phone?: string;
+  logo_url?: string;
+};
+
+export async function getBranding() {
+  const response = await apiClient.get<BrandingInfo>("/config/branding");
+  return response.data;
+}
+
 export async function getConfig() {
   const response = await apiClient.get<ConfigMap>("/config/");
   return response.data;

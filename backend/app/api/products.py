@@ -89,11 +89,26 @@ def create_product():
 @products_bp.route("/<int:product_id>", methods=["PATCH"])
 @require_permission("productos:editar")
 def update_product(product_id):
+    from flask_jwt_extended import current_user
+
     product = ProductService.get_product(product_id)
     if not product:
         return jsonify({"error": "Producto no encontrado"}), 404
 
     data = product_update_schema.load(request.get_json(silent=True) or {})
+
+    price_fields = ("sale_price", "purchase_price")
+    changing_price = any(
+        field in data and getattr(product, field) != data[field]
+        for field in price_fields
+    )
+    if changing_price:
+        if not current_user or "productos:editar_precio" not in current_user.permissions:
+            return jsonify({
+                "error": "Permiso insuficiente para modificar precios o costos",
+                "code": "forbidden",
+            }), 403
+
     product = ProductService.update_product(product, data)
     return jsonify(product_schema.dump(product)), 200
 

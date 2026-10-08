@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 
 import { ProtectedRoute } from "./components/auth/protected-route";
+import { RequirePermission, useCan } from "./components/auth/require-permission";
 import { AppShell } from "./components/layout/app-shell";
 import { CommandPaletteProvider } from "./components/layout/command-palette-context";
 import { ErrorBoundary } from "./components/layout/error-boundary";
@@ -32,6 +33,20 @@ function PageLoader() {
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   );
+}
+
+function IndexRedirect() {
+  const can = useCan();
+  if (can("reportes:ver")) {
+    return <DashboardPage />;
+  }
+  if (can("ventas:crear")) {
+    return <Navigate replace to="/pos" />;
+  }
+  if (can("inventario:ver")) {
+    return <Navigate replace to="/inventario" />;
+  }
+  return <Navigate replace to="/pos" />;
 }
 
 const queryClient = new QueryClient({
@@ -63,18 +78,18 @@ export default function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route element={<DashboardPage />} index />
-                <Route element={<PosPage />} path="pos" />
-                <Route element={<CashCutPage />} path="corte-caja" />
-                <Route element={<SalesHistoryPage />} path="ventas" />
-                <Route element={<ReturnsPage />} path="devoluciones" />
-                <Route element={<ProductsPage />} path="productos" />
-                <Route element={<InventoryPage />} path="inventario" />
-                <Route element={<InventoryCountPage />} path="inventario/conteo" />
-                <Route element={<PurchasesPage />} path="compras" />
-                <Route element={<UsersPage />} path="usuarios" />
-                <Route element={<ReportsPage />} path="reportes" />
-                <Route element={<SettingsPage />} path="configuracion" />
+                <Route element={<IndexRedirect />} index />
+                <Route element={<RequirePermission permission="ventas:crear"><PosPage /></RequirePermission>} path="pos" />
+                <Route element={<RequirePermission permission="caja:ver"><CashCutPage /></RequirePermission>} path="corte-caja" />
+                <Route element={<RequirePermission permission="ventas:ver"><SalesHistoryPage /></RequirePermission>} path="ventas" />
+                <Route element={<RequirePermission permission="ventas:cancelar"><ReturnsPage /></RequirePermission>} path="devoluciones" />
+                <Route element={<RequirePermission permission="productos:ver"><ProductsPage /></RequirePermission>} path="productos" />
+                <Route element={<RequirePermission permission="inventario:ver"><InventoryPage /></RequirePermission>} path="inventario" />
+                <Route element={<RequirePermission permission="inventario:ajustar"><InventoryCountPage /></RequirePermission>} path="inventario/conteo" />
+                <Route element={<RequirePermission permission="compras:ver"><PurchasesPage /></RequirePermission>} path="compras" />
+                <Route element={<RequirePermission permission="usuarios:ver"><UsersPage /></RequirePermission>} path="usuarios" />
+                <Route element={<RequirePermission permission="reportes:ver"><ReportsPage /></RequirePermission>} path="reportes" />
+                <Route element={<RequirePermission permission="admin"><SettingsPage /></RequirePermission>} path="configuracion" />
               </Route>
               <Route element={<NotFoundPage />} path="*" />
             </Routes>

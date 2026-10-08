@@ -32,10 +32,11 @@ import { toast } from "sonner";
 import { useAuthStore } from "../../stores/auth-store";
 import { usePosStore } from "../../stores/pos-store";
 import { useThemeStore } from "../../stores/theme-store";
-import { getConfig, updateConfig } from "../../api/config";
+import { getBranding, updateConfig } from "../../api/config";
 import { useSidebarBadges } from "../../hooks/use-sidebar-badges";
 import type { SidebarBadges } from "../../hooks/use-sidebar-badges";
 import { useSyncQueue } from "../../hooks/useSyncQueue";
+import { useCan } from "../auth/require-permission";
 import { cn } from "../../lib/cn";
 import { Badge, Button, Input, Modal } from "../ui";
 import { CommandPalette } from "./command-palette";
@@ -49,6 +50,8 @@ type NavItem = {
   label: string;
   badgeKey?: BadgeKey;
   badgeTone?: "warning" | "danger" | "info";
+  permission?: string;
+  adminOnly?: boolean;
 };
 
 type NavSection = {
@@ -60,32 +63,32 @@ const navSections: NavSection[] = [
   {
     label: "Principal",
     items: [
-      { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { href: "/pos", icon: ShoppingCart, label: "Punto de Venta" },
+      { href: "/", icon: LayoutDashboard, label: "Dashboard", permission: "reportes:ver" },
+      { href: "/pos", icon: ShoppingCart, label: "Punto de Venta", permission: "ventas:crear" },
     ],
   },
   {
     label: "Inventario",
     items: [
-      { href: "/inventario", icon: Boxes, label: "Inventario", badgeKey: "lowStock", badgeTone: "warning" },
-      { href: "/productos", icon: Package, label: "Productos" },
-      { href: "/compras", icon: Truck, label: "Compras", badgeKey: "pendingPurchases", badgeTone: "info" },
+      { href: "/inventario", icon: Boxes, label: "Inventario", badgeKey: "lowStock", badgeTone: "warning", permission: "inventario:ver" },
+      { href: "/productos", icon: Package, label: "Productos", permission: "productos:ver" },
+      { href: "/compras", icon: Truck, label: "Compras", badgeKey: "pendingPurchases", badgeTone: "info", permission: "compras:ver" },
     ],
   },
   {
     label: "Finanzas",
     items: [
-      { href: "/ventas", icon: ReceiptText, label: "Historial de Ventas" },
-      { href: "/corte-caja", icon: Calculator, label: "Corte de Caja" },
-      { href: "/devoluciones", icon: CornerDownLeft, label: "Devoluciones" },
+      { href: "/ventas", icon: ReceiptText, label: "Historial de Ventas", permission: "ventas:ver" },
+      { href: "/corte-caja", icon: Calculator, label: "Corte de Caja", permission: "caja:ver" },
+      { href: "/devoluciones", icon: CornerDownLeft, label: "Devoluciones", permission: "ventas:cancelar" },
     ],
   },
   {
     label: "Sistema",
     items: [
-      { href: "/usuarios", icon: Users, label: "Usuarios" },
-      { href: "/reportes", icon: BarChart3, label: "Reportes" },
-      { href: "/configuracion", icon: Settings, label: "Configuración" },
+      { href: "/usuarios", icon: Users, label: "Usuarios", permission: "usuarios:ver" },
+      { href: "/reportes", icon: BarChart3, label: "Reportes", permission: "reportes:ver" },
+      { href: "/configuracion", icon: Settings, label: "Configuración", adminOnly: true },
     ],
   },
 ];
@@ -220,14 +223,26 @@ export function AppShell() {
     localStorage.setItem("sidebar-collapsed", String(isCollapsed));
   }, [isCollapsed]);
 
-  // Dynamic system configuration query
-  const configQuery = useQuery({
-    queryKey: ["system-config"],
-    queryFn: getConfig,
+  // Dynamic system branding query (accesible a todos los roles)
+  const brandingQuery = useQuery({
+    queryKey: ["branding"],
+    queryFn: getBranding,
   });
 
   // Dynamic company brand customization state
   const isAdmin = user?.role === "admin";
+  const can = useCan();
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.adminOnly && !isAdmin) return false;
+        if (item.permission && !can(item.permission)) return false;
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
+
   const [isCustomizingBrand, setIsCustomizingBrand] = useState(false);
   const [tempName, setTempName] = useState("");
   const [tempSubtitle, setTempSubtitle] = useState("");
@@ -237,6 +252,7 @@ export function AppShell() {
   const configMutation = useMutation({
     mutationFn: (updates: Record<string, string>) => updateConfig(updates),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["branding"] });
       queryClient.invalidateQueries({ queryKey: ["system-config"] });
       toast.success("Diseño de marca actualizado.");
       setIsCustomizingBrand(false);
@@ -247,10 +263,10 @@ export function AppShell() {
   });
 
   const handleOpenCustomizer = () => {
-    setTempName(configQuery.data?.company_name || "Ferretería");
-    setTempSubtitle(configQuery.data?.company_subtitle || "VRNTAS POS");
-    setTempIcon(configQuery.data?.company_logo_icon || "ShoppingCart");
-    setTempColor(configQuery.data?.company_logo_color || "primary");
+    setTempName(brandingQuery.data?.company_name || "Ferretería");
+    setTempSubtitle(brandingQuery.data?.company_subtitle || "VRNTAS POS");
+    setTempIcon(brandingQuery.data?.company_logo_icon || "ShoppingCart");
+    setTempColor(brandingQuery.data?.company_logo_color || "primary");
     setIsCustomizingBrand(true);
   };
 
@@ -302,9 +318,9 @@ export function AppShell() {
         >
           {/* Logo icon and background based on configuration */}
           {(() => {
-            const configuredIconKey = configQuery.data?.company_logo_icon || "ShoppingCart";
+            const configuredIconKey = brandingQuery.data?.company_logo_icon || "ShoppingCart";
             const LogoIconComponent = LOGO_ICONS[configuredIconKey as keyof typeof LOGO_ICONS] || ShoppingCart;
-            const configuredColorKey = configQuery.data?.company_logo_color || "primary";
+            const configuredColorKey = brandingQuery.data?.company_logo_color || "primary";
             const logoColorObj = LOGO_COLORS.find((c) => c.id === configuredColorKey);
 
             let bgStyle = {};
@@ -343,10 +359,10 @@ export function AppShell() {
           {!isCollapsed && (
             <div className="fade-in flex-1 min-w-0 pr-6">
               <p className="text-sm font-bold text-white leading-tight transition-colors truncate">
-                {configQuery.data?.company_name || "Ferretería"}
+                {brandingQuery.data?.company_name || "Ferretería"}
               </p>
               <p className="text-[10px] tracking-wider text-sidebar-text/50 uppercase truncate">
-                {configQuery.data?.company_subtitle || "VRNTAS POS"}
+                {brandingQuery.data?.company_subtitle || "VRNTAS POS"}
               </p>
             </div>
           )}
@@ -368,7 +384,7 @@ export function AppShell() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-6">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.label} className="space-y-1">
               {!isCollapsed ? (
                 <div className="text-[10px] font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2 fade-in">
@@ -498,8 +514,8 @@ export function AppShell() {
               </kbd>
             </button>
 
-            {/* Quick action — Nueva venta (oculto si ya estás en /pos) */}
-            {!isPosRoute && (
+            {/* Quick action — Nueva venta (oculto si ya estás en /pos o sin permiso) */}
+            {!isPosRoute && can("ventas:crear") && (
               <Button
                 aria-label="Nueva venta"
                 className="hidden md:inline-flex min-h-0 h-9 px-3 text-xs"

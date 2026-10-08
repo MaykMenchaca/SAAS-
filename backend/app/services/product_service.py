@@ -166,6 +166,7 @@ class ProductService:
     @staticmethod
     def update_product(product, data):
         data = ProductService._clean_optional_fields(data)
+        data.pop("avg_cost", None)
         ProductService._validate_references(data)
         ProductService._validate_unique_product(
             sku=data.get("sku"),

@@ -186,4 +186,19 @@ def test_run_py_no_expone_debug_ni_red():
     assert 'host="0.0.0.0"' not in run_code
 
 
+def test_get_branding_is_public(client, db):
+    """H-19: GET /api/config/branding debe ser público y devolver nombre y logo."""
+    config_service.set_value("company_name", "Ferretería Central")
+    config_service.set_value("logo_url", "/assets/logo.png")
+    db.session.commit()
+
+    # Petición sin cabecera Authorization
+    response = client.get("/api/config/branding")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["business_name"] == "Ferretería Central"
+    assert data["logo_url"] == "/assets/logo.png"
+
+
+
 

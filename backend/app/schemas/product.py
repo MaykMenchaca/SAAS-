@@ -111,7 +111,7 @@ class ProductUpdateSchema(Schema):
     category_id = fields.Int(allow_none=True, validate=validate.Range(min=1))
     unit_id = fields.Int(validate=validate.Range(min=1))
     purchase_price = fields.Decimal(as_string=True, places=2, validate=validate.Range(min=0))
-    avg_cost = fields.Decimal(as_string=True, places=2, validate=validate.Range(min=0))
+    avg_cost = fields.Decimal(dump_only=True)
     sale_price = fields.Decimal(as_string=True, places=2, validate=validate.Range(min=0))
     tax_rate = fields.Decimal(as_string=True, places=2, validate=validate.Range(min=0))
     min_stock = fields.Decimal(as_string=True, places=3, validate=validate.Range(min=0))
