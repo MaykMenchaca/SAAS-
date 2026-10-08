@@ -26,7 +26,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 1.4.2 Guard de doble clic en `handlePay` (H-05) · commit bc384d1 · build: `npm run build` OK · Guard síncrono con `isSubmittingRef` y `saleMutation.isPending` para ignorar segundo clic antes de re-renderizado; `clientUuidRef` generado por intento de cobro y enviado en `CreateSalePayload`
 - [x] 1.4.3 Offline solo ante error de red (H-03) · commit aad070e · build: `npm run build` OK · Ante respuestas HTTP 4xx/5xx (`err.response`) el modal permanece abierto mostrando el error del servidor y conservando el carrito intacto; solo fallos de red reales (`!err.response` o timeout) activan la contingencia offline
 - [x] 1.5.1 Devolución agrupa los items + bloqueo (H-06) · commit 56a697e · tests: `test_devolucion_duplicada_agrupada_rechazada` · Bloqueo pesimista con `with_for_update()` en `return_sale` y agrupación previa por `sale_item_id` previniendo sobre-devolución por líneas duplicadas
-- [ ] 1.5.2 No cancelar una venta con devolución (H-07) · A
+- [x] 1.5.2 No cancelar una venta con devolución (H-07) · commit c8bcdb1 · tests: `test_cancelar_venta_con_devolucion_rechazada` · Bloqueo pesimista con `with_for_update()` en `cancel_sale`, rechazo estricto si la venta no está en estado 'completada' o si tiene devoluciones registradas para evitar doble reingreso de inventario
 - [ ] 1.5.3 `SaleReturn.session_id` y `refund_method` (H-08) · A
 - [ ] 1.5.4 Input de devolución según unidad + invalidación (H-25) · B
 - [ ] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · A
