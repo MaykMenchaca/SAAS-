@@ -1,5 +1,5 @@
 from functools import wraps
-from flask_jwt_extended import get_jwt, verify_jwt_in_request
+from flask_jwt_extended import current_user, get_jwt, verify_jwt_in_request
 from flask import jsonify
 
 
@@ -11,7 +11,11 @@ def require_permission(permission):
             claims = get_jwt()
             if claims.get("must_change_password"):
                 return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
-            if permission not in claims.get("permissions", []):
+            if not current_user or not current_user.is_active:
+                return jsonify({"error": "Usuario inactivo o no encontrado", "code": "user_inactive"}), 401
+            if current_user.must_change_password:
+                return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
+            if permission not in current_user.permissions:
                 return jsonify({"error": "Permiso insuficiente"}), 403
             return fn(*args, **kwargs)
         return wrapper
@@ -26,7 +30,11 @@ def require_role(role):
             claims = get_jwt()
             if claims.get("must_change_password"):
                 return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
-            if claims.get("role") != role:
+            if not current_user or not current_user.is_active:
+                return jsonify({"error": "Usuario inactivo o no encontrado", "code": "user_inactive"}), 401
+            if current_user.must_change_password:
+                return jsonify({"error": "Debe cambiar su contraseña", "code": "password_change_required"}), 403
+            if current_user.role_name != role:
                 return jsonify({"error": "Rol insuficiente"}), 403
             return fn(*args, **kwargs)
         return wrapper

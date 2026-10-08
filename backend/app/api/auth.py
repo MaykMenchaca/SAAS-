@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
+from app.extensions import db
 from app.services.audit_service import log_action
 from app.services.auth_service import AuthService
 
@@ -69,10 +70,48 @@ def refresh():
 
 
 @auth_bp.route("/logout", methods=["POST"])
-@jwt_required()
+@jwt_required(verify_type=False)
 def logout():
-    log_action(action="logout", entity_type="user", commit=True)
-    return jsonify({"message": "Sesion cerrada"}), 200
+    from datetime import datetime, timezone
+    from flask_jwt_extended import get_jwt
+    from app.models.user import TokenBlocklist
+
+    jwt_payload = get_jwt()
+    jti = jwt_payload.get("jti")
+    token_type = jwt_payload.get("type", "access")
+    exp = jwt_payload.get("exp")
+    expires_at = datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
+    user_id = int(get_jwt_identity()) if get_jwt_identity() else None
+
+    if jti and not TokenBlocklist.query.filter_by(jti=jti).first():
+        db.session.add(TokenBlocklist(
+            jti=jti,
+            token_type=token_type,
+            user_id=user_id,
+            expires_at=expires_at,
+        ))
+
+    body = request.get_json(silent=True) or {}
+    refresh_token_raw = body.get("refresh_token")
+    if refresh_token_raw:
+        try:
+            from flask_jwt_extended import decode_token
+            decoded = decode_token(refresh_token_raw)
+            ref_jti = decoded.get("jti")
+            ref_exp = decoded.get("exp")
+            ref_expires_at = datetime.fromtimestamp(ref_exp, tz=timezone.utc) if ref_exp else None
+            if ref_jti and not TokenBlocklist.query.filter_by(jti=ref_jti).first():
+                db.session.add(TokenBlocklist(
+                    jti=ref_jti,
+                    token_type="refresh",
+                    user_id=user_id,
+                    expires_at=ref_expires_at,
+                ))
+        except Exception:
+            pass
+
+    log_action(action="logout", entity_type="user", user_id=user_id, commit=True)
+    return jsonify({"message": "Sesion cerrada exitosamente"}), 200
 
 
 @auth_bp.route("/change-password", methods=["POST"])

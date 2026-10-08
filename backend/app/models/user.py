@@ -38,6 +38,7 @@ class User(db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+    token_version = db.Column(db.Integer, default=1, nullable=False)
     last_login_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -56,6 +57,20 @@ class User(db.Model):
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
+        self.token_version = (self.token_version or 1) + 1
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class TokenBlocklist(db.Model):
+    __tablename__ = "token_blocklist"
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    token_type = db.Column(db.String(10), nullable=False)  # "access" or "refresh"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+

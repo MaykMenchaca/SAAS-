@@ -13,8 +13,10 @@ def create_app(config_class=Config):
 
     db.init_app(application)
     jwt.init_app(application)
+    _setup_jwt(jwt)
     migrate.init_app(application, db)
     cors.init_app(application)
+
 
     with application.app_context():
         from app import models  # noqa: F401 — register models for Alembic
@@ -31,6 +33,59 @@ def create_app(config_class=Config):
     _register_frontend_routes(application)
 
     return application
+
+
+def _setup_jwt(jwt_mgr):
+    """Configura loaders de revocación y usuario para JWT."""
+    from flask import jsonify
+
+    @jwt_mgr.token_in_blocklist_loader
+    def token_in_blocklist_loader(jwt_header, jwt_payload: dict) -> bool:
+        from app.models.user import TokenBlocklist, User
+        jti = jwt_payload.get("jti")
+        if not jti:
+            return True
+
+        # 1. Comprobar jti en lista de tokens revocados (logout)
+        if TokenBlocklist.query.filter_by(jti=jti).first():
+            return True
+
+        # 2. Comprobar vigencia de token_version y estatus activo del usuario
+        user_id = jwt_payload.get("sub")
+        if user_id:
+            try:
+                user = db.session.get(User, int(user_id))
+                if not user or not user.is_active:
+                    return True
+                token_version = jwt_payload.get("token_version")
+                if token_version is not None and user.token_version != token_version:
+                    return True
+            except (ValueError, TypeError):
+                return True
+
+        return False
+
+    @jwt_mgr.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return jsonify({"error": "El token ha sido revocado", "code": "token_revoked"}), 401
+
+    @jwt_mgr.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        from app.models.user import User
+        identity = jwt_data.get("sub")
+        if not identity:
+            return None
+        try:
+            user = db.session.get(User, int(identity))
+            if not user or not user.is_active:
+                return None
+            return user
+        except (ValueError, TypeError):
+            return None
+
+    @jwt_mgr.user_lookup_error_loader
+    def user_lookup_error_callback(_jwt_header, _jwt_data):
+        return jsonify({"error": "Usuario inactivo o no encontrado", "code": "user_inactive"}), 401
 
 
 def _register_frontend_routes(application):

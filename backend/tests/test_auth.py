@@ -245,4 +245,154 @@ def test_login_user_lockout_tras_10_fallos(client):
     assert "bloqueado" in res11.get_json()["error"]
 
 
+class TestTokenRevocationAndBlocklist:
+    """H-17: Revocación de tokens vía blocklist y token_version."""
+
+    def test_token_revoked_after_logout(self, client, seed_admin):
+        """H-17: El token debe quedar invalidado inmediatamente tras el logout."""
+        login_res = client.post("/api/auth/login", json={
+            "username": "admin",
+            "password": "admin123",
+        })
+        assert login_res.status_code == 200
+        token = login_res.get_json()["access_token"]
+
+        # Funciona antes del logout
+        res_before = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert res_before.status_code == 200
+
+        # Logout
+        logout_res = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        assert logout_res.status_code == 200
+
+        # Ya NO funciona después del logout
+        res_after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert res_after.status_code == 401
+
+    def test_token_revoked_when_user_deactivated(self, client, db, seed_roles):
+        """H-17: Desactivar a un usuario debe revocar de inmediato sus tokens."""
+        from app.models.user import User
+        from app.services.user_service import UserService
+
+        user = User(
+            username="user_to_disable",
+            email="disable@example.com",
+            full_name="User To Disable",
+            role_id=seed_roles["cajero"].id,
+        )
+        user.set_password("pass123")
+        db.session.add(user)
+        db.session.commit()
+
+        login_res = client.post("/api/auth/login", json={
+            "username": "user_to_disable",
+            "password": "pass123",
+        })
+        token = login_res.get_json()["access_token"]
+
+        # El token sirve
+        res_ok = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert res_ok.status_code == 200
+
+        # Se desactiva al usuario
+        UserService.deactivate_user(user)
+
+        # El token anterior debe ser rechazado inmediatamente con 401
+        res_revoked = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert res_revoked.status_code == 401
+
+    def test_token_revoked_when_password_changed(self, client, db, seed_roles):
+        """H-17: Cambiar la contraseña debe revocar el token anterior."""
+        from app.models.user import User
+
+        user = User(
+            username="user_pwd_change",
+            email="pwdchange@example.com",
+            full_name="User Pwd",
+            role_id=seed_roles["cajero"].id,
+        )
+        user.set_password("old_pass_123")
+        db.session.add(user)
+        db.session.commit()
+
+        login_res = client.post("/api/auth/login", json={
+            "username": "user_pwd_change",
+            "password": "old_pass_123",
+        })
+        old_token = login_res.get_json()["access_token"]
+
+        # Cambiar contraseña
+        change_res = client.post(
+            "/api/auth/change-password",
+            headers={"Authorization": f"Bearer {old_token}"},
+            json={
+                "current_password": "old_pass_123",
+                "new_password": "new_pass_45678",
+            },
+        )
+        assert change_res.status_code == 200
+        new_token = change_res.get_json()["access_token"]
+
+        # El token viejo ya NO sirve
+        res_old = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_token}"})
+        assert res_old.status_code == 401
+
+        # El nuevo token sí sirve
+        res_new = client.get("/api/auth/me", headers={"Authorization": f"Bearer {new_token}"})
+        assert res_new.status_code == 200
+
+    def test_token_revoked_when_role_changed(self, client, db, seed_roles):
+        """H-17: Al cambiar el rol de un usuario, se incrementa token_version y se revoca el token viejo."""
+        from app.models.user import User
+        from app.services.user_service import UserService
+
+        user = User(
+            username="user_role_change",
+            email="rolechange@example.com",
+            full_name="User Role",
+            role_id=seed_roles["cajero"].id,
+        )
+        user.set_password("pass123")
+        db.session.add(user)
+        db.session.commit()
+
+        login_res = client.post("/api/auth/login", json={
+            "username": "user_role_change",
+            "password": "pass123",
+        })
+        old_token = login_res.get_json()["access_token"]
+
+        # Cambiar rol a admin
+        UserService.update_user(user, {"role_id": seed_roles["admin"].id})
+
+        # Token anterior revocado
+        res_old = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_token}"})
+        assert res_old.status_code == 401
+
+    def test_refresh_token_revoked_on_logout(self, client, seed_admin):
+        """H-17: El refresh token enviado en logout también queda revocado."""
+        login_res = client.post("/api/auth/login", json={
+            "username": "admin",
+            "password": "admin123",
+        })
+        access_token = login_res.get_json()["access_token"]
+        refresh_token = login_res.get_json()["refresh_token"]
+
+        # Logout revocando el refresh token
+        logout_res = client.post(
+            "/api/auth/logout",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"refresh_token": refresh_token},
+        )
+        assert logout_res.status_code == 200
+
+        # Intentar refrescar con el token revocado debe fallar con 401
+        refresh_res = client.post(
+            "/api/auth/refresh",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+        assert refresh_res.status_code == 401
+
+
+
 

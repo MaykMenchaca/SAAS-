@@ -103,6 +103,11 @@ class UserService:
             user.set_password(data["password"])
             new_value["password"] = "[CHANGED]"
 
+        role_changed = "role_id" in data and data["role_id"] != previous_value.get("role_id")
+        deactivated = "is_active" in data and not data["is_active"] and previous_value.get("is_active")
+        if role_changed or deactivated:
+            user.token_version = (user.token_version or 1) + 1
+
         from app.services.audit_service import log_action
         log_action(
             action="editar",
@@ -120,6 +125,7 @@ class UserService:
     def deactivate_user(user):
         prev_active = user.is_active
         user.is_active = False
+        user.token_version = (user.token_version or 1) + 1
 
         from app.services.audit_service import log_action
         log_action(

@@ -25,6 +25,7 @@ class AuthService:
             "role": payload["role"],
             "permissions": payload["permissions"],
             "must_change_password": bool(user.must_change_password),
+            "token_version": getattr(user, "token_version", 1) or 1,
         }
 
     @staticmethod

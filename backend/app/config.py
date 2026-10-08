@@ -18,7 +18,7 @@ class Config:
         "pool_pre_ping": True,
     }
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-    JWT_ACCESS_TOKEN_EXPIRES = 28800  # 8 horas
+    JWT_ACCESS_TOKEN_EXPIRES = 1800  # 30 minutos (1800s)
     BACKUP_DIR = os.getenv("BACKUP_DIR")
     USB_BACKUP_DIR = os.getenv("USB_BACKUP_DIR")
     SERVE_FRONTEND = os.getenv("SERVE_FRONTEND", "false").lower() == "true"
