@@ -35,7 +35,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] **Gate fase 1** · APROBADO (2026-10-08, 228 tests backend passed, frontend build OK, gate.ps1 en verde, commit ed358c8)
 
 ## Fase 2: Trazabilidad y acceso
-- [ ] 2.1 Auditoría persiste + cobertura completa (H-09, H-39) · A
+- [x] 2.1 Auditoría persiste + cobertura completa (H-09, H-39) · commit 35caa02 · tests: `TestAuditPersistenceAndCoverage` (22 tests en `test_audit.py` y 238 en suite total) · `log_action` participa en la transacción del servicio antes de `db.session.commit()` (o commit inmediato con `commit=True` para login fallido), y registra valor anterior y nuevo en ventas, devoluciones, caja, ajustes, conteos físicos, usuarios, órdenes de compra, recepciones, proveedores, categorías, unidades y productos
 - [ ] 2.2 Revocación de tokens: blocklist y `token_version` (H-17) · A
 - [ ] 2.3 Permisos en la UI + branding + `editar_precio` (H-19) · A+B
 - [ ] 2.4 Aislamiento entre usuarios: caché y store del POS (H-18) · B
