@@ -837,7 +837,7 @@ function PaymentModal({
             return;
           }
 
-          console.warn("Fallo de red al enviar online, procediendo a modo offline:", err);
+          console.warn("Fallo de red o timeout al enviar online; activando contingencia offline:", err);
         }
       }
 
