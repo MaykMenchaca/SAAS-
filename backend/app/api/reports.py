@@ -8,7 +8,7 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models.inventory import Stock
 from app.models.product import Product
-from app.models.sale import Payment, Sale, SaleItem
+from app.models.sale import Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.utils.decorators import require_permission
 
 reports_bp = Blueprint("reports", __name__)
@@ -28,23 +28,51 @@ def dashboard():
     week_stats = _get_period_stats(week_start, now)
     month_stats = _get_period_stats(month_start, now)
 
-    # Top 5 products by quantity sold (this month)
-    top_products = (
+    # Top 5 products by quantity sold (this month, net of returns)
+    sold_rows = (
         db.session.query(
             SaleItem.product_name,
+            SaleItem.product_id,
             func.sum(SaleItem.quantity).label("total_qty"),
             func.sum(SaleItem.subtotal).label("total_revenue"),
         )
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= month_start,
         )
-        .group_by(SaleItem.product_name)
-        .order_by(func.sum(SaleItem.quantity).desc())
-        .limit(5)
+        .group_by(SaleItem.product_name, SaleItem.product_id)
         .all()
     )
+
+    returned_rows = (
+        db.session.query(
+            SaleReturnItem.product_id,
+            func.sum(SaleReturnItem.quantity).label("ret_qty"),
+        )
+        .join(SaleReturn, SaleReturn.id == SaleReturnItem.sale_return_id)
+        .filter(
+            SaleReturn.created_at >= month_start,
+        )
+        .group_by(SaleReturnItem.product_id)
+        .all()
+    )
+    ret_map = {r.product_id: Decimal(str(r.ret_qty)) for r in returned_rows}
+
+    product_stats = []
+    for name, pid, total_qty, total_rev in sold_rows:
+        ret_qty = ret_map.get(pid, Decimal("0"))
+        net_qty = Decimal(str(total_qty)) - ret_qty
+        if net_qty > Decimal("0"):
+            unit_subtotal = Decimal(str(total_rev)) / Decimal(str(total_qty))
+            net_rev = (unit_subtotal * net_qty).quantize(Decimal("0.01"))
+            product_stats.append({
+                "name": name,
+                "quantity": net_qty,
+                "revenue": net_rev,
+            })
+    product_stats.sort(key=lambda p: p["quantity"], reverse=True)
+    top_products = product_stats[:5]
 
     # Low stock count
     low_stock_count = (
@@ -67,33 +95,42 @@ def dashboard():
         "revenue_month": month_stats["revenue"],
         "top_products": [
             {
-                "name": name,
-                "quantity": str(Decimal(str(qty)).quantize(Decimal("0.001"))),
-                "revenue": str(Decimal(str(rev)).quantize(Decimal("0.01"))),
+                "name": p["name"],
+                "quantity": str(p["quantity"].quantize(Decimal("0.001"))),
+                "revenue": str(p["revenue"].quantize(Decimal("0.01"))),
             }
-            for name, qty, rev in top_products
+            for p in top_products
         ],
         "low_stock_count": low_stock_count,
     }), 200
 
 
 def _get_period_stats(start: datetime, end: datetime) -> dict:
-    """Get sale count and total revenue for a period."""
+    """Get sale count and total revenue for a period, net of returns."""
     result = (
         db.session.query(
             func.count(Sale.id).label("count"),
             func.coalesce(func.sum(Sale.total), 0).label("revenue"),
         )
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
             Sale.created_at <= end,
         )
         .one()
     )
+    refunds = (
+        db.session.query(func.coalesce(func.sum(SaleReturn.refund_total), 0))
+        .filter(
+            SaleReturn.created_at >= start,
+            SaleReturn.created_at <= end,
+        )
+        .scalar()
+    )
+    net_revenue = Decimal(str(result.revenue)) - Decimal(str(refunds))
     return {
         "count": result.count,
-        "revenue": str(Decimal(str(result.revenue)).quantize(Decimal("0.01"))),
+        "revenue": str(max(Decimal("0"), net_revenue).quantize(Decimal("0.01"))),
     }
 
 
@@ -130,24 +167,41 @@ def sales_report():
     # Summary stats
     stats = _get_period_stats(start, end)
 
-    # Sales by day
-    daily = (
+    # Sales by day (net of refunds)
+    daily_sales = (
         db.session.query(
             func.date_trunc("day", Sale.created_at).label("day"),
             func.count(Sale.id).label("count"),
             func.coalesce(func.sum(Sale.total), 0).label("revenue"),
         )
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
             Sale.created_at <= end,
         )
         .group_by(func.date_trunc("day", Sale.created_at))
-        .order_by(func.date_trunc("day", Sale.created_at))
         .all()
     )
+    daily_refunds = (
+        db.session.query(
+            func.date_trunc("day", SaleReturn.created_at).label("day"),
+            func.coalesce(func.sum(SaleReturn.refund_total), 0).label("refund_total"),
+        )
+        .filter(
+            SaleReturn.created_at >= start,
+            SaleReturn.created_at <= end,
+        )
+        .group_by(func.date_trunc("day", SaleReturn.created_at))
+        .all()
+    )
+    ref_day_map = {d: Decimal(str(tot)) for d, tot in daily_refunds}
+    daily = []
+    for day, count, rev in daily_sales:
+        net_rev = Decimal(str(rev)) - ref_day_map.get(day, Decimal("0"))
+        daily.append((day, count, max(Decimal("0"), net_rev)))
+    daily.sort(key=lambda x: x[0])
 
-    # Payment method breakdown
+    # Payment method breakdown (net of refunds per method)
     payment_breakdown = (
         db.session.query(
             Payment.method,
@@ -158,13 +212,26 @@ def sales_report():
         )
         .join(Sale, Sale.id == Payment.sale_id)
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
             Sale.created_at <= end,
         )
         .group_by(Payment.method)
         .all()
     )
+    refund_methods = (
+        db.session.query(
+            SaleReturn.refund_method,
+            func.coalesce(func.sum(SaleReturn.refund_total), 0).label("refund_total"),
+        )
+        .filter(
+            SaleReturn.created_at >= start,
+            SaleReturn.created_at <= end,
+        )
+        .group_by(SaleReturn.refund_method)
+        .all()
+    )
+    ref_method_map = {m: Decimal(str(tot)) for m, tot in refund_methods}
 
     # Cancelled count
     cancelled = (
@@ -197,7 +264,11 @@ def sales_report():
             {
                 "method": method,
                 "count": count,
-                "net_amount": str(Decimal(str(net)).quantize(Decimal("0.01"))),
+                "net_amount": str(
+                    max(Decimal("0"), Decimal(str(net)) - ref_method_map.get(method, Decimal("0"))).quantize(
+                        Decimal("0.01")
+                    )
+                ),
             }
             for method, count, net in payment_breakdown
         ],
@@ -281,12 +352,7 @@ def top_products_report():
     else:
         end = now
 
-    order_col = (
-        func.sum(SaleItem.subtotal) if sort_by == "revenue"
-        else func.sum(SaleItem.quantity)
-    )
-
-    rows = (
+    sold_rows = (
         db.session.query(
             SaleItem.product_id,
             SaleItem.product_name,
@@ -297,15 +363,48 @@ def top_products_report():
         )
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
             Sale.created_at <= end,
         )
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.product_sku)
-        .order_by(order_col.desc())
-        .limit(limit)
         .all()
     )
+
+    returned_rows = (
+        db.session.query(
+            SaleReturnItem.product_id,
+            func.sum(SaleReturnItem.quantity).label("ret_qty"),
+        )
+        .join(SaleReturn, SaleReturn.id == SaleReturnItem.sale_return_id)
+        .filter(
+            SaleReturn.created_at >= start,
+            SaleReturn.created_at <= end,
+        )
+        .group_by(SaleReturnItem.product_id)
+        .all()
+    )
+    ret_qty_map = {r.product_id: Decimal(str(r.ret_qty)) for r in returned_rows}
+
+    items = []
+    for r in sold_rows:
+        ret_qty = ret_qty_map.get(r.product_id, Decimal("0"))
+        net_qty = Decimal(str(r.total_qty)) - ret_qty
+        if net_qty > Decimal("0"):
+            unit_subtotal = Decimal(str(r.total_revenue)) / Decimal(str(r.total_qty))
+            net_rev = (unit_subtotal * net_qty).quantize(Decimal("0.01"))
+            items.append({
+                "product_id": r.product_id,
+                "product_name": r.product_name,
+                "product_sku": r.product_sku,
+                "total_quantity": net_qty,
+                "total_revenue": net_rev,
+                "sale_count": r.sale_count,
+            })
+
+    order_key = "total_revenue" if sort_by == "revenue" else "total_quantity"
+    items.sort(key=lambda x: x[order_key], reverse=True)
+    items = items[:limit]
 
     return jsonify({
         "period": {
@@ -315,14 +414,14 @@ def top_products_report():
         "sort_by": sort_by,
         "items": [
             {
-                "product_id": r.product_id,
-                "product_name": r.product_name,
-                "product_sku": r.product_sku,
-                "total_quantity": str(Decimal(str(r.total_qty)).quantize(Decimal("0.001"))),
-                "total_revenue": str(Decimal(str(r.total_revenue)).quantize(Decimal("0.01"))),
-                "sale_count": r.sale_count,
+                "product_id": r["product_id"],
+                "product_name": r["product_name"],
+                "product_sku": r["product_sku"],
+                "total_quantity": str(r["total_quantity"].quantize(Decimal("0.001"))),
+                "total_revenue": str(r["total_revenue"].quantize(Decimal("0.01"))),
+                "sale_count": r["sale_count"],
             }
-            for r in rows
+            for r in items
         ],
     }), 200
 
@@ -357,7 +456,7 @@ def gross_margin_report():
     else:
         end = now
 
-    rows = (
+    sold_rows = (
         db.session.query(
             SaleItem.product_id,
             SaleItem.product_name,
@@ -368,17 +467,58 @@ def gross_margin_report():
         )
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(
-            Sale.status == "completada",
+            Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
             Sale.created_at <= end,
         )
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.product_sku)
-        .order_by(func.sum(SaleItem.subtotal).desc())
         .all()
     )
 
-    total_revenue = sum(r.total_revenue for r in rows) if rows else Decimal("0")
-    total_cost = sum(r.total_cost for r in rows) if rows else Decimal("0")
+    returned_rows = (
+        db.session.query(
+            SaleReturnItem.product_id,
+            func.sum(SaleReturnItem.quantity).label("ret_qty"),
+        )
+        .join(SaleReturn, SaleReturn.id == SaleReturnItem.sale_return_id)
+        .filter(
+            SaleReturn.created_at >= start,
+            SaleReturn.created_at <= end,
+        )
+        .group_by(SaleReturnItem.product_id)
+        .all()
+    )
+    ret_qty_map = {r.product_id: Decimal(str(r.ret_qty)) for r in returned_rows}
+
+    items = []
+    for r in sold_rows:
+        ret_qty = ret_qty_map.get(r.product_id, Decimal("0"))
+        net_qty = Decimal(str(r.total_qty)) - ret_qty
+        if net_qty > Decimal("0"):
+            unit_subtotal = Decimal(str(r.total_revenue)) / Decimal(str(r.total_qty))
+            unit_cost = Decimal(str(r.total_cost)) / Decimal(str(r.total_qty))
+            net_rev = (unit_subtotal * net_qty).quantize(Decimal("0.01"))
+            net_cost = (unit_cost * net_qty).quantize(Decimal("0.01"))
+            margin = net_rev - net_cost
+            margin_pct = (
+                (margin / net_rev * 100).quantize(Decimal("0.01"))
+                if net_rev > Decimal("0")
+                else Decimal("0")
+            )
+            items.append({
+                "product_id": r.product_id,
+                "product_name": r.product_name,
+                "product_sku": r.product_sku,
+                "total_quantity": net_qty,
+                "total_revenue": net_rev,
+                "total_cost": net_cost,
+                "gross_margin": margin,
+                "margin_percent": str(margin_pct),
+            })
+
+    items.sort(key=lambda x: x["total_revenue"], reverse=True)
+    total_revenue = sum((p["total_revenue"] for p in items), Decimal("0"))
+    total_cost = sum((p["total_cost"] for p in items), Decimal("0"))
     total_margin = total_revenue - total_cost
     margin_pct = (
         (total_margin / total_revenue * 100).quantize(Decimal("0.01"))
@@ -392,34 +532,22 @@ def gross_margin_report():
             "to": end.strftime("%Y-%m-%d"),
         },
         "summary": {
-            "total_revenue": str(Decimal(str(total_revenue)).quantize(Decimal("0.01"))),
-            "total_cost": str(Decimal(str(total_cost)).quantize(Decimal("0.01"))),
-            "gross_margin": str(Decimal(str(total_margin)).quantize(Decimal("0.01"))),
+            "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
+            "total_cost": str(total_cost.quantize(Decimal("0.01"))),
+            "gross_margin": str(total_margin.quantize(Decimal("0.01"))),
             "margin_percent": str(margin_pct),
         },
         "items": [
             {
-                "product_id": r.product_id,
-                "product_name": r.product_name,
-                "product_sku": r.product_sku,
-                "total_quantity": str(Decimal(str(r.total_qty)).quantize(Decimal("0.001"))),
-                "total_revenue": str(Decimal(str(r.total_revenue)).quantize(Decimal("0.01"))),
-                "total_cost": str(Decimal(str(r.total_cost)).quantize(Decimal("0.01"))),
-                "gross_margin": str(
-                    (Decimal(str(r.total_revenue)) - Decimal(str(r.total_cost))).quantize(
-                        Decimal("0.01")
-                    )
-                ),
-                "margin_percent": str(
-                    (
-                        (Decimal(str(r.total_revenue)) - Decimal(str(r.total_cost)))
-                        / Decimal(str(r.total_revenue))
-                        * 100
-                    ).quantize(Decimal("0.01"))
-                    if Decimal(str(r.total_revenue)) > 0
-                    else Decimal("0")
-                ),
+                "product_id": r["product_id"],
+                "product_name": r["product_name"],
+                "product_sku": r["product_sku"],
+                "total_quantity": str(r["total_quantity"].quantize(Decimal("0.001"))),
+                "total_revenue": str(r["total_revenue"].quantize(Decimal("0.01"))),
+                "total_cost": str(r["total_cost"].quantize(Decimal("0.01"))),
+                "gross_margin": str(r["gross_margin"].quantize(Decimal("0.01"))),
+                "margin_percent": r["margin_percent"],
             }
-            for r in rows
+            for r in items
         ],
     }), 200

@@ -29,7 +29,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 1.5.2 No cancelar una venta con devolución (H-07) · commit c8bcdb1 · tests: `test_cancelar_venta_con_devolucion_rechazada` · Bloqueo pesimista con `with_for_update()` en `cancel_sale`, rechazo estricto si la venta no está en estado 'completada' o si tiene devoluciones registradas para evitar doble reingreso de inventario
 - [x] 1.5.3 `SaleReturn.session_id` y `refund_method` (H-08) · A
 - [x] 1.5.4 Input de devolución según unidad + invalidación (H-25) · B
-- [ ] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · A
+- [x] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · A
 - [ ] 1.7 Conteo físico por diferencia (H-20) · A
 - [ ] 1.8 Suite de regresión de dinero completa · A
 - [ ] **Gate fase 1**
@@ -150,6 +150,16 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
   - `allows_fractions`: boolean (`true` si la unidad de medida admite decimales, `false` si es entero).
   - `returned_quantity`: string decimal con 3 decimales (ej. `"1.000"`).
   - `available_quantity`: string decimal con 3 decimales (ej. `"2.000"`).
+
+### Corte de caja y reportes con devoluciones y reembolsos (Subfase 1.6, H-08)
+- **Corte de caja (`POST /api/cash-register/<id>/close`):**
+  - `expected_cash = opening_amount + efectivo_ventas (completada, devolucion_parcial, devolucion_total) - reembolsos_efectivo_sesion`.
+  - Escenario QA-08 probado y validado con sobrante exacto de `$0.00`.
+- **Resumen de caja (`GET /api/cash-register/<id>/summary`):**
+  - Incluye ventas en estados de devolución y deduce los reembolsos por método de pago y en `grand_total`.
+- **Dashboard y reportes (`GET /api/reports/dashboard`, `/sales`, `/top-products`, `/gross-margin`):**
+  - Consideran ventas en estados `completada`, `devolucion_parcial`, `devolucion_total`.
+  - Deducen `SaleReturn.refund_total` en ingresos/periodos y `SaleReturnItem.quantity`/`refund_amount` en productos más vendidos y márgenes brutos.
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |

@@ -582,4 +582,61 @@ def test_api_sale_detail_includes_fractions_and_available_quantity(
     assert Decimal(item2["available_quantity"]) == Decimal("2")
 
 
+# --- Regression Tests: Subfase 1.6 (H-08) ---
+
+
+def test_corte_caja_con_devolucion_sobrante_cero(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """El corte de caja y /summary calculan expected_cash restando reembolsos en efectivo (QA-08: sobrante $0)."""
+    # Venta de 2 unidades por $232.00 efectivo
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 2}],
+            "payments": [{"method": "efectivo", "amount": "232.00"}],
+        },
+    )
+    assert create_resp.status_code == 201
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    # Devolución de 1 unidad ($116.00 reembolso en efectivo desde esta sesión)
+    ret_resp = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Devolución en caja",
+            "session_id": seed_open_session.id,
+            "refund_method": "efectivo",
+            "items": [{"sale_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert ret_resp.status_code == 200
+
+    # /summary debe reflejar venta en devolucion_parcial y neto de $116.00
+    summary_resp = client.get(
+        f"/api/cash-register/{seed_open_session.id}/summary",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert summary_resp.status_code == 200
+    summary = summary_resp.get_json()
+    assert summary["grand_total"] == "116.00"
+    assert summary["payment_methods"]["efectivo"] == "116.00"
+
+    # En el cajón hay: 1000 (fondo) + 232 (venta) - 116 (reembolso) = 1116.00
+    close_resp = client.post(
+        f"/api/cash-register/{seed_open_session.id}/close",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"closing_amount": "1116.00"},
+    )
+    assert close_resp.status_code == 200
+    close_data = close_resp.get_json()
+    assert close_data["expected_cash"] == "1116.00"
+    assert close_data["difference"] == "0.00"
+
+
+
 
