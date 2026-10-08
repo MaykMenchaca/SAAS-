@@ -28,7 +28,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 1.5.1 Devolución agrupa los items + bloqueo (H-06) · commit 56a697e · tests: `test_devolucion_duplicada_agrupada_rechazada` · Bloqueo pesimista con `with_for_update()` en `return_sale` y agrupación previa por `sale_item_id` previniendo sobre-devolución por líneas duplicadas
 - [x] 1.5.2 No cancelar una venta con devolución (H-07) · commit c8bcdb1 · tests: `test_cancelar_venta_con_devolucion_rechazada` · Bloqueo pesimista con `with_for_update()` en `cancel_sale`, rechazo estricto si la venta no está en estado 'completada' o si tiene devoluciones registradas para evitar doble reingreso de inventario
 - [x] 1.5.3 `SaleReturn.session_id` y `refund_method` (H-08) · A
-- [ ] 1.5.4 Input de devolución según unidad + invalidación (H-25) · B
+- [x] 1.5.4 Input de devolución según unidad + invalidación (H-25) · B
 - [ ] 1.6 Corte y reportes con devoluciones y reembolsos (H-08) · A
 - [ ] 1.7 Conteo físico por diferencia (H-20) · A
 - [ ] 1.8 Suite de regresión de dinero completa · A
@@ -142,6 +142,14 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 - **Campos añadidos en Response (200 OK):**
   - `session_id`: integer / null.
   - `refund_method`: string (`"efectivo"`, `"tarjeta"`, `"transferencia"`).
+
+### `GET /api/sales/<id>` — Detalle con fracciones y disponibilidad devuelta (Subfase 1.5.4, H-25)
+- **Propósito:** Informa para cada ítem de venta si permite fracciones (`allows_fractions`), la cantidad acumulada devuelta (`returned_quantity`) y la cantidad restante disponible para devolución (`available_quantity`).
+- **Autenticación:** Requerida (`Bearer <token>`, permiso `ventas:ver`).
+- **Campos añadidos en cada ítem de `items`:**
+  - `allows_fractions`: boolean (`true` si la unidad de medida admite decimales, `false` si es entero).
+  - `returned_quantity`: string decimal con 3 decimales (ej. `"1.000"`).
+  - `available_quantity`: string decimal con 3 decimales (ej. `"2.000"`).
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |

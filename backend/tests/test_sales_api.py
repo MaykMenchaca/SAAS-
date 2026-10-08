@@ -1,4 +1,5 @@
 """Tests for sales and cash register API endpoints (Task 19)."""
+from decimal import Decimal
 
 
 # --- Cash Register Session endpoints ---
@@ -526,5 +527,59 @@ def test_api_return_with_session_and_refund_method(
     data = return_resp.get_json()
     assert data["session_id"] == seed_open_session.id
     assert data["refund_method"] == "tarjeta"
+
+
+# --- Regression Tests: Subfase 1.5.4 (H-25) ---
+
+
+def test_api_sale_detail_includes_fractions_and_available_quantity(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """GET /api/sales/<id> expone allows_fractions, returned_quantity y available_quantity."""
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 3}],
+            "payments": [{"method": "efectivo", "amount": "348.00"}],
+        },
+    )
+    assert create_resp.status_code == 201
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    # Consulta inicial de detalle
+    detail_resp = client.get(
+        f"/api/sales/{sale_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert detail_resp.status_code == 200
+    item = detail_resp.get_json()["items"][0]
+    assert item["allows_fractions"] is False
+    assert Decimal(item["returned_quantity"]) == Decimal("0")
+    assert Decimal(item["available_quantity"]) == Decimal("3")
+
+    # Realizar devolución parcial de 1 unidad
+    ret_resp = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Parcial",
+            "items": [{"sale_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert ret_resp.status_code == 200
+
+    # Nueva consulta de detalle debe reflejar 1 devuelto y 2 disponibles
+    detail_resp2 = client.get(
+        f"/api/sales/{sale_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert detail_resp2.status_code == 200
+    item2 = detail_resp2.get_json()["items"][0]
+    assert Decimal(item2["returned_quantity"]) == Decimal("1")
+    assert Decimal(item2["available_quantity"]) == Decimal("2")
+
 
 

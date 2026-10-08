@@ -31,6 +31,9 @@ export type SaleItem = {
   tax_rate: string;
   subtotal: string;
   cost_at_sale: string;
+  allows_fractions?: boolean;
+  returned_quantity?: string;
+  available_quantity?: string;
 };
 
 export type Payment = {

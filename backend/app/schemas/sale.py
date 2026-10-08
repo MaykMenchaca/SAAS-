@@ -1,5 +1,8 @@
-"""Marshmallow schemas for sale and cash register endpoints."""
+from decimal import Decimal
+
 from marshmallow import EXCLUDE, Schema, fields, validate
+
+from app.extensions import db
 
 
 # --- Cash Register ---
@@ -135,6 +138,27 @@ class SaleItemSchema(Schema):
     tax_rate = fields.Decimal(as_string=True, places=2, dump_only=True)
     subtotal = fields.Decimal(as_string=True, places=2, dump_only=True)
     cost_at_sale = fields.Decimal(as_string=True, places=2, dump_only=True)
+    allows_fractions = fields.Method("get_allows_fractions")
+    returned_quantity = fields.Method("get_returned_quantity")
+    available_quantity = fields.Method("get_available_quantity")
+
+    def get_allows_fractions(self, obj):
+        return bool(obj.product and obj.product.unit and obj.product.unit.allows_fractions)
+
+    def get_returned_quantity(self, obj):
+        from app.models.sale import SaleReturnItem
+        qty = db.session.query(db.func.coalesce(db.func.sum(SaleReturnItem.quantity), Decimal("0"))).filter(
+            SaleReturnItem.sale_item_id == obj.id
+        ).scalar()
+        return str(qty)
+
+    def get_available_quantity(self, obj):
+        from app.models.sale import SaleReturnItem
+        returned = db.session.query(db.func.coalesce(db.func.sum(SaleReturnItem.quantity), Decimal("0"))).filter(
+            SaleReturnItem.sale_item_id == obj.id
+        ).scalar()
+        avail = max(Decimal("0"), obj.quantity - returned)
+        return str(avail)
 
 
 class PaymentSchema(Schema):

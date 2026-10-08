@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { CornerDownLeft, Search, Undo2 } from "lucide-react";
@@ -11,6 +11,7 @@ import { Badge, Button, Card, ErrorState, Input, Modal, SkeletonTable, Table, ta
 // ── Main Page ────────────────────────────────────────────────────
 
 export function ReturnsPage() {
+  const queryClient = useQueryClient();
   const [searchFolio, setSearchFolio] = useState("");
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
 
@@ -133,7 +134,13 @@ export function ReturnsPage() {
 
       {/* Return modal */}
       {selectedSaleId !== null ? (
-        <ReturnModal onClose={() => setSelectedSaleId(null)} saleId={selectedSaleId} />
+        <ReturnModal
+          onClose={() => {
+            setSelectedSaleId(null);
+            void queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+          }}
+          saleId={selectedSaleId}
+        />
       ) : null}
     </div>
   );
@@ -146,6 +153,7 @@ type ReturnSelection = {
   maxQty: number;
   quantity: string;
   selected: boolean;
+  allowsFractions: boolean;
 };
 
 function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
@@ -157,21 +165,30 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
   const saleQuery = useQuery({
     queryKey: ["sale-detail", saleId],
     queryFn: () => getSale(saleId),
-    // Initialize selections when data loads
+    refetchOnMount: "always",
   });
 
   const sale = saleQuery.data;
 
-  // Initialize selections when sale data arrives
-  if (sale && selections.length === 0 && sale.items.length > 0) {
-    const initial: ReturnSelection[] = sale.items.map((item: SaleItem) => ({
-      sale_item_id: item.id,
-      maxQty: Number(item.quantity),
-      quantity: item.quantity,
-      selected: false,
-    }));
-    setSelections(initial);
-  }
+  // Initialize or synchronize selections when sale data arrives or changes
+  useEffect(() => {
+    if (sale?.items && sale.items.length > 0) {
+      const initial: ReturnSelection[] = sale.items.map((item: SaleItem) => {
+        const avail = item.available_quantity !== undefined
+          ? Math.max(0, Number(item.available_quantity))
+          : Math.max(0, Number(item.quantity) - Number(item.returned_quantity ?? "0"));
+        const allowsFrac = Boolean(item.allows_fractions);
+        return {
+          sale_item_id: item.id,
+          maxQty: avail,
+          quantity: avail > 0 ? (allowsFrac ? String(avail) : String(Math.floor(avail))) : "0",
+          selected: false,
+          allowsFractions: allowsFrac,
+        };
+      });
+      setSelections(initial);
+    }
+  }, [sale]);
 
   const returnMutation = useMutation({
     mutationFn: (data: { reason: string; items: ReturnItemInput[] }) =>
@@ -297,6 +314,11 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
                 const sel = selections.find((s) => s.sale_item_id === item.id);
                 if (!sel) return null;
 
+                const allowsFractions = Boolean(item.allows_fractions);
+                const isFullyReturned = sel.maxQty <= 0;
+                const step = allowsFractions ? "0.001" : "1";
+                const min = allowsFractions ? "0.001" : "1";
+
                 return (
                   <div
                     className={`rounded-md border p-3 transition-colors ${
@@ -309,7 +331,8 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
                     <div className="mb-2 flex items-center gap-3">
                       <input
                         checked={sel.selected}
-                        className="h-4 w-4 rounded border-neutral-border accent-primary"
+                        disabled={isFullyReturned}
+                        className="h-4 w-4 rounded border-neutral-border accent-primary disabled:opacity-40"
                         onChange={() => toggleItem(item.id)}
                         type="checkbox"
                       />
@@ -318,7 +341,12 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
                           {item.product_name}
                         </div>
                         <div className="text-xs text-neutral-text-secondary">
-                          SKU: {item.product_sku} — Vendido: {item.quantity} a ${item.unit_price} c/u
+                          SKU: {item.product_sku} — Vendido: {item.quantity} | Devuelto: {item.returned_quantity ?? "0.000"} | Disponible: {sel.maxQty}
+                          {isFullyReturned ? (
+                            <span className="ml-2 font-semibold text-danger">
+                              (Completamente devuelto)
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="text-right font-mono text-sm font-semibold">
@@ -326,20 +354,20 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
                       </div>
                     </div>
 
-                    {sel.selected ? (
+                    {sel.selected && !isFullyReturned ? (
                       <div className="ml-7 flex items-center gap-2">
                         <label className="text-xs text-neutral-text-secondary">Cantidad a devolver:</label>
                         <input
-                          className="h-8 w-20 rounded border border-neutral-border bg-neutral-bg text-center font-mono text-sm outline-none focus:border-primary"
+                          className="h-8 w-24 rounded border border-neutral-border bg-neutral-bg text-center font-mono text-sm outline-none focus:border-primary"
                           max={sel.maxQty}
-                          min="0.001"
+                          min={min}
                           onChange={(e) => updateQuantity(item.id, e.target.value)}
-                          step="1"
+                          step={step}
                           type="number"
                           value={sel.quantity}
                         />
                         <span className="text-xs text-neutral-text-secondary">
-                          de {sel.maxQty}
+                          de {sel.maxQty} {allowsFractions ? "(permite fracciones)" : "(enteros)"}
                         </span>
                       </div>
                     ) : null}
