@@ -20,7 +20,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 ## Fase 1: Integridad de dinero e inventario · ramas `fix/fase-1-backend` (A) / `fix/fase-1-frontend` (B)
 - [x] 1.1 Precio, IVA y descuento autoritativos; inactivos y fracciones (H-01) ⚠️ tope de descuento · commit af5ac3b · tests: `test_precio_del_cliente_se_ignora`, `test_descuento_sobre_tope_rechazado`, `test_producto_inactivo_rechazado`, `test_fraccion_en_unidad_entera_rechazada` · Precio e IVA tomados del catálogo del servidor, validación de `product.is_active` y fracciones para enteros, tope `max_discount_percent` (0% por defecto) exigiendo permiso `ventas:descuento` para superarlo, fixtures alineados a 100.00
 - [x] 1.2.1 `POST /sales/quote` + `price_lines` compartido (H-04) · commit a12b25f · tests: `test_quote_igual_a_venta`, `test_redondeo_half_even_por_linea` · Cálculo de precios unificado en `SaleService.price_lines` compartido entre quote y venta, redondeo `HALF_EVEN` por línea
-- [ ] 1.2.2 `getCartTotals` en centavos HALF_EVEN + uso del quote (H-04) · B
+- [x] 1.2.2 `getCartTotals` en centavos HALF_EVEN + uso del quote (H-04) · commit 9455ab1 · build: `npm run build` OK · Aritmética en centavos y redondeo `HALF_EVEN` en pos-store; cotización oficial obtenida al abrir PaymentModal usando `quote.total` en 'Exacto' y monto prellenado
 - [ ] 1.3 Cambio calculado en el servidor; sesión propia (H-16) · A
 - [ ] 1.4.1 `client_uuid` idempotente (H-05) · A
 - [ ] 1.4.2 Guard de doble clic en `handlePay` (H-05) · B
