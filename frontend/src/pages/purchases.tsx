@@ -122,6 +122,7 @@ function OrdersTab() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [receivingOrderId, setReceivingOrderId] = useState<number | null>(null);
+  const [confirmCancelOrderId, setConfirmCancelOrderId] = useState<number | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: ["purchase-orders", page, statusFilter],
@@ -266,10 +267,10 @@ function OrdersTab() {
                           <Tooltip content="Cancelar">
                             <Button
                               aria-label={`Cancelar orden ${order.folio}`}
-                              className="h-11 w-11 px-0"
+                              className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
                               disabled={cancelMutation.isPending}
-                              onClick={() => cancelMutation.mutate(order.id)}
-                              variant="danger"
+                              onClick={() => setConfirmCancelOrderId(order.id)}
+                              variant="ghost"
                             >
                               <Ban aria-hidden="true" size={17} />
                             </Button>
@@ -313,6 +314,36 @@ function OrdersTab() {
           }}
           orderId={receivingOrderId}
         />
+      ) : null}
+
+      {confirmCancelOrderId !== null ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmCancelOrderId(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={cancelMutation.isPending}
+                onClick={() => {
+                  cancelMutation.mutate(confirmCancelOrderId, {
+                    onSuccess: () => setConfirmCancelOrderId(null),
+                  });
+                }}
+                variant="danger"
+              >
+                {cancelMutation.isPending ? "Cancelando..." : "Cancelar orden"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmCancelOrderId(null)}
+          open
+          title="Cancelar orden de compra"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            ¿Confirmas que deseas cancelar esta orden de compra? Esta acción no se puede deshacer.
+          </p>
+        </Modal>
       ) : null}
     </div>
   );
@@ -822,6 +853,7 @@ function SuppliersTab() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [confirmDeactivateSupplierId, setConfirmDeactivateSupplierId] = useState<number | null>(null);
 
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
@@ -922,10 +954,10 @@ function SuppliersTab() {
                         <Tooltip content="Desactivar">
                           <Button
                             aria-label={`Desactivar ${supplier.name}`}
-                            className="h-11 w-11 px-0"
+                            className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
                             disabled={deactivateMutation.isPending}
-                            onClick={() => deactivateMutation.mutate(supplier.id)}
-                            variant="danger"
+                            onClick={() => setConfirmDeactivateSupplierId(supplier.id)}
+                            variant="ghost"
                           >
                             <Trash2 aria-hidden="true" size={17} />
                           </Button>
@@ -963,6 +995,36 @@ function SuppliersTab() {
           onSubmit={(payload) => updateMutation.mutate({ id: editingSupplier.id, payload })}
           supplier={editingSupplier}
         />
+      ) : null}
+
+      {confirmDeactivateSupplierId !== null ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmDeactivateSupplierId(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={deactivateMutation.isPending}
+                onClick={() => {
+                  deactivateMutation.mutate(confirmDeactivateSupplierId, {
+                    onSuccess: () => setConfirmDeactivateSupplierId(null),
+                  });
+                }}
+                variant="danger"
+              >
+                {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmDeactivateSupplierId(null)}
+          open
+          title="Confirmar desactivación de proveedor"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            El proveedor será desactivado y ya no aparecerá en las órdenes de compra nuevas.
+          </p>
+        </Modal>
       ) : null}
     </div>
   );

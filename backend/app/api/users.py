@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import get_jwt_identity
 
 from app.schemas.user import RoleSchema, UserCreateSchema, UserSchema, UserUpdateSchema
 from app.services.user_service import UserService
@@ -56,8 +57,12 @@ def update_user(user_id):
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
+    current_user_id = int(get_jwt_identity())
     data = user_update_schema.load(request.get_json(silent=True) or {})
-    user = UserService.update_user(user, data)
+    try:
+        user = UserService.update_user(user, data, current_user_id=current_user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     return jsonify(user_schema.dump(user)), 200
 
 
@@ -68,5 +73,9 @@ def deactivate_user(user_id):
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
-    user = UserService.deactivate_user(user)
+    current_user_id = int(get_jwt_identity())
+    try:
+        user = UserService.deactivate_user(user, current_user_id=current_user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     return jsonify(user_schema.dump(user)), 200

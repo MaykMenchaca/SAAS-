@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import type { CashRegisterSession, SessionSummary } from "../api/sales";
 import { closeCashRegister, getSessionSummary, listSessions } from "../api/sales";
 import { usePosStore } from "../stores/pos-store";
-import { Badge, Button, Card, ErrorState, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Denomination Config ──────────────────────────────────────────
 
@@ -313,6 +313,7 @@ function CashSessionDetailsView({
   const [closeNotes, setCloseNotes] = useState(() => session.close_notes || "");
   const [closed, setClosed] = useState(!isOpen);
   const [showDenominations, setShowDenominations] = useState(false);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   useEffect(() => {
     if (!closed) {
@@ -370,7 +371,7 @@ function CashSessionDetailsView({
       toast.error("Por favor, ingresa el monto total contado en caja.");
       return;
     }
-    closeMutation.mutate();
+    setShowConfirmClose(true);
   };
 
   const handlePrint = () => {
@@ -738,6 +739,38 @@ function CashSessionDetailsView({
           />
         </div>
       </div>
+
+      {showConfirmClose ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setShowConfirmClose(false)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={closeMutation.isPending}
+                onClick={() => {
+                  closeMutation.mutate(undefined, {
+                    onSuccess: () => setShowConfirmClose(false),
+                  });
+                }}
+                variant="danger"
+              >
+                {closeMutation.isPending ? "Cerrando turno..." : "Sí, cerrar turno"}
+              </Button>
+            </>
+          }
+          onClose={() => setShowConfirmClose(false)}
+          open
+          title="Cerrar turno y bloquear caja"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            ¿Confirmas el cierre del turno con{" "}
+            <span className="font-semibold text-neutral-text-primary font-mono">${countedTotal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>{" "}
+            contados? Esta acción no se puede deshacer.
+          </p>
+        </Modal>
+      ) : null}
     </div>
   );
 }

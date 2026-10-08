@@ -42,6 +42,7 @@ export function UsersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [confirmDeactivateId, setConfirmDeactivateId] = useState<number | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["users", page, search, showInactive],
@@ -201,10 +202,10 @@ export function UsersPage() {
                         <Tooltip content="Desactivar">
                           <Button
                             aria-label={`Desactivar ${user.full_name}`}
-                            className="h-11 w-11 px-0"
-                            disabled={deactivateMutation.isPending || !user.is_active}
-                            onClick={() => deactivateMutation.mutate(user.id)}
-                            variant="danger"
+                            className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
+                            disabled={!user.is_active}
+                            onClick={() => setConfirmDeactivateId(user.id)}
+                            variant="ghost"
                           >
                             <UserMinus aria-hidden="true" size={17} />
                           </Button>
@@ -247,6 +248,36 @@ export function UsersPage() {
         roles={roles}
         user={editingUser}
       />
+
+      {confirmDeactivateId ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmDeactivateId(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={deactivateMutation.isPending}
+                onClick={() => {
+                  deactivateMutation.mutate(confirmDeactivateId, {
+                    onSuccess: () => setConfirmDeactivateId(null),
+                  });
+                }}
+                variant="danger"
+              >
+                {deactivateMutation.isPending ? "Desactivando..." : "Desactivar"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmDeactivateId(null)}
+          open
+          title="Confirmar desactivación"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            El usuario será desactivado y no podrá iniciar sesión. Esta acción se puede revertir posteriormente.
+          </p>
+        </Modal>
+      ) : null}
     </div>
   );
 }

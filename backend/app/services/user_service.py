@@ -73,7 +73,7 @@ class UserService:
         return user
 
     @staticmethod
-    def update_user(user, data):
+    def update_user(user, data, current_user_id=None):
         if "role_id" in data:
             UserService._validate_role(data["role_id"])
 
@@ -82,6 +82,24 @@ class UserService:
             email=data.get("email"),
             exclude_user_id=user.id,
         )
+
+        # Protección: No desactivar al último admin ni desactivarse a uno mismo (H-40)
+        if "is_active" in data and not data["is_active"] and user.is_active:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError("No se puede desactivar al único administrador activo del sistema")
+            if current_user_id and user.id == current_user_id:
+                raise ValueError("No puedes desactivar tu propia cuenta de usuario")
+
+        # Protección: No quitar rol de admin al último admin (H-40)
+        if "role_id" in data and user.is_active:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id and data["role_id"] != admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError("No se puede cambiar el rol al único administrador activo del sistema")
 
         previous_value = {
             field: getattr(user, field)
@@ -122,7 +140,16 @@ class UserService:
         return user
 
     @staticmethod
-    def deactivate_user(user):
+    def deactivate_user(user, current_user_id=None):
+        admin_role = Role.query.filter_by(name="admin").first()
+        if admin_role and user.role_id == admin_role.id and user.is_active:
+            active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+            if active_admins <= 1:
+                raise ValueError("No se puede desactivar al único administrador activo del sistema")
+
+        if current_user_id and user.id == current_user_id:
+            raise ValueError("No puedes desactivar tu propia cuenta de usuario")
+
         prev_active = user.is_active
         user.is_active = False
         user.token_version = (user.token_version or 1) + 1
