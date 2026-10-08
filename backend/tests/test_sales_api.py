@@ -626,7 +626,6 @@ def test_corte_caja_con_devolucion_sobrante_cero(
     assert summary["grand_total"] == "116.00"
     assert summary["payment_methods"]["efectivo"] == "116.00"
 
-    # En el cajón hay: 1000 (fondo) + 232 (venta) - 116 (reembolso) = 1116.00
     close_resp = client.post(
         f"/api/cash-register/{seed_open_session.id}/close",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -636,6 +635,50 @@ def test_corte_caja_con_devolucion_sobrante_cero(
     close_data = close_resp.get_json()
     assert close_data["expected_cash"] == "1116.00"
     assert close_data["difference"] == "0.00"
+
+
+def test_get_session_by_id(client, admin_token, seed_open_session):
+    """GET /api/cash-register/<id> returns session details or 404."""
+    # Existing session
+    resp = client.get(
+        f"/api/cash-register/{seed_open_session.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["id"] == seed_open_session.id
+    assert data["status"] == "abierta"
+    assert "user_id" in data
+
+    # Non-existent session
+    resp_404 = client.get(
+        "/api/cash-register/999999",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp_404.status_code == 404
+
+
+def test_get_active_session_returns_user_session(client, admin_token, regular_user_token, seed_open_session):
+    """GET /api/cash-register/active returns active session for current user."""
+    # admin has active session seed_open_session
+    resp = client.get(
+        "/api/cash-register/active",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["session"] is not None
+    assert data["session"]["id"] == seed_open_session.id
+
+    # regular user has no open session yet
+    resp_user = client.get(
+        "/api/cash-register/active",
+        headers={"Authorization": f"Bearer {regular_user_token}"},
+    )
+    assert resp_user.status_code == 200
+    data_user = resp_user.get_json()
+    assert data_user["session"] is None
+
 
 
 

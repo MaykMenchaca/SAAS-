@@ -14,11 +14,16 @@ export type CartItem = {
   unit_abbreviation: string;
 };
 
+export type QueuedOfflineSale = {
+  userId: number;
+  sale: CreateSalePayload;
+};
+
 type PosState = {
   sessionId: number | null;
   sessionName: string | null;
   cart: CartItem[];
-  offlineSalesQueue: CreateSalePayload[];
+  offlineSalesQueue: QueuedOfflineSale[];
   setSession: (id: number, name: string) => void;
   clearSession: () => void;
   addToCart: (item: Omit<CartItem, "quantity" | "discount_percent"> & { quantity?: number; discount_percent?: string }) => void;
@@ -26,8 +31,9 @@ type PosState = {
   updateDiscount: (productId: number, discount: string) => void;
   removeFromCart: (productId: number) => void;
   clearCart: () => void;
-  addOfflineSale: (sale: CreateSalePayload) => void;
+  addOfflineSale: (sale: CreateSalePayload, userId?: number) => void;
   removeOfflineSale: (index: number) => void;
+  removeOfflineSaleByUuid: (clientUuid: string) => void;
 };
 
 /**
@@ -153,14 +159,22 @@ export const usePosStore = create<PosState>()(
 
       clearCart: () => set({ cart: [] }),
 
-      addOfflineSale: (sale) =>
+      addOfflineSale: (sale, userId = 0) =>
         set((state) => ({
-          offlineSalesQueue: [...state.offlineSalesQueue, sale],
+          offlineSalesQueue: [...state.offlineSalesQueue, { userId, sale }],
         })),
 
       removeOfflineSale: (index) =>
         set((state) => ({
           offlineSalesQueue: state.offlineSalesQueue.filter((_, i) => i !== index),
+        })),
+
+      removeOfflineSaleByUuid: (clientUuid: string) =>
+        set((state) => ({
+          offlineSalesQueue: state.offlineSalesQueue.filter((q) => {
+            const uuid = q.sale?.client_uuid ?? (q as any).client_uuid;
+            return uuid !== clientUuid;
+          }),
         })),
     }),
     {

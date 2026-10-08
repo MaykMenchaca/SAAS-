@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -8,6 +8,7 @@ import { RequirePermission, useCan } from "./components/auth/require-permission"
 import { AppShell } from "./components/layout/app-shell";
 import { CommandPaletteProvider } from "./components/layout/command-palette-context";
 import { ErrorBoundary } from "./components/layout/error-boundary";
+import { queryClient } from "./lib/query-client";
 import { useAuthStore } from "./stores/auth-store";
 import { applyTheme, useThemeStore } from "./stores/theme-store";
 
@@ -48,15 +49,6 @@ function IndexRedirect() {
   }
   return <Navigate replace to="/pos" />;
 }
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      retry: 1,
-    },
-  },
-});
 
 export default function App() {
   return (

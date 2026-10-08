@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import type { CashRegisterSession, SessionSummary } from "../api/sales";
 import { closeCashRegister, getSessionSummary, listSessions } from "../api/sales";
+import { usePosStore } from "../stores/pos-store";
 import { Badge, Button, Card, ErrorState, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Denomination Config ──────────────────────────────────────────
@@ -335,6 +336,9 @@ function CashSessionDetailsView({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["cash-sessions"] });
       await queryClient.invalidateQueries({ queryKey: ["session-summary", session.id] });
+      if (usePosStore.getState().sessionId === session.id) {
+        usePosStore.getState().clearSession();
+      }
       setClosed(true);
       toast.success("Caja cerrada correctamente. Turno finalizado.");
     },

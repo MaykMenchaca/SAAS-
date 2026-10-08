@@ -128,6 +128,16 @@ export async function listSessions() {
   return response.data;
 }
 
+export async function getSession(sessionId: number) {
+  const response = await apiClient.get<CashRegisterSession>(`/cash-register/${sessionId}`);
+  return response.data;
+}
+
+export async function getActiveSession() {
+  const response = await apiClient.get<{ session: CashRegisterSession | null }>("/cash-register/active");
+  return response.data;
+}
+
 export type SessionSummary = {
   session_id: number;
   opening_amount: string;

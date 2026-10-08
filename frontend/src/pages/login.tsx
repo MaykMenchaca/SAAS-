@@ -28,15 +28,25 @@ export function LoginPage() {
   }
 
   const state = location.state as LocationState | null;
-  const redirectTo = state?.from?.pathname ?? "/";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     try {
-      await login(username.trim(), password);
-      navigate(redirectTo, { replace: true });
+      const trimmedUser = username.trim();
+      const lastUser = typeof window !== "undefined" ? localStorage.getItem("pos_last_auth_user") : null;
+      const isSameUser = Boolean(lastUser && lastUser.toLowerCase() === trimmedUser.toLowerCase());
+
+      await login(trimmedUser, password);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pos_last_auth_user", trimmedUser);
+      }
+
+      // No restaurar state.from cuando cambia el usuario (H-18)
+      const targetPath = isSameUser && state?.from?.pathname ? state.from.pathname : "/";
+      navigate(targetPath, { replace: true });
     } catch (caught) {
       if (caught instanceof AxiosError && caught.response?.status === 401) {
         setError("Usuario o contraseña incorrectos.");

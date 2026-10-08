@@ -249,3 +249,26 @@ def list_sessions():
         .all()
     )
     return jsonify(sessions_schema.dump(sessions)), 200
+
+
+@cash_register_bp.route("/active", methods=["GET"])
+@require_permission("caja:ver")
+def get_active_session():
+    """Get the active cash register session for the current user."""
+    user_id = int(get_jwt_identity())
+    session = CashRegisterSession.query.filter_by(
+        user_id=user_id, status="abierta"
+    ).order_by(CashRegisterSession.opened_at.desc()).first()
+    if not session:
+        return jsonify({"session": None}), 200
+    return jsonify({"session": session_schema.dump(session)}), 200
+
+
+@cash_register_bp.route("/<int:session_id>", methods=["GET"])
+@require_permission("caja:ver")
+def get_session(session_id):
+    """Get detail of a specific cash register session."""
+    session = db.session.get(CashRegisterSession, session_id)
+    if not session:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+    return jsonify(session_schema.dump(session)), 200

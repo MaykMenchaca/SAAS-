@@ -10,7 +10,7 @@ import { listProducts, listCategories } from "../api/products";
 import { previewSaleTicket, printSaleTicket } from "../api/printing";
 import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
-import { createSale, listCashRegisters, listSessions, openCashRegister, quoteSale } from "../api/sales";
+import { createSale, getSession, listCashRegisters, listSessions, openCashRegister, quoteSale } from "../api/sales";
 import { Badge, Button, Card, Input, Modal } from "../components/ui";
 import { useAuthStore } from "../stores/auth-store";
 import type { CartItem } from "../stores/pos-store";
@@ -21,8 +21,44 @@ import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
 
 export function PosPage() {
   const sessionId = usePosStore((s) => s.sessionId);
+  const clearSession = usePosStore((s) => s.clearSession);
+  const user = useAuthStore((s) => s.user);
 
-  if (!sessionId) {
+  // Validar al montar que la sesión de caja siga abierta y sea del usuario (H-18)
+  const sessionQuery = useQuery({
+    queryKey: ["active-pos-session", sessionId],
+    queryFn: () => getSession(sessionId!),
+    enabled: Boolean(sessionId),
+    staleTime: 10_000,
+  });
+
+  useEffect(() => {
+    if (!sessionId || sessionQuery.isLoading || !sessionQuery.data) return;
+
+    const session = sessionQuery.data;
+    const isOwner = session.user_id === user?.id;
+    const canSupervise = user?.role === "admin" || user?.permissions?.includes("caja:supervisar");
+
+    if (session.status !== "abierta" || (!isOwner && !canSupervise)) {
+      clearSession();
+      toast.warning("La sesión de caja ya no está abierta o pertenece a otro usuario.");
+    }
+  }, [sessionId, sessionQuery.data, sessionQuery.isLoading, user?.id, user?.role, user?.permissions, clearSession]);
+
+  useEffect(() => {
+    if (sessionQuery.isError) {
+      clearSession();
+    }
+  }, [sessionQuery.isError, clearSession]);
+
+  if (!sessionId || (sessionId && sessionQuery.isLoading)) {
+    if (sessionId && sessionQuery.isLoading) {
+      return (
+        <div className="flex h-full min-h-[400px] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      );
+    }
     return <SessionSelector />;
   }
 
@@ -49,7 +85,12 @@ function SessionSelector() {
     queryFn: listCashRegisters,
   });
 
-  const openSessions = (sessionsQuery.data ?? []).filter((s) => s.status === "abierta");
+  const canSupervise = user?.role === "admin" || user?.permissions?.includes("caja:supervisar");
+  const openSessions = (sessionsQuery.data ?? []).filter((s) => {
+    if (s.status !== "abierta") return false;
+    if (canSupervise) return true;
+    return s.user_id === user?.id;
+  });
   const registers = registersQuery.data ?? [];
 
   // Auto-select the first register when data loads
@@ -660,6 +701,7 @@ function PaymentModal({
 }) {
   const cart = usePosStore((s) => s.cart);
   const clearCart = usePosStore((s) => s.clearCart);
+  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
   const [total, setTotal] = useState(initialTotal);
@@ -878,8 +920,8 @@ function PaymentModal({
       })),
     };
 
-    // Guardar en cola
-    usePosStore.getState().addOfflineSale(payload);
+    // Guardar en cola asociada al usuario (H-18)
+    usePosStore.getState().addOfflineSale(payload, user?.id);
 
       // Limpiar carrito y disparar éxito
       clearCart();

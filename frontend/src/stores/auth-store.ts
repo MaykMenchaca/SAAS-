@@ -9,6 +9,8 @@ import {
   setStoredAccessToken,
   setStoredTokens,
 } from "../api/client";
+import { queryClient } from "../lib/query-client";
+import { usePosStore } from "./pos-store";
 
 const USER_KEY = "pos_auth_user";
 
@@ -61,6 +63,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearSession: () => {
     clearStoredTokens();
     clearStoredUser();
+    queryClient.clear();
+    usePosStore.getState().clearSession();
     set({
       accessToken: null,
       isAuthenticated: false,
