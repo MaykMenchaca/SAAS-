@@ -200,6 +200,9 @@ export function CommandPalette() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
       e.preventDefault();
+      // Que el Esc de la paleta no llegue al atajo "vaciar carrito" del POS (H-30)
+      e.stopPropagation();
+      e.nativeEvent.stopImmediatePropagation();
       setOpen(false);
       return;
     }

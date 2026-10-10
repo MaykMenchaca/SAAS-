@@ -17,6 +17,7 @@ import type { CartItem } from "../stores/pos-store";
 import { calcLineTotal, getCartTotals, usePosStore } from "../stores/pos-store";
 import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
 import { qk } from "../api/query-keys";
+import { useCommandPalette } from "../components/layout/command-palette-context";
 import { invalidateAfterSale } from "../api/invalidate";
 
 // ── Main POS Page ──────────────────────────────────────────────────
@@ -228,6 +229,12 @@ function PackageIcon(props: any) {
   return <ShoppingCart {...props} />;
 }
 
+function isEditableElement(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el as HTMLElement).isContentEditable;
+}
+
 function PosTerminal() {
   const sessionId = usePosStore((s) => s.sessionId)!;
   const sessionName = usePosStore((s) => s.sessionName);
@@ -237,7 +244,10 @@ function PosTerminal() {
   const [showPayment, setShowPayment] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [ticketSaleId, setTicketSaleId] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"efectivo" | "tarjeta" | "transferencia" | "credito">("efectivo");
+  // "Crédito" está fuera del MVP: no se ofrece (H-53)
+  const [paymentMethod, setPaymentMethod] = useState<"efectivo" | "tarjeta" | "transferencia">("efectivo");
+  const [confirmClearCart, setConfirmClearCart] = useState(false);
+  const commandPalette = useCommandPalette();
   const searchRef = useRef<HTMLInputElement>(null);
 
   const totals = getCartTotals(cart);
@@ -279,23 +289,25 @@ function PosTerminal() {
         searchRef.current?.focus();
       } else if (e.key === "F5" && cart.length > 0) {
         e.preventDefault();
-        if (paymentMethod === "credito") {
-          toast.warning("Módulo de Crédito diferido (fuera del MVP). Se procesará como Efectivo.");
-          setPaymentMethod("efectivo");
-        }
         setShowPayment(true);
       } else if (e.key === "F8" && lastSale && lastSale.id > 0) {
         // Las ventas offline (id negativo) no existen en el servidor: no hay ticket que pedir.
         e.preventDefault();
         setTicketSaleId(lastSale.id);
-      } else if (e.key === "Escape" && !showPayment && cart.length > 0) {
+      } else if (e.key === "Escape" && !showPayment && !confirmClearCart && cart.length > 0) {
+        // Esc dentro de un campo o con la paleta abierta no vacía el carrito (H-30)
+        if (commandPalette.open || isEditableElement(document.activeElement)) return;
         e.preventDefault();
-        usePosStore.getState().clearCart();
+        if (cart.length > 3) {
+          setConfirmClearCart(true);
+        } else {
+          usePosStore.getState().clearCart();
+        }
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cart.length, showPayment, lastSale, paymentMethod]);
+  }, [cart.length, showPayment, lastSale, confirmClearCart, commandPalette.open]);
 
   function handleProductSelect(product: Product) {
     addToCart({
@@ -309,10 +321,6 @@ function PosTerminal() {
   }
 
   function handlePayClick() {
-    if (paymentMethod === "credito") {
-      toast.warning("Ventas a crédito diferidas (fuera de MVP). Por favor, seleccione otro método.");
-      return;
-    }
     setShowPayment(true);
   }
 
@@ -373,8 +381,8 @@ function PosTerminal() {
             </div>
 
             {/* Quick payment selector */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {(["efectivo", "tarjeta", "transferencia", "credito"] as const).map((method) => (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {(["efectivo", "tarjeta", "transferencia"] as const).map((method) => (
                 <button
                   key={method}
                   onClick={() => setPaymentMethod(method)}
@@ -385,7 +393,7 @@ function PosTerminal() {
                       : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary/50"
                   }`}
                 >
-                  {method === "efectivo" ? "Efectivo" : method === "tarjeta" ? "Tarjeta" : method === "transferencia" ? "Transferencia" : "Crédito"}
+                  {method === "efectivo" ? "Efectivo" : method === "tarjeta" ? "Tarjeta" : "Transferencia"}
                 </button>
               ))}
             </div>
@@ -414,11 +422,38 @@ function PosTerminal() {
           }}
           sessionId={sessionId}
           total={totals.total}
-          defaultMethod={paymentMethod === "credito" ? "efectivo" : paymentMethod}
+          defaultMethod={paymentMethod}
         />
       ) : null}
 
       {ticketSaleId ? <TicketPreviewModal onClose={() => setTicketSaleId(null)} saleId={ticketSaleId} /> : null}
+      {confirmClearCart ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmClearCart(false)} variant="secondary">
+                Conservar
+              </Button>
+              <Button
+                onClick={() => {
+                  usePosStore.getState().clearCart();
+                  setConfirmClearCart(false);
+                }}
+                variant="danger"
+              >
+                Vaciar carrito
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmClearCart(false)}
+          open
+          title="¿Vaciar el carrito?"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            Se quitarán los {cart.length} artículos del carrito actual.
+          </p>
+        </Modal>
+      ) : null}
     </div>
   );
 }
