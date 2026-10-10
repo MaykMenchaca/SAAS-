@@ -49,8 +49,8 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 3.4 Logs, health y `error_id` (H-36) · commit d43029e · tests: `test_observability_fase3.py` (4 tests) · `RotatingFileHandler` en `logs/pos.log`, `/api/health` con espacio en disco, `error_id` correlacionado en 500 y aborto al arrancar si falla import de blueprint
 - [x] **Gate fase 3** · APROBADO (2026-10-10, 276 tests backend passed, frontend build OK, gate.ps1 en verde)
 
-## Fase 4: Operación de tienda
-- [ ] 4.1 Zona horaria `America/Mexico_City` (H-21, UI-04)
+## Fase 4: Operación de tienda · rama `fix/fase-4` (desde `fix/fase-3`)
+- [x] 4.1 Zona horaria `America/Mexico_City` (H-21, UI-04) · commit a7db395 · tests: `test_timezone.py` (7: `test_venta_19h_cuenta_en_dia_local`, `test_folio_usa_fecha_local`, `test_folio_orden_compra_usa_fecha_local`, `test_reporte_sin_fechas_usa_dia_local`, `test_ticket_muestra_hora_local`, `test_local_day_bounds_mexico`, `test_local_today_con_reloj_inyectado`), suite 283 passed, build OK · `APP_TIMEZONE` + `app/utils/timeutil.py`; reportes y dashboard con días locales en intervalo [inicio, fin) y `date_trunc` sobre `timezone(tz, created_at)`; folios V-/OC-, nombre/retención de respaldos y hora del ticket en hora local; `tzdata` añadido a requirements (Windows no trae base de zonas); frontend `src/lib/dates.ts` (`localISODate`) en dashboard y reportes
 - [ ] 4.2 Impresora por caja, ESC/POS, cajón y reimpresión (H-22) ⚠️ hardware
 - [ ] 4.3 Modo offline fiable (H-24) ⚠️ HTTPS sí/no
 - [ ] 4.4 Stock inicial, inactivos y búsqueda (H-26, H-43, H-38)
@@ -184,4 +184,6 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 
 ## Hallazgos nuevos
 _(Problemas encontrados durante la ejecución, fuera del alcance de la subfase. El orquestador decide en qué fase entran.)_
+- (4.1) Una fecha inválida en `from`/`to` de `/api/reports/*` sigue respondiendo 500 (`parse_local_date` lanza `ValueError` sin manejador 400). Corresponde a H-32 / subfase 6.5.
+- (4.1) El hook `.git/hooks/pre-commit` imprime `echo.: command not found` (sintaxis de cmd en script sh); no bloquea el commit. Candidato a 6.3 (hooks versionados).
 
