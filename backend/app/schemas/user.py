@@ -1,4 +1,4 @@
-from marshmallow import EXCLUDE, Schema, fields, validate
+from marshmallow import pre_load, EXCLUDE, Schema, fields, validate
 
 
 class UserSchema(Schema):
@@ -26,8 +26,15 @@ class UserCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    @pre_load
+    def empty_email_to_none(self, data, **kwargs):
+        if isinstance(data, dict) and isinstance(data.get("email"), str) and not data["email"].strip():
+            data = {**data, "email": None}
+        return data
+
     username = fields.Str(required=True, validate=validate.Length(min=3, max=80))
-    email = fields.Email(required=True)
+    # El email es opcional (H-28): "" o null se guardan como NULL
+    email = fields.Email(load_default=None, allow_none=True)
     full_name = fields.Str(required=True, validate=validate.Length(min=1, max=150))
     password = fields.Str(required=True, load_only=True, validate=validate.Length(min=8, max=128))
     role_id = fields.Int(required=True, validate=validate.Range(min=1))
@@ -37,8 +44,14 @@ class UserUpdateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    @pre_load
+    def empty_email_to_none(self, data, **kwargs):
+        if isinstance(data, dict) and isinstance(data.get("email"), str) and not data["email"].strip():
+            data = {**data, "email": None}
+        return data
+
     username = fields.Str(validate=validate.Length(min=3, max=80))
-    email = fields.Email()
+    email = fields.Email(allow_none=True)
     full_name = fields.Str(validate=validate.Length(min=1, max=150))
     password = fields.Str(load_only=True, validate=validate.Length(min=8, max=128))
     role_id = fields.Int(validate=validate.Range(min=1))

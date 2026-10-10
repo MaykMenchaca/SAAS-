@@ -41,12 +41,12 @@ class UserService:
         UserService._validate_role(data["role_id"])
         UserService._validate_unique_user(
             username=data["username"],
-            email=data["email"],
+            email=data.get("email"),
         )
 
         user = User(
             username=data["username"],
-            email=data["email"],
+            email=data.get("email"),
             full_name=data["full_name"],
             role_id=data["role_id"],
         )
