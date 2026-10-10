@@ -59,7 +59,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [~] **Gate fase 4** · automático APROBADO (2026-10-10, gate.ps1: 324 tests backend passed, frontend build OK, chequeos 0.1–4.3 en verde); cadena de migraciones `d4e5f6a7b8c9 → a4f2c1d0e9b8 → b5e3d2c1f0a9 → c7a1e4b2d3f6 → d8b2f5c3e4a7` validada en `pos_test_db` (upgrade, downgrade y upgrade) · **pendiente:** aplicar migraciones a `pos_db` (requiere confirmación + `pg_dump`), verificación manual en navegador (venta 19:00 local, ticket con empresa y acentos, cola offline con servidor caído), re-revisión `revisor-operacion` + `qa-funcional`, prueba con impresora física
 
 ## Fase 5: UI, UX y accesibilidad
-- [ ] 5.1 Dashboard y configuración con datos reales (H-27, UI-11)
+- [x] 5.1 Dashboard y configuración con datos reales (H-27, UI-11) · commit 79112a0 · rama `fix/fase-5` (desde `fix/fase-4`, carril paralelo permitido por ORQUESTA tras gate F3) · tests: `test_dashboard_fase5.py` (3: `test_dashboard_incluye_periodo_anterior`, `test_dashboard_lista_sesiones_abiertas`, `test_dashboard_sin_sesiones_abiertas`) · deltas calculados (ocultos si base 0), banner desde `open_sessions`, `formatCurrency`, `useServerStatus`, versión desde `package.json`, "Reiniciar terminal" con `Modal` sin borrar la cola offline
 - [ ] 5.2 Query keys + invalidaciones (H-29)
 - [ ] 5.3 Esc seguro, sin "Crédito" (H-30, H-53)
 - [ ] 5.4 Campana, reportes y catálogos duplicados (H-44, H-49, H-54, UI-13)
@@ -187,6 +187,9 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 - **Autenticación:** permiso `productos:desactivar`. Auditado (`product`, `reactivar`).
 - **Response 200:** el producto serializado con `is_active: true`. 404 si no existe.
 - `GET /api/products/?include_inactive=true` lista también los inactivos.
+
+### `GET /api/reports/dashboard` — periodo anterior y turnos abiertos (Subfase 5.1, H-27)
+- Campos nuevos: `sales_prev_day`, `revenue_prev_day`, `sales_prev_month`, `revenue_prev_month` (mismo tramo de días del mes anterior) y `open_sessions: [{id, register, user_id, user, opened_at, revenue, count}]` (`revenue` neto de reembolsos de la sesión).
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
