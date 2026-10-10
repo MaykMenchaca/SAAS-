@@ -46,7 +46,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 3.1 Respaldos: `PG_BIN_DIR`, asíncrono, programado, retención, offsite (H-12, H-42) · commit ea4315b · tests: `test_backup_fase3.py` (11 tests) · PG_BIN_DIR con autodetección, formato .dump, retención 14d/8w, captura OSError USB, backup en hilo al cerrar caja, CLI `flask backup` y `/api/health` con db y last_backup_at
 - [x] 3.2 Restauración segura + test real (H-13) · commit 4344183 · tests: `test_restore_fase3.py` (5 tests) · `restore-backup.ps1` con lectura de `.env`, `PG_BIN_DIR`, verificación de servicio, respaldo previo de seguridad, flags `--single-transaction --exit-on-error`, y protocolo en `docs/simulacro-restauracion.md`
 - [x] 3.3 Servicio de Windows, instaladores, seed y `.env.example` (H-23, H-37, H-51) ⚠️ admin · commit bb893d5 · tests: `test_service_install_fase3.py` (5 tests) · `install-service.ps1` con NSSM y firewall, migración `d4e5f6a7b8c9` para `purchase_order_folio_seq`, `seed_roles` sincroniza permisos, `requirements-dev.txt` separado y scripts de build/instalación con verificación de Python y `$LASTEXITCODE`
-- [ ] 3.4 Logs, health y `error_id` (H-36)
+- [x] 3.4 Logs, health y `error_id` (H-36) · commit d43029e · tests: `test_observability_fase3.py` (4 tests) · `RotatingFileHandler` en `logs/pos.log`, `/api/health` con espacio en disco, `error_id` correlacionado en 500 y aborto al arrancar si falla import de blueprint
 - [ ] **Gate fase 3**
 
 ## Fase 4: Operación de tienda
