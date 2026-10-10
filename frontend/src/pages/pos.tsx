@@ -30,6 +30,8 @@ export function PosPage() {
     queryFn: () => getSession(sessionId!),
     enabled: Boolean(sessionId),
     staleTime: 10_000,
+    // Sin reintentos por foco: con el servidor caído no debe interrumpir la venta en curso
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -46,10 +48,14 @@ export function PosPage() {
   }, [sessionId, sessionQuery.data, sessionQuery.isLoading, user?.id, user?.role, user?.permissions, clearSession]);
 
   useEffect(() => {
-    if (sessionQuery.isError) {
+    // Solo se descarta la sesión si el servidor la rechazó (no existe o no es accesible).
+    // Con la red caída, un timeout o un 5xx se conservan la sesión y el carrito (OPS-01, H-24).
+    const status = sessionQuery.error instanceof AxiosError ? sessionQuery.error.response?.status : undefined;
+    if (status === 404 || status === 403) {
       clearSession();
+      toast.warning("La sesión de caja ya no existe o no tienes acceso a ella.");
     }
-  }, [sessionQuery.isError, clearSession]);
+  }, [sessionQuery.error, clearSession]);
 
   if (!sessionId || (sessionId && sessionQuery.isLoading)) {
     if (sessionId && sessionQuery.isLoading) {
