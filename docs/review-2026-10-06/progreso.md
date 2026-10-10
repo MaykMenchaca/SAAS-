@@ -60,7 +60,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 
 ## Fase 5: UI, UX y accesibilidad
 - [x] 5.1 Dashboard y configuración con datos reales (H-27, UI-11) · commit 79112a0 · rama `fix/fase-5` (desde `fix/fase-4`, carril paralelo permitido por ORQUESTA tras gate F3) · tests: `test_dashboard_fase5.py` (3: `test_dashboard_incluye_periodo_anterior`, `test_dashboard_lista_sesiones_abiertas`, `test_dashboard_sin_sesiones_abiertas`) · deltas calculados (ocultos si base 0), banner desde `open_sessions`, `formatCurrency`, `useServerStatus`, versión desde `package.json`, "Reiniciar terminal" con `Modal` sin borrar la cola offline
-- [ ] 5.2 Query keys + invalidaciones (H-29)
+- [x] 5.2 Query keys + invalidaciones (H-29) · commit 98d32ed · verificación: `tsc -b` + `npm run build` OK · `src/api/query-keys.ts` (`qk`, 90 claves migradas en 15 archivos) y `src/api/invalidate.ts` (`invalidateInventory`, `invalidateAfterSale`, `invalidateAfterPurchase`) aplicados en venta, cancelación, devolución, recepción de OC, ajuste, cierre de conteo y sincronización offline
 - [ ] 5.3 Esc seguro, sin "Crédito" (H-30, H-53)
 - [ ] 5.4 Campana, reportes y catálogos duplicados (H-44, H-49, H-54, UI-13)
 - [ ] 5.5 Contraste y foco (UI-01, UI-02, UI-06, UI-14)
