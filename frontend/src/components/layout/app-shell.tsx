@@ -36,7 +36,7 @@ import { getBranding, updateConfig } from "../../api/config";
 import { useSidebarBadges } from "../../hooks/use-sidebar-badges";
 import type { SidebarBadges } from "../../hooks/use-sidebar-badges";
 import { useSyncQueue } from "../../hooks/useSyncQueue";
-import { useConnectionStore } from "../../stores/connection-store";
+import { useServerStatus } from "../../hooks/useServerStatus";
 import { PendingSalesIndicator } from "./pending-sales";
 import { useCan } from "../auth/require-permission";
 import { cn } from "../../lib/cn";
@@ -147,10 +147,6 @@ function TopbarClock() {
   return <span className="font-mono text-[11px] text-neutral-text-muted">{timeStr}</span>;
 }
 
-/** Indicador de conexión — refleja el ping a /api/health del sincronizador, no solo navigator.onLine. */
-function useOnlineStatus(): boolean {
-  return useConnectionStore((s) => s.serverReachable);
-}
 
 /** Badge interno reutilizable para el sidebar — compacta cuando isCollapsed. */
 function NavBadge({ count, tone, collapsed }: { count: number; tone: "warning" | "danger" | "info"; collapsed: boolean }) {
@@ -197,7 +193,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const badges = useSidebarBadges();
   const commandPalette = useCommandPalette();
-  const isOnline = useOnlineStatus();
+  const isOnline = useServerStatus();
   const isPosRoute = location.pathname.startsWith("/pos");
   const alertCount = badges.lowStock + badges.pendingPurchases;
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);

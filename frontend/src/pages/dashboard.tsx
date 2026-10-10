@@ -3,10 +3,12 @@ import { AlertTriangle, BarChart3, Calculator, CircleDollarSign, CornerDownLeft,
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import { getLowStock } from "../api/inventory";
+import type { OpenSessionSummary } from "../api/reports";
 import { fetchDashboardSummary } from "../api/reports";
 import { listSales } from "../api/sales";
 import { Badge, Button, Card, ErrorState, SkeletonKPI, SkeletonTable } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
+import { formatCurrency } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
 
 async function fetchWeeklySales() {
@@ -25,6 +27,15 @@ function rankingClass(index: number): string {
   if (index === 1) return "bg-neutral-border/60 text-neutral-text-secondary border-neutral-border";
   if (index === 2) return "bg-warning/10 text-warning/70 border-warning/10";
   return "bg-primary/10 text-primary border-primary/20";
+}
+
+/** Variación contra el periodo anterior; null si no hay base de comparación (H-27). */
+function formatDelta(current: number, previous: number, kind: "percent" | "count"): string | null {
+  if (!previous) return null;
+  const diff = current - previous;
+  const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
+  if (kind === "count") return `${sign}${Math.abs(diff)} vs ayer`;
+  return `${sign}${Math.abs((diff / previous) * 100).toFixed(1)}%`;
 }
 
 export function DashboardPage() {
@@ -83,29 +94,29 @@ export function DashboardPage() {
       icon: CircleDollarSign,
       label: "Ventas hoy",
       tone: "success" as const,
-      value: `$${data?.revenue_today ?? "0.00"}`,
-      delta: "+12.4%",
+      value: formatCurrency(data?.revenue_today ?? "0"),
+      delta: formatDelta(Number(data?.revenue_today ?? 0), Number(data?.revenue_prev_day ?? 0), "percent"),
     },
     {
       icon: ReceiptText,
       label: "Tickets hoy",
       tone: "neutral" as const,
       value: String(data?.sales_today ?? 0),
-      delta: "+3",
+      delta: formatDelta(data?.sales_today ?? 0, data?.sales_prev_day ?? 0, "count"),
     },
     {
       icon: AlertTriangle,
       label: "Stock bajo",
       tone: "warning" as const,
       value: String(data?.low_stock_count ?? 0),
-      delta: "alertas",
+      delta: (data?.low_stock_count ?? 0) > 0 ? "alertas" : null,
     },
     {
       icon: TrendingUp,
       label: "Ventas mes",
       tone: "neutral" as const,
-      value: `$${data?.revenue_month ?? "0.00"}`,
-      delta: "+8.1%",
+      value: formatCurrency(data?.revenue_month ?? "0"),
+      delta: formatDelta(Number(data?.revenue_month ?? 0), Number(data?.revenue_prev_month ?? 0), "percent"),
     },
   ];
 
@@ -119,33 +130,8 @@ export function DashboardPage() {
         <p className="text-xs text-neutral-text-secondary">Resumen operativo del negocio</p>
       </div>
 
-      {/* Active Shift banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_0_3px_rgba(5,150,105,0.15)] shrink-0" />
-          <div>
-            <div className="text-xs font-bold text-success">Turno Abierto</div>
-            <div className="text-[11px] text-neutral-text-secondary">
-              Apertura de caja activa · Cajero: <span className="font-semibold">{user?.full_name ?? "Operador"}</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-6">
-          <div className="text-right">
-            <div className="font-mono text-sm font-semibold text-neutral-text-primary">${data?.revenue_today ?? "0.00"}</div>
-            <div className="text-[10px] text-neutral-text-muted">Vendido en turno</div>
-          </div>
-          <div className="w-px h-8 bg-neutral-border" />
-          <div className="text-right">
-            <div className="font-mono text-sm font-semibold text-neutral-text-primary">{data?.sales_today ?? 0}</div>
-            <div className="text-[10px] text-neutral-text-muted">Transacciones</div>
-          </div>
-          <div className="w-px h-8 bg-neutral-border" />
-          <Link to="/corte-caja">
-            <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Cerrar turno</Button>
-          </Link>
-        </div>
-      </div>
+      {/* Turno: datos reales de las sesiones abiertas (H-27) */}
+      {data ? <ShiftBanner sessions={data.open_sessions} userId={user?.id} /> : null}
 
       {/* Quick Access Shortcuts row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -207,17 +193,19 @@ export function DashboardPage() {
                   <div className={`flex h-8 w-8 items-center justify-center rounded border ${toneClasses}`}>
                     <Icon aria-hidden="true" size={16} />
                   </div>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      kpi.tone === "success"
-                        ? "bg-success/10 text-success"
-                        : kpi.tone === "warning"
-                          ? "bg-warning/10 text-warning"
-                          : "bg-primary/10 text-primary"
-                    }`}
-                  >
-                    {kpi.delta}
-                  </span>
+                  {kpi.delta ? (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        kpi.delta.startsWith("−")
+                          ? "bg-danger/10 text-danger"
+                          : kpi.tone === "warning"
+                            ? "bg-warning/10 text-warning"
+                            : "bg-success/10 text-success"
+                      }`}
+                    >
+                      {kpi.delta}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mt-2 flex items-baseline justify-between">
                   <span className="text-[11px] font-medium text-neutral-text-secondary">{kpi.label}</span>
@@ -401,6 +389,58 @@ export function DashboardPage() {
           )}
         </Card>
       </section>
+    </div>
+  );
+}
+
+function ShiftBanner({ sessions, userId }: { sessions: OpenSessionSummary[]; userId?: number }) {
+  const own = sessions.find((s) => s.user_id === userId) ?? sessions[0];
+  const others = sessions.length - (own ? 1 : 0);
+
+  if (!own) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-neutral-text-muted shrink-0" />
+          <div>
+            <div className="text-xs font-bold text-neutral-text-primary">Sin turno abierto</div>
+            <div className="text-xs text-neutral-text-secondary">Ninguna caja tiene una sesión abierta.</div>
+          </div>
+        </div>
+        <Link to="/pos">
+          <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Abrir caja</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
+      <div className="flex items-center gap-3">
+        <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_0_3px_rgba(5,150,105,0.15)] shrink-0" />
+        <div>
+          <div className="text-xs font-bold text-success">Turno abierto · {own.register}</div>
+          <div className="text-xs text-neutral-text-secondary">
+            Cajero: <span className="font-semibold">{own.user}</span>
+            {others > 0 ? ` · ${others === 1 ? "1 caja más abierta" : `${others} cajas más abiertas`}` : ""}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-6">
+        <div className="text-right">
+          <div className="font-mono text-sm font-semibold text-neutral-text-primary">{formatCurrency(own.revenue)}</div>
+          <div className="text-[10px] text-neutral-text-muted">Vendido en turno</div>
+        </div>
+        <div className="w-px h-8 bg-neutral-border" />
+        <div className="text-right">
+          <div className="font-mono text-sm font-semibold text-neutral-text-primary">{own.count}</div>
+          <div className="text-[10px] text-neutral-text-muted">{own.count === 1 ? "Transacción" : "Transacciones"}</div>
+        </div>
+        <div className="w-px h-8 bg-neutral-border" />
+        <Link to="/corte-caja">
+          <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Cerrar turno</Button>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,9 @@ import type { BackupEntry, ConfigMap } from "../api/config";
 import { createBackup, deleteBackup, getConfig, listBackups, updateConfig, verifyBackup } from "../api/config";
 import type { CashRegisterInfo } from "../api/sales";
 import { listCashRegisters, updateCashRegister } from "../api/sales";
+import { useServerStatus } from "../hooks/useServerStatus";
+import { queryClient } from "../lib/query-client";
+import { usePosStore } from "../stores/pos-store";
 import { Badge, Button, Card, ErrorState, Input, Modal, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -97,6 +100,8 @@ export function SettingsPage() {
 function GeneralTab() {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<ConfigMap>({});
+  const serverOnline = useServerStatus();
+  const [confirmRestart, setConfirmRestart] = useState(false);
 
   const configQuery = useQuery({
     queryKey: ["system-config"],
@@ -201,13 +206,13 @@ function GeneralTab() {
           <div className="flex items-center justify-between">
             <dt className="text-neutral-text-secondary">Red</dt>
             <dd className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-success" />
-              <span className="font-medium">Online</span>
+              <span className={`h-2 w-2 rounded-full ${serverOnline ? "bg-success" : "bg-danger"}`} />
+              <span className="font-medium">{serverOnline ? "En línea" : "Sin conexión con el servidor"}</span>
             </dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-neutral-text-secondary">Version</dt>
-            <dd className="font-mono text-xs">v1.0.0</dd>
+            <dt className="text-neutral-text-secondary">Versión</dt>
+            <dd className="font-mono text-xs">v{import.meta.env.VITE_APP_VERSION}</dd>
           </div>
         </dl>
       </Card>
@@ -215,14 +220,45 @@ function GeneralTab() {
       <Card className="border-danger/30 bg-danger/5 p-4">
         <h3 className="text-sm font-semibold text-danger mb-2">Zona de peligro</h3>
         <p className="mb-3 text-sm text-neutral-text-secondary">
-          Reiniciar la terminal borrara la sesion actual y datos temporales.
+          Reiniciar la terminal vacía el carrito, la caja seleccionada y la caché de datos, y recarga la aplicación.
+          Las ventas pendientes de sincronizar se conservan.
         </p>
-        <Button onClick={() => window.confirm("¿Reiniciar terminal?") && window.location.reload()} variant="danger">
+        <Button onClick={() => setConfirmRestart(true)} variant="danger">
           Reiniciar terminal
         </Button>
       </Card>
+
+      {confirmRestart ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmRestart(false)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button onClick={restartTerminal} variant="danger">
+                Reiniciar
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmRestart(false)}
+          open
+          title="¿Reiniciar la terminal?"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            Se vaciará el carrito actual y se recargará la aplicación. Tu sesión de usuario y las ventas pendientes de
+            sincronizar no se borran.
+          </p>
+        </Modal>
+      ) : null}
     </div>
   );
+}
+
+/** Limpia el estado local de la terminal (no la cola offline ni el login) y recarga. */
+function restartTerminal() {
+  usePosStore.getState().clearSession();
+  queryClient.clear();
+  window.location.reload();
 }
 
 // ── Cash Registers Tab ────────────────────────────────────────────

@@ -8,7 +8,16 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models.inventory import Stock
 from app.models.product import Product
-from app.models.sale import Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
+from app.models.sale import (
+    CashRegister,
+    CashRegisterSession,
+    Payment,
+    Sale,
+    SaleItem,
+    SaleReturn,
+    SaleReturnItem,
+)
+from app.models.user import User
 from app.utils.decorators import require_permission
 from app.utils.timeutil import (
     app_tz,
@@ -27,12 +36,21 @@ def dashboard():
     today = local_today()
     today_start, today_end = local_day_bounds(today)
     week_start, _ = local_day_bounds(today - timedelta(days=today.weekday()))
-    month_start, _ = local_day_bounds(today.replace(day=1))
+    first_of_month = today.replace(day=1)
+    month_start, _ = local_day_bounds(first_of_month)
 
     # Sales and revenue — today (días en la zona horaria de la tienda)
     today_stats = _get_period_stats(today_start, today_end)
     week_stats = _get_period_stats(week_start, today_end)
     month_stats = _get_period_stats(month_start, today_end)
+
+    # Periodos anteriores para las tendencias (H-27): ayer y el mismo tramo del mes anterior
+    prev_day_stats = _get_period_stats(local_day_bounds(today - timedelta(days=1))[0], today_start)
+    prev_month_first = (first_of_month - timedelta(days=1)).replace(day=1)
+    prev_month_cut = min(prev_month_first + timedelta(days=today.day), first_of_month)
+    prev_month_stats = _get_period_stats(
+        local_day_bounds(prev_month_first)[0], local_day_bounds(prev_month_cut)[0]
+    )
 
     # Top 5 products by quantity sold (this month, net of returns)
     sold_rows = (
@@ -108,7 +126,50 @@ def dashboard():
             for p in top_products
         ],
         "low_stock_count": low_stock_count,
+        "sales_prev_day": prev_day_stats["count"],
+        "revenue_prev_day": prev_day_stats["revenue"],
+        "sales_prev_month": prev_month_stats["count"],
+        "revenue_prev_month": prev_month_stats["revenue"],
+        "open_sessions": _open_sessions_summary(),
     }), 200
+
+
+def _open_sessions_summary() -> list[dict]:
+    """Turnos abiertos con lo vendido en cada uno (neto de reembolsos de la sesión)."""
+    sessions = (
+        db.session.query(CashRegisterSession, CashRegister.name, User.full_name)
+        .join(CashRegister, CashRegister.id == CashRegisterSession.cash_register_id)
+        .join(User, User.id == CashRegisterSession.user_id)
+        .filter(CashRegisterSession.status == "abierta")
+        .order_by(CashRegister.name)
+        .all()
+    )
+    result = []
+    for session, register_name, user_name in sessions:
+        count, revenue = (
+            db.session.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total), 0))
+            .filter(
+                Sale.session_id == session.id,
+                Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
+            )
+            .one()
+        )
+        refunds = (
+            db.session.query(func.coalesce(func.sum(SaleReturn.refund_total), 0))
+            .filter(SaleReturn.session_id == session.id)
+            .scalar()
+        )
+        net = max(Decimal("0"), Decimal(str(revenue)) - Decimal(str(refunds)))
+        result.append({
+            "id": session.id,
+            "register": register_name,
+            "user_id": session.user_id,
+            "user": user_name,
+            "opened_at": session.opened_at.isoformat() if session.opened_at else None,
+            "revenue": str(net.quantize(Decimal("0.01"))),
+            "count": count,
+        })
+    return result
 
 
 def _get_period_stats(start: datetime, end: datetime) -> dict:

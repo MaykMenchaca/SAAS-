@@ -104,6 +104,21 @@ export type DashboardSummary = {
   revenue_month: string;
   top_products: { name: string; quantity: string; revenue: string }[];
   low_stock_count: number;
+  sales_prev_day: number;
+  revenue_prev_day: string;
+  sales_prev_month: number;
+  revenue_prev_month: string;
+  open_sessions: OpenSessionSummary[];
+};
+
+export type OpenSessionSummary = {
+  id: number;
+  register: string;
+  user_id: number;
+  user: string;
+  opened_at: string | null;
+  revenue: string;
+  count: number;
 };
 
 export async function fetchDashboardSummary() {
