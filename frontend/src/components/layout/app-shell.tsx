@@ -36,6 +36,8 @@ import { getBranding, updateConfig } from "../../api/config";
 import { useSidebarBadges } from "../../hooks/use-sidebar-badges";
 import type { SidebarBadges } from "../../hooks/use-sidebar-badges";
 import { useSyncQueue } from "../../hooks/useSyncQueue";
+import { useConnectionStore } from "../../stores/connection-store";
+import { PendingSalesIndicator } from "./pending-sales";
 import { useCan } from "../auth/require-permission";
 import { cn } from "../../lib/cn";
 import { Badge, Button, Input, Modal } from "../ui";
@@ -145,20 +147,9 @@ function TopbarClock() {
   return <span className="font-mono text-[11px] text-neutral-text-muted">{timeStr}</span>;
 }
 
-/** Indicador de conexión LAN — reactivo a online/offline del browser. */
+/** Indicador de conexión — refleja el ping a /api/health del sincronizador, no solo navigator.onLine. */
 function useOnlineStatus(): boolean {
-  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
-  useEffect(() => {
-    function onOnline() { setOnline(true); }
-    function onOffline() { setOnline(false); }
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
-  return online;
+  return useConnectionStore((s) => s.serverReachable);
 }
 
 /** Badge interno reutilizable para el sidebar — compacta cuando isCollapsed. */
@@ -528,6 +519,8 @@ export function AppShell() {
             )}
 
             <TopbarClock />
+
+            <PendingSalesIndicator />
 
             {/* Indicador conexión LAN */}
             <span

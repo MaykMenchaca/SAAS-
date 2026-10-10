@@ -282,7 +282,8 @@ function PosTerminal() {
           setPaymentMethod("efectivo");
         }
         setShowPayment(true);
-      } else if (e.key === "F8" && lastSale) {
+      } else if (e.key === "F8" && lastSale && lastSale.id > 0) {
+        // Las ventas offline (id negativo) no existen en el servidor: no hay ticket que pedir.
         e.preventDefault();
         setTicketSaleId(lastSale.id);
       } else if (e.key === "Escape" && !showPayment && cart.length > 0) {
@@ -883,14 +884,14 @@ function PaymentModal({
         }
       }
 
-    // Proceso Offline: Generar ticket simulado
+    // Proceso Offline: ticket provisional con el usuario real y los totales de getCartTotals (1.2)
     const totals = getCartTotals(cart);
     const mockSale: Sale = {
       id: -Date.now(),
-      folio: `OFF-${Date.now().toString().slice(-6)}`,
+      folio: "PENDIENTE DE SINCRONIZAR",
       session_id: sessionId,
-      user_id: 1,
-      username: "Operador Offline",
+      user_id: user?.id ?? 0,
+      username: user?.full_name || user?.username || "",
       subtotal: totals.subtotal.toFixed(2),
       discount_total: totals.discountTotal.toFixed(2),
       tax_total: totals.taxTotal.toFixed(2),
@@ -898,19 +899,22 @@ function PaymentModal({
       status: "completada",
       cancel_reason: null,
       created_at: new Date().toISOString(),
-      items: cart.map((c, i) => ({
-        id: -i,
-        product_id: c.product_id,
-        product_name: c.product_name,
-        product_sku: c.product_sku,
-        quantity: c.quantity.toString(),
-        unit_price: c.unit_price,
-        discount_percent: c.discount_percent,
-        discount_amount: "0.00",
-        tax_rate: c.tax_rate,
-        subtotal: (c.quantity * Number(c.unit_price)).toFixed(2),
-        cost_at_sale: c.unit_price,
-      })),
+      items: cart.map((c, i) => {
+        const line = getCartTotals([c]);
+        return {
+          id: -i,
+          product_id: c.product_id,
+          product_name: c.product_name,
+          product_sku: c.product_sku,
+          quantity: c.quantity.toString(),
+          unit_price: c.unit_price,
+          discount_percent: c.discount_percent,
+          discount_amount: line.discountTotal.toFixed(2),
+          tax_rate: c.tax_rate,
+          subtotal: line.subtotal.toFixed(2),
+          cost_at_sale: c.unit_price,
+        };
+      }),
       payments: payments.map((p, i) => ({
         id: -i,
         method: p.method,
@@ -921,11 +925,11 @@ function PaymentModal({
     };
 
     // Guardar en cola asociada al usuario (H-18)
-    usePosStore.getState().addOfflineSale(payload, user?.id);
+    usePosStore.getState().addOfflineSale(payload, user?.id, mockSale.total);
 
       // Limpiar carrito y disparar éxito
       clearCart();
-      toast.warning("Sin conexion. Transaccion registrada localmente para sincronizar mas tarde.");
+      toast.warning("Sin conexión. Venta guardada en este equipo: PENDIENTE DE SINCRONIZAR.");
       onSuccess(mockSale);
     } finally {
       isSubmittingRef.current = false;

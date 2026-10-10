@@ -90,6 +90,8 @@ export type PaymentInput = {
 export type CreateSalePayload = {
   session_id: number;
   client_uuid?: string;
+  /** false para ventas sincronizadas desde la cola offline: el cajón ya se abrió al cobrar. */
+  open_drawer?: boolean;
   items: SaleItemInput[];
   payments: PaymentInput[];
 };

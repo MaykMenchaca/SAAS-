@@ -17,13 +17,27 @@ export type CartItem = {
 export type QueuedOfflineSale = {
   userId: number;
   sale: CreateSalePayload;
+  queuedAt?: string;
+  total?: string;
 };
+
+/** Venta offline que el servidor rechazó (4xx). No bloquea la cola; espera revisión del usuario. */
+export type RejectedOfflineSale = QueuedOfflineSale & {
+  error: string;
+  rejectedAt: string;
+};
+
+/** Id estable de una venta encolada: su client_uuid (fase 1.4). */
+export function queuedSaleId(item: QueuedOfflineSale): string {
+  return item.sale?.client_uuid ?? "";
+}
 
 type PosState = {
   sessionId: number | null;
   sessionName: string | null;
   cart: CartItem[];
   offlineSalesQueue: QueuedOfflineSale[];
+  rejectedSales: RejectedOfflineSale[];
   setSession: (id: number, name: string) => void;
   clearSession: () => void;
   addToCart: (item: Omit<CartItem, "quantity" | "discount_percent"> & { quantity?: number; discount_percent?: string }) => void;
@@ -31,9 +45,10 @@ type PosState = {
   updateDiscount: (productId: number, discount: string) => void;
   removeFromCart: (productId: number) => void;
   clearCart: () => void;
-  addOfflineSale: (sale: CreateSalePayload, userId?: number) => void;
-  removeOfflineSale: (index: number) => void;
+  addOfflineSale: (sale: CreateSalePayload, userId?: number, total?: string) => void;
   removeOfflineSaleByUuid: (clientUuid: string) => void;
+  rejectOfflineSale: (clientUuid: string, error: string) => void;
+  discardRejectedSale: (clientUuid: string) => void;
 };
 
 /**
@@ -103,6 +118,7 @@ export const usePosStore = create<PosState>()(
       sessionName: null,
       cart: [],
       offlineSalesQueue: [],
+      rejectedSales: [],
 
       setSession: (id, name) => set({ sessionId: id, sessionName: name }),
 
@@ -159,26 +175,56 @@ export const usePosStore = create<PosState>()(
 
       clearCart: () => set({ cart: [] }),
 
-      addOfflineSale: (sale, userId = 0) =>
-        set((state) => ({
-          offlineSalesQueue: [...state.offlineSalesQueue, { userId, sale }],
-        })),
-
-      removeOfflineSale: (index) =>
-        set((state) => ({
-          offlineSalesQueue: state.offlineSalesQueue.filter((_, i) => i !== index),
-        })),
+      addOfflineSale: (sale, userId = 0, total) =>
+        set((state) => {
+          const queued: QueuedOfflineSale = {
+            userId,
+            sale: { ...sale, client_uuid: sale.client_uuid ?? crypto.randomUUID(), open_drawer: false },
+            queuedAt: new Date().toISOString(),
+            total,
+          };
+          // Un mismo client_uuid nunca se encola dos veces
+          if (state.offlineSalesQueue.some((q) => queuedSaleId(q) === queuedSaleId(queued))) {
+            return state;
+          }
+          return { offlineSalesQueue: [...state.offlineSalesQueue, queued] };
+        }),
 
       removeOfflineSaleByUuid: (clientUuid: string) =>
         set((state) => ({
-          offlineSalesQueue: state.offlineSalesQueue.filter((q) => {
-            const uuid = q.sale?.client_uuid ?? (q as any).client_uuid;
-            return uuid !== clientUuid;
-          }),
+          offlineSalesQueue: state.offlineSalesQueue.filter((q) => queuedSaleId(q) !== clientUuid),
+        })),
+
+      rejectOfflineSale: (clientUuid, error) =>
+        set((state) => {
+          const item = state.offlineSalesQueue.find((q) => queuedSaleId(q) === clientUuid);
+          if (!item) return state;
+          return {
+            offlineSalesQueue: state.offlineSalesQueue.filter((q) => queuedSaleId(q) !== clientUuid),
+            rejectedSales: [...state.rejectedSales, { ...item, error, rejectedAt: new Date().toISOString() }],
+          };
+        }),
+
+      discardRejectedSale: (clientUuid) =>
+        set((state) => ({
+          rejectedSales: state.rejectedSales.filter((r) => queuedSaleId(r) !== clientUuid),
         })),
     }),
     {
       name: "pos-storage",
+      version: 1,
+      // v0 -> v1: ventas encoladas sin client_uuid reciben uno para poder sincronizarse y eliminarse por id
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<PosState>;
+        if (version < 1) {
+          state.offlineSalesQueue = (state.offlineSalesQueue ?? []).map((q) => ({
+            ...q,
+            sale: { ...q.sale, client_uuid: q.sale?.client_uuid ?? crypto.randomUUID(), open_drawer: false },
+          }));
+          state.rejectedSales = state.rejectedSales ?? [];
+        }
+        return state as PosState;
+      },
     },
   ),
 );

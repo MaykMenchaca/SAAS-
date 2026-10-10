@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { create } from "zustand";
 
 import type { AuthUser } from "../api/auth";
@@ -18,6 +19,8 @@ type AuthState = {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** true si no se pudo contactar al servidor al validar la sesión (se conserva la sesión). */
+  offline: boolean;
   refreshToken: string | null;
   user: AuthUser | null;
   clearSession: () => void;
@@ -53,10 +56,16 @@ function clearStoredUser() {
   window.localStorage.removeItem(USER_KEY);
 }
 
+/** Solo un rechazo explícito del servidor (401/422) invalida la sesión; red caída o 5xx no. */
+function isAuthRejection(error: unknown) {
+  return isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 422);
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: getStoredAccessToken(),
   isAuthenticated: Boolean(getStoredAccessToken()),
   isLoading: false,
+  offline: false,
   refreshToken: getStoredRefreshToken(),
   user: readStoredUser(),
 
@@ -69,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: null,
       isAuthenticated: false,
       isLoading: false,
+      offline: false,
       refreshToken: null,
       user: null,
     });
@@ -83,9 +93,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await meRequest();
       setStoredUser(user);
-      set({ isAuthenticated: true, isLoading: false, user });
-    } catch {
-      get().clearSession();
+      set({ isAuthenticated: true, isLoading: false, offline: false, user });
+    } catch (error) {
+      if (isAuthRejection(error)) {
+        get().clearSession();
+        return;
+      }
+      // Servidor inalcanzable: conservar la sesión guardada para seguir vendiendo en contingencia.
+      set({ isLoading: false, offline: !isAxiosError(error) || !error.response });
     }
   },
 
@@ -132,10 +147,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         accessToken: response.access_token,
         isAuthenticated: true,
+        offline: false,
         user: currentUser,
       });
-    } catch {
-      get().clearSession();
+    } catch (error) {
+      if (isAuthRejection(error)) {
+        get().clearSession();
+      } else {
+        set({ offline: true });
+      }
     }
   },
 }));
