@@ -82,6 +82,8 @@ class SaleCreateSchema(Schema):
 
     session_id = fields.Int(required=True, validate=validate.Range(min=1))
     client_uuid = fields.Str(required=False, load_default=None, allow_none=True, validate=validate.Length(max=36))
+    # La cola offline lo manda en False: una venta sincronizada después no debe abrir el cajón
+    open_drawer = fields.Bool(load_default=True)
     items = fields.List(fields.Nested(SaleItemInputSchema), required=True, validate=validate.Length(min=1))
     payments = fields.List(fields.Nested(PaymentInputSchema), required=True, validate=validate.Length(min=1))
 

@@ -98,7 +98,19 @@ export type CashRegisterInfo = {
   id: number;
   name: string;
   is_active: boolean;
+  printer_path: string | null;
+  printer_codepage: string;
 };
+
+export type CashRegisterUpdate = {
+  printer_path?: string | null;
+  printer_codepage?: string;
+};
+
+export async function updateCashRegister(registerId: number, payload: CashRegisterUpdate) {
+  const response = await apiClient.patch<CashRegisterInfo>(`/cash-register/registers/${registerId}`, payload);
+  return response.data;
+}
 
 // ── Cash Register API ──────────────────────────────────────────────
 

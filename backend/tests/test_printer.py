@@ -26,7 +26,7 @@ def test_format_sale_ticket_includes_key_sale_details(
 
     ticket = PrinterService.format_sale_ticket(sale)
 
-    assert "POS Local" in ticket
+    assert "Mi Negocio" in ticket  # nombre desde config_service (default), fase 4.2
     assert sale.folio in ticket
     assert "Martillo" in ticket
     assert "Subtotal" in ticket
@@ -64,7 +64,7 @@ def test_format_price_label_falls_back_to_sku_barcode(db, seed_product_for_sale)
     assert "{BPOS-001" in label
 
 
-def test_send_to_printer_writes_cp437_bytes(tmp_path):
+def test_send_to_printer_writes_escpos_bytes(tmp_path):
     from app.services.printer_service import PrinterService
 
     output_path = tmp_path / "ticket.prn"
@@ -73,7 +73,7 @@ def test_send_to_printer_writes_cp437_bytes(tmp_path):
 
     assert sent is True
     assert output_path.read_bytes().startswith(b"\x1b@")
-    assert output_path.read_bytes().endswith(b"\n\x1di")
+    assert output_path.read_bytes().endswith(b"\x1bd\x04\x1dV\x42\x00")  # ESC d 4 + GS V, fase 4.2
 
 
 def test_admin_can_preview_sale_ticket(

@@ -13,6 +13,7 @@ from app.schemas.sale import (
     SaleSchema,
 )
 from app.services.audit_service import log_action
+from app.services.printer_service import PrinterService
 from app.services.sale_service import SaleService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
@@ -53,6 +54,8 @@ def create_sale():
     data = sale_create_schema.load(request.get_json(silent=True) or {})
 
     user_id = int(get_jwt_identity())
+    client_uuid = data.get("client_uuid")
+    is_replay = bool(client_uuid) and Sale.query.filter_by(client_uuid=str(client_uuid)).first() is not None
 
     try:
         sale = SaleService.create_sale(
@@ -60,12 +63,16 @@ def create_sale():
             session_id=data["session_id"],
             items=data["items"],
             payments=data["payments"],
-            client_uuid=data.get("client_uuid"),
+            client_uuid=client_uuid,
         )
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+    # Cajón: después del commit y sin afectar la venta si la impresora falla
+    if data["open_drawer"] and not is_replay and any(p.method == "efectivo" for p in sale.payments):
+        PrinterService.open_drawer_for_sale(sale)
 
     return jsonify(sale_schema.dump(sale)), 201
 

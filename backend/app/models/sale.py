@@ -11,6 +11,11 @@ class CashRegister(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="true")
+    # Impresora de tickets de esta caja (ruta absoluta o puerto COM/LPT), configurada por el admin
+    printer_path = db.Column(db.String(255), nullable=True)
+    printer_codepage = db.Column(
+        db.String(10), nullable=False, default="cp850", server_default="cp850"
+    )
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

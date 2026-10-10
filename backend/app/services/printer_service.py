@@ -2,29 +2,79 @@
 from __future__ import annotations
 
 import os
+import re
+import threading
+import unicodedata
 from decimal import Decimal
 from pathlib import Path
 from textwrap import shorten
 
+from flask import current_app, has_app_context
+
 from app.models.product import Product
 from app.models.sale import Sale
+from app.services import config_service
 from app.utils.timeutil import to_local
+
+# Página de códigos -> valor n de `ESC t n` (Epson ESC/POS)
+CODEPAGES = {
+    "cp437": 0,
+    "cp850": 2,
+    "cp858": 19,
+    "cp1252": 16,
+}
+DEFAULT_CODEPAGE = "cp850"
+
+ESC_INIT = b"\x1b@"
+DRAWER_KICK = b"\x1bp\x00\x19\x96"  # ESC p 0 25 150: pulso al pin 2 del cajón
+FEED_AND_CUT = b"\x1bd\x04\x1dV\x42\x00"  # ESC d 4 + GS V 66 0: avanza y corta
+
+_DEVICE_RE = re.compile(r"^(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
+
+# Sustituciones para caracteres que no existen en la página de códigos
+_TRANSLITERATIONS = {"€": "EUR", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "…": "..."}
 
 
 class PrinterService:
     """Formats sale tickets and price labels, then optionally writes them out."""
 
     WIDTH = 42
+    WRITE_TIMEOUT = 5  # segundos
+
+    @staticmethod
+    def _company_info() -> dict:
+        """Datos de la empresa para el ticket, desde la configuración del sistema."""
+        def first(*keys: str) -> str:
+            for key in keys:
+                value = config_service.get(key)
+                if value:
+                    return value.strip()
+            return ""
+
+        return {
+            "name": first("business_name", "company_name") or "POS Local",
+            "address": first("company_address", "business_address"),
+            "phone": first("company_phone", "business_phone"),
+            "rfc": first("company_rfc", "business_rfc", "rfc"),
+            "footer": first("ticket_footer") or "Gracias por su compra",
+        }
 
     @staticmethod
     def format_sale_ticket(sale: Sale, business_name: str | None = None) -> str:
         """Create a plain text ticket that can be sent to an ESC/POS printer."""
-        name = business_name or os.getenv("BUSINESS_NAME", "POS Local")
+        company = PrinterService._company_info()
+        name = business_name or company["name"]
         created_at = to_local(sale.created_at).strftime("%Y-%m-%d %H:%M")
         cashier = sale.user.username if sale.user else f"Usuario {sale.user_id}"
 
-        lines = [
-            PrinterService._center(name),
+        lines = [PrinterService._center(name)]
+        if company["address"]:
+            lines.append(PrinterService._center(company["address"]))
+        if company["phone"]:
+            lines.append(PrinterService._center(f"Tel: {company['phone']}"))
+        if company["rfc"]:
+            lines.append(PrinterService._center(f"RFC: {company['rfc']}"))
+        lines += [
             PrinterService._line(),
             PrinterService._kv("Folio", sale.folio),
             PrinterService._kv("Fecha", created_at),
@@ -59,19 +109,16 @@ class PrinterService:
             if payment.reference:
                 lines.append(PrinterService._kv("Ref", payment.reference))
 
-        lines.extend(
-            [
-                PrinterService._line(),
-                PrinterService._center("Gracias por su compra"),
-                "",
-            ]
-        )
+        lines.append(PrinterService._line())
+        for footer_line in company["footer"].splitlines():
+            lines.append(PrinterService._center(footer_line))
+        lines.append("")
         return "\n".join(lines)
 
     @staticmethod
     def format_price_label(product: Product, business_name: str | None = None) -> str:
         """Create a compact product price label with an ESC/POS Code 128 barcode."""
-        name = business_name or os.getenv("BUSINESS_NAME", "POS Local")
+        name = business_name or PrinterService._company_info()["name"]
         code = PrinterService._barcode_value(product.barcode or product.sku)
         lines = [
             PrinterService._center(name),
@@ -87,31 +134,117 @@ class PrinterService:
         return "\n".join(lines)
 
     @staticmethod
-    def send_to_printer(content: str, printer_path: str | os.PathLike | None = None, kick_drawer: bool = False) -> bool:
+    def resolve_printer(sale: Sale | None = None) -> tuple[str | None, str]:
+        """Impresora (ruta, página de códigos) de la caja de la venta; si no tiene, la global."""
+        register = sale.session.cash_register if sale is not None and sale.session else None
+        codepage = (register.printer_codepage if register else None) or DEFAULT_CODEPAGE
+        path = (register.printer_path if register else None) or os.getenv("PRINTER_DEVICE_PATH")
+        return path, codepage
+
+    @staticmethod
+    def validate_target(target: str | os.PathLike) -> str:
+        """Valida el destino: ruta absoluta local o puerto COM/LPT. Rechaza rutas UNC y relativas."""
+        target_str = str(target).strip()
+        if _DEVICE_RE.match(target_str):
+            return target_str.upper()
+        if target_str.startswith(("\\\\", "//")):
+            raise ValueError("Ruta de impresora no válida")
+        if not Path(target_str).is_absolute():
+            raise ValueError("La ruta de la impresora debe ser absoluta o un puerto COM/LPT")
+        return target_str
+
+    @staticmethod
+    def validate_codepage(codepage: str | None) -> str:
+        cp = (codepage or DEFAULT_CODEPAGE).lower()
+        if cp not in CODEPAGES:
+            raise ValueError(
+                f"Página de códigos no soportada: '{codepage}'. Usa una de: {', '.join(CODEPAGES)}"
+            )
+        return cp
+
+    @staticmethod
+    def encode_text(content: str, codepage: str) -> bytes:
+        """Codifica en la página de códigos y translitera lo que no exista (Á -> A, € -> EUR)."""
+        out = bytearray()
+        for char in content:
+            try:
+                out += char.encode(codepage)
+                continue
+            except UnicodeEncodeError:
+                pass
+            replacement = _TRANSLITERATIONS.get(char)
+            if replacement is None:
+                decomposed = unicodedata.normalize("NFKD", char)
+                replacement = "".join(c for c in decomposed if not unicodedata.combining(c))
+            out += replacement.encode(codepage, errors="replace")
+        return bytes(out)
+
+    @staticmethod
+    def build_payload(content: str, codepage: str = DEFAULT_CODEPAGE, kick_drawer: bool = False) -> bytes:
+        """Bytes ESC/POS: inicializar, página de códigos, [cajón], texto, avance y corte."""
+        cp = PrinterService.validate_codepage(codepage)
+        payload = ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]])
+        if kick_drawer:
+            payload += DRAWER_KICK
+        return payload + PrinterService.encode_text(content, cp) + b"\n" + FEED_AND_CUT
+
+    @staticmethod
+    def _write(target: str, payload: bytes) -> None:
+        """Escribe en la impresora con timeout para no bloquear el request si está colgada."""
+        error: list[BaseException] = []
+
+        def worker():
+            try:
+                Path(target).write_bytes(payload)
+            except BaseException as exc:  # noqa: BLE001 - se re-lanza en el hilo principal
+                error.append(exc)
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(PrinterService.WRITE_TIMEOUT)
+        if thread.is_alive():
+            raise RuntimeError("Impresora no disponible: tiempo de espera agotado")
+        if error:
+            raise RuntimeError(f"Impresora no disponible: {error[0]}") from error[0]
+
+    @staticmethod
+    def send_to_printer(
+        content: str,
+        printer_path: str | os.PathLike | None = None,
+        kick_drawer: bool = False,
+        codepage: str = DEFAULT_CODEPAGE,
+    ) -> bool:
         """Write ESC/POS bytes to the configured printer device/file.
 
-        In production this can point at a raw device path, shared printer file,
-        or spooler target. Tests can pass a normal file path.
+        In production this can point at a raw device path or a COM/LPT port.
+        Tests can pass a normal file path.
         """
         target = printer_path or os.getenv("PRINTER_DEVICE_PATH")
         if not target:
             raise ValueError("Ruta de impresora no configurada")
 
-        target_str = str(target).strip()
-        if target_str.startswith(("\\\\", "//")):
-            raise ValueError("Ruta de impresora no válida")
-
-        path = Path(target_str)
-        if not path.is_absolute():
-            raise ValueError("La ruta de la impresora debe ser absoluta")
-
-        drawer_kick = b"\x1bp\x00\x19\x96" if kick_drawer else b""
-        payload = b"\x1b@" + drawer_kick + content.encode("cp437", errors="replace") + b"\n\x1di"
-        try:
-            path.write_bytes(payload)
-        except OSError as exc:
-            raise RuntimeError(f"Impresora no disponible: {exc}") from exc
+        target_str = PrinterService.validate_target(target)
+        payload = PrinterService.build_payload(content, codepage, kick_drawer)
+        PrinterService._write(target_str, payload)
         return True
+
+    @staticmethod
+    def open_drawer_for_sale(sale: Sale) -> bool:
+        """Abre el cajón de la caja de la venta (best-effort). Nunca lanza excepción."""
+        path, codepage = PrinterService.resolve_printer(sale)
+        if not path:
+            return False
+        try:
+            target = PrinterService.validate_target(path)
+            cp = PrinterService.validate_codepage(codepage)
+            PrinterService._write(target, ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK)
+            return True
+        except (ValueError, RuntimeError) as exc:
+            if has_app_context():
+                current_app.logger.warning(
+                    "No se pudo abrir el cajón de la venta %s: %s", sale.folio, exc
+                )
+            return False
 
     @staticmethod
     def _line() -> str:

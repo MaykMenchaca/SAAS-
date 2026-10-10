@@ -28,10 +28,10 @@ def print_sale_ticket(sale_id):
     sent = False
 
     if send:
-        # Determine if cash payment exists to kick the drawer
-        has_cash_payment = any(p.method.lower() == "efectivo" for p in sale.payments)
+        # Impresora de la caja de la venta. El cajón se abre al cobrar, no al (re)imprimir.
+        printer_path, codepage = PrinterService.resolve_printer(sale)
         try:
-            sent = PrinterService.send_to_printer(content, kick_drawer=has_cash_payment)
+            sent = PrinterService.send_to_printer(content, printer_path, codepage=codepage)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:

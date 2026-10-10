@@ -13,7 +13,8 @@ from app.schemas.sale import (
     CashRegisterSessionOpenSchema,
     CashRegisterSessionSchema,
 )
-from app.utils.decorators import require_permission
+from app.services.printer_service import PrinterService
+from app.utils.decorators import require_permission, require_role
 
 cash_register_bp = Blueprint("cash_register", __name__)
 
@@ -28,10 +29,55 @@ sessions_schema = CashRegisterSessionSchema(many=True)
 def list_registers():
     """List all active cash registers."""
     registers = CashRegister.query.filter_by(is_active=True).order_by(CashRegister.name).all()
-    return jsonify([
-        {"id": r.id, "name": r.name, "is_active": r.is_active}
-        for r in registers
-    ]), 200
+    return jsonify([_register_dict(r) for r in registers]), 200
+
+
+def _register_dict(register: CashRegister) -> dict:
+    return {
+        "id": register.id,
+        "name": register.name,
+        "is_active": register.is_active,
+        "printer_path": register.printer_path,
+        "printer_codepage": register.printer_codepage,
+    }
+
+
+@cash_register_bp.route("/registers/<int:register_id>", methods=["PATCH"])
+@require_role("admin")
+def update_register(register_id):
+    """Configura la impresora de tickets de una caja (solo admin)."""
+    register = db.session.get(CashRegister, register_id)
+    if not register:
+        return jsonify({"error": "Caja registradora no encontrada"}), 404
+
+    data = request.get_json(silent=True) or {}
+    before = _register_dict(register)
+    try:
+        if "printer_path" in data:
+            raw_path = (data.get("printer_path") or "").strip()
+            register.printer_path = PrinterService.validate_target(raw_path) if raw_path else None
+        if "printer_codepage" in data:
+            register.printer_codepage = PrinterService.validate_codepage(data.get("printer_codepage"))
+        if "name" in data:
+            name = (data.get("name") or "").strip()
+            if not name or len(name) > 50:
+                raise ValueError("El nombre de la caja es obligatorio (máximo 50 caracteres)")
+            register.name = name
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="update",
+        entity_type="cash_register",
+        entity_id=register.id,
+        previous_value=before,
+        new_value=_register_dict(register),
+        user_id=int(get_jwt_identity()),
+    )
+    db.session.commit()
+    return jsonify(_register_dict(register)), 200
 
 
 @cash_register_bp.route("/open", methods=["POST"])

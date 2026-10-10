@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   HardDrive,
+  Printer,
   Save,
   ScrollText,
   Settings,
@@ -18,14 +19,17 @@ import type { AuditLog } from "../api/audit";
 import { listAuditLogs } from "../api/audit";
 import type { BackupEntry, ConfigMap } from "../api/config";
 import { createBackup, deleteBackup, getConfig, listBackups, updateConfig, verifyBackup } from "../api/config";
+import type { CashRegisterInfo } from "../api/sales";
+import { listCashRegisters, updateCashRegister } from "../api/sales";
 import { Badge, Button, Card, ErrorState, Input, Modal, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-type Tab = "general" | "auditoria" | "backups";
+type Tab = "general" | "cajas" | "auditoria" | "backups";
 
 const tabs: { id: Tab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
+  { id: "cajas", label: "Cajas", icon: Printer },
   { id: "auditoria", label: "Auditoría", icon: ScrollText },
   { id: "backups", label: "Backups", icon: Database },
 ];
@@ -81,6 +85,7 @@ export function SettingsPage() {
       </nav>
 
       {activeTab === "general" ? <GeneralTab /> : null}
+      {activeTab === "cajas" ? <CashRegistersTab /> : null}
       {activeTab === "auditoria" ? <AuditTab /> : null}
       {activeTab === "backups" ? <BackupsTab /> : null}
     </div>
@@ -217,6 +222,103 @@ function GeneralTab() {
         </Button>
       </Card>
     </div>
+  );
+}
+
+// ── Cash Registers Tab ────────────────────────────────────────────
+
+const codepageOptions = [
+  { value: "cp850", label: "CP850 (Latinoamérica, recomendado)" },
+  { value: "cp858", label: "CP858 (CP850 con €)" },
+  { value: "cp437", label: "CP437 (EE. UU.)" },
+  { value: "cp1252", label: "Windows-1252" },
+];
+
+function CashRegistersTab() {
+  const registersQuery = useQuery({
+    queryKey: ["cash-registers"],
+    queryFn: listCashRegisters,
+  });
+
+  if (registersQuery.isLoading) {
+    return <SkeletonTable rows={3} cols={3} />;
+  }
+
+  if (registersQuery.isError) {
+    return <ErrorState onRetry={() => void registersQuery.refetch()} />;
+  }
+
+  const registers = registersQuery.data ?? [];
+
+  return (
+    <div className="grid gap-4">
+      <Card className="p-4">
+        <h3 className="mb-1 text-sm font-semibold text-neutral-text-primary">Impresora de tickets por caja</h3>
+        <p className="text-sm text-neutral-text-secondary">
+          Ruta absoluta del dispositivo o puerto (por ejemplo <span className="font-mono">COM3</span>). El cajón se abre
+          automáticamente al cobrar en efectivo.
+        </p>
+      </Card>
+      {registers.length === 0 ? (
+        <Card className="p-4 text-sm text-neutral-text-secondary">No hay cajas registradas.</Card>
+      ) : (
+        registers.map((register) => <CashRegisterPrinterForm key={register.id} register={register} />)
+      )}
+    </div>
+  );
+}
+
+function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
+  const queryClient = useQueryClient();
+  const [printerPath, setPrinterPath] = useState(register.printer_path ?? "");
+  const [codepage, setCodepage] = useState(register.printer_codepage || "cp850");
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      updateCashRegister(register.id, { printer_path: printerPath.trim() || null, printer_codepage: codepage }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["cash-registers"] });
+      toast.success(`Impresora de ${register.name} guardada.`);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof AxiosError ? error.response?.data?.error ?? "No se pudo guardar." : "No se pudo guardar.";
+      toast.error(message);
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    saveMutation.mutate();
+  }
+
+  return (
+    <Card className="p-4">
+      <form className="grid gap-4" onSubmit={handleSubmit}>
+        <h4 className="text-base font-semibold text-neutral-text-primary">{register.name}</h4>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Impresora"
+            name={`printer_path_${register.id}`}
+            onChange={(e) => setPrinterPath(e.target.value)}
+            placeholder="COM3"
+            value={printerPath}
+          />
+          <Select
+            label="Página de códigos"
+            name={`printer_codepage_${register.id}`}
+            onChange={(e) => setCodepage(e.target.value)}
+            options={codepageOptions}
+            value={codepage}
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button disabled={saveMutation.isPending} icon={<Save aria-hidden="true" size={17} />} type="submit">
+            {saveMutation.isPending ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

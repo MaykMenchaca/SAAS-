@@ -2,9 +2,11 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Ban, Eye, FileText, ReceiptText } from "lucide-react";
+import { Ban, Eye, FileText, Printer, ReceiptText } from "lucide-react";
+import { toast } from "sonner";
 
 import type { SaleListItem } from "../api/sales";
+import { printSaleTicket } from "../api/printing";
 import { cancelSale, getSale, listSales } from "../api/sales";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
@@ -145,6 +147,16 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
     },
   });
 
+  const reprintMutation = useMutation({
+    mutationFn: () => printSaleTicket(saleId),
+    onSuccess: () => toast.success("Ticket enviado a la impresora."),
+    onError: (error) => {
+      const message =
+        error instanceof AxiosError ? error.response?.data?.error ?? "No se pudo imprimir." : "No se pudo imprimir.";
+      toast.error(message);
+    },
+  });
+
   const sale = saleQuery.data;
 
   function handleCancel(event: FormEvent<HTMLFormElement>) {
@@ -273,6 +285,16 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
               ))}
             </div>
           </div>
+
+          <Button
+            className="w-full"
+            disabled={reprintMutation.isPending}
+            icon={<Printer aria-hidden="true" size={17} />}
+            onClick={() => reprintMutation.mutate()}
+            variant="secondary"
+          >
+            {reprintMutation.isPending ? "Enviando..." : "Reimprimir ticket"}
+          </Button>
 
           {/* Cancel action */}
           {sale.status === "completada" && !showCancel ? (
