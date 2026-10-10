@@ -20,10 +20,16 @@ if (-not $isAdmin) {
 $projectRoot = $PSScriptRoot
 $backendDir = Join-Path $projectRoot "backend"
 $pythonExe = Join-Path $backendDir "venv\Scripts\python.exe"
+$frontendDist = Join-Path $projectRoot "frontend\dist"
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
     Write-Host "[ERROR] Entorno virtual no encontrado en: $pythonExe" -ForegroundColor Red
     Write-Host "Ejecuta primero .\build-production.ps1 para preparar el backend." -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not $Uninstall -and -not (Test-Path -LiteralPath (Join-Path $frontendDist "index.html"))) {
+    Write-Host "[ERROR] No existe frontend\dist. Ejecuta .\build-production.ps1 antes de instalar el servicio." -ForegroundColor Red
     exit 1
 }
 
@@ -84,8 +90,11 @@ $pgService = Get-Service -Name "postgresql*", "postgresql-x64-18" -ErrorAction S
 $pgServiceName = if ($pgService) { $pgService.Name } else { "postgresql-x64-18" }
 
 # 5. Instalar y configurar servicio con NSSM
-& $nssmExe install $ServiceName $pythonExe "run.py"
+# Waitress (servidor de producción) escuchando en la LAN para que las cajas lleguen al servidor (OPS-06).
+# Nunca run.py: es el servidor de desarrollo de Flask y escucha solo en 127.0.0.1.
+& $nssmExe install $ServiceName $pythonExe "-m waitress --listen=0.0.0.0:$Port --threads=8 run:app"
 & $nssmExe set $ServiceName AppDirectory $backendDir
+& $nssmExe set $ServiceName AppEnvironmentExtra "SERVE_FRONTEND=true" "FRONTEND_DIST=$frontendDist"
 & $nssmExe set $ServiceName DisplayName $DisplayName
 & $nssmExe set $ServiceName Description "Servicio en segundo plano de POS Retail VRNTAS"
 & $nssmExe set $ServiceName Start SERVICE_AUTO_START

@@ -28,16 +28,17 @@ En Linux/PowerShell usa Gunicorn con `backend/gunicorn.conf.py`.
 
 ## Actualizacion
 
-Despues de traer cambios nuevos:
+Después de traer cambios nuevos, en PowerShell como administrador:
 
 ```powershell
-.\build-production.ps1
-cd backend
-.\venv\Scripts\python.exe -m flask --app run db upgrade
-.\venv\Scripts\python.exe -m flask --app run seed
-cd ..
-.\start-production.ps1
+.\update-production.ps1
 ```
+
+El script compila, detiene el servicio `pos-backend`, respalda la base con `pg_dump` en `backend\backups\pre-update_<fecha>.dump`, aplica las migraciones, ejecuta el seed y vuelve a arrancar. Si un paso falla, se detiene, deja el servicio apagado e indica cómo restaurar con `restore-backup.ps1`. Una migración que falla no deja el esquema a medias (PostgreSQL las aplica en una transacción).
+
+## Servicio de Windows
+
+`install-service.ps1` (como administrador) registra el servicio `pos-backend` con NSSM. El servicio ejecuta **waitress** en `0.0.0.0:5000` y sirve el frontend compilado, de modo que las cajas de la LAN entran en `http://<ip-servidor>:5000`. También abre el puerto en el firewall de Windows.
 
 ## Backups y USB
 
