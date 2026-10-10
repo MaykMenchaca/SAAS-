@@ -240,9 +240,36 @@ class PrinterService:
         return True
 
     @staticmethod
+    def _agent_register(sale: Sale | None):
+        register = sale.session.cash_register if sale is not None and sale.session else None
+        return register if register is not None and register.print_via_agent else None
+
+    @staticmethod
+    def dispatch_sale_ticket(sale: Sale, content: str) -> str:
+        """Imprime el ticket en la impresora de la caja. Devuelve "queued" si lo imprimirá el agente."""
+        path, codepage = PrinterService.resolve_printer(sale)
+        register = PrinterService._agent_register(sale)
+        if register is not None:
+            from app.services import print_queue_service
+
+            print_queue_service.enqueue(register.id, "ticket", PrinterService.build_payload(content, codepage))
+            return "queued"
+        PrinterService.send_to_printer(content, path, codepage=codepage)
+        return "sent"
+
+    @staticmethod
     def open_drawer_for_sale(sale: Sale) -> bool:
         """Abre el cajón de la caja de la venta (best-effort). Nunca lanza excepción."""
         path, codepage = PrinterService.resolve_printer(sale)
+        register = PrinterService._agent_register(sale)
+        if register is not None:
+            from app.services import print_queue_service
+
+            cp = PrinterService.validate_codepage(codepage)
+            print_queue_service.enqueue(
+                register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
+            )
+            return True
         if not path:
             return False
         try:

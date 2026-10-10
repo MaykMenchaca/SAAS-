@@ -26,12 +26,13 @@ def print_sale_ticket(sale_id):
     send = _print_options()
     content = PrinterService.format_sale_ticket(sale)
     sent = False
+    queued = False
 
     if send:
-        # Impresora de la caja de la venta. El cajón se abre al cobrar, no al (re)imprimir.
-        printer_path, codepage = PrinterService.resolve_printer(sale)
+        # Impresora de la caja de la venta (directa o vía agente). El cajón se abre al cobrar, no al reimprimir.
         try:
-            sent = PrinterService.send_to_printer(content, printer_path, codepage=codepage)
+            queued = PrinterService.dispatch_sale_ticket(sale, content) == "queued"
+            sent = True
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:
@@ -41,6 +42,7 @@ def print_sale_ticket(sale_id):
         "sale_id": sale.id,
         "folio": sale.folio,
         "sent": sent,
+        "queued": queued,
         "content": content,
     }), 200
 

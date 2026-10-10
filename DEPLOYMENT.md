@@ -81,6 +81,19 @@ En **Configuración → Cajas**, el administrador indica para cada caja:
 
 El cajón se abre automáticamente al completar una venta con pago en efectivo. Reimprimir un ticket (Historial de ventas → detalle → "Reimprimir ticket") no abre el cajón. Si la impresora no responde en 5 segundos, la venta se registra igual y el error queda en `logs/pos.log`.
 
+## Impresora USB en una caja (agente de impresión)
+
+Si la impresora de tickets y el cajón están conectados por USB a una caja que **no** es el servidor:
+
+1. En el servidor: **Configuración → Cajas**, elegir "USB en esta caja (agente de impresión)", guardar y pulsar **Generar clave del agente**. Copiar la clave (se muestra una sola vez).
+2. En la caja: instalar Python 3.11+ y NSSM, copiar la carpeta `tools\print-agent` y, en PowerShell como administrador:
+
+```powershell
+.\install-agent.ps1 -ServerUrl http://<ip-servidor>:5000 -AgentKey "<clave>" -PrinterName "<nombre de la impresora en Windows>"
+```
+
+El agente es un servicio de Windows (`pos-print-agent`) que cada segundo pide al servidor los tickets y pulsos de cajón de su caja y los envía en modo RAW a la impresora. No abre puertos en la caja. En Configuración → Cajas aparece "Agente conectado". Un pulso de cajón que no se entregó en 30 segundos se descarta (no abre el cajón tarde); un ticket caduca a los 10 minutos. Registro del agente: `tools\print-agent\logs\agent.log`.
+
 ## Modo offline: alcance
 
 Decisión de la fase 4.3: **no se configura HTTPS local**. Por eso:

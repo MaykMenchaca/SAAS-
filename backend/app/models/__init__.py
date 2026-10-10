@@ -5,3 +5,4 @@ from app.models.sale import CashRegister, CashRegisterSession, Sale, SaleItem, P
 from app.models.purchase import Supplier, PurchaseOrder, PurchaseOrderItem
 from app.models.audit import AuditLog
 from app.models.config import SystemConfig
+from app.models.printing import PrintJob
