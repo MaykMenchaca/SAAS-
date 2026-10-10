@@ -9,6 +9,7 @@ def create_app(config_class=Config):
     application = Flask(__name__)
     application.config.from_object(config_class)
 
+    _setup_logging(application)
     validate_secrets(application)
 
     db.init_app(application)
@@ -36,6 +37,32 @@ def create_app(config_class=Config):
     _register_frontend_routes(application)
 
     return application
+
+
+def _setup_logging(application):
+    """Configura RotatingFileHandler para pos.log en logs/."""
+    import logging
+    from logging.handlers import RotatingFileHandler
+
+    log_dir = Path(application.root_path).parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "pos.log"
+
+    has_rotating = any(isinstance(h, RotatingFileHandler) for h in application.logger.handlers)
+    if not has_rotating:
+        handler = RotatingFileHandler(
+            str(log_file),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        formatter = logging.Formatter(
+            "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
+        )
+        handler.setFormatter(formatter)
+        handler.setLevel(logging.INFO)
+        application.logger.addHandler(handler)
+        application.logger.setLevel(logging.INFO)
 
 
 def _setup_jwt(jwt_mgr):
