@@ -91,7 +91,7 @@ def get_logs(
     if date_from:
         query = query.filter(AuditLog.created_at >= date_from)
     if date_to:
-        query = query.filter(AuditLog.created_at <= date_to)
+        query = query.filter(AuditLog.created_at < date_to)
 
     query = query.order_by(AuditLog.created_at.desc())
 

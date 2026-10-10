@@ -42,6 +42,20 @@ class TestConfig(Config):
     )
 
 
+def validate_timezone(app):
+    """Aborta el arranque si APP_TIMEZONE no es una zona válida (OPS-05)."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    name = app.config.get("APP_TIMEZONE")
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        raise RuntimeError(
+            f"APP_TIMEZONE no es una zona horaria válida: '{name}' (ejemplo: America/Mexico_City). "
+            "En Windows también se requiere el paquete tzdata."
+        )
+
+
 def validate_secrets(app):
     """Validate that SECRET_KEY and JWT_SECRET_KEY are present, distinct, and strong."""
     secret_key = app.config.get("SECRET_KEY")

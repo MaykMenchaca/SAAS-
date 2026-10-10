@@ -30,6 +30,9 @@ DRAWER_KICK = b"\x1bp\x00\x19\x96"  # ESC p 0 25 150: pulso al pin 2 del cajón
 FEED_AND_CUT = b"\x1bd\x04\x1dV\x42\x00"  # ESC d 4 + GS V 66 0: avanza y corta
 
 _DEVICE_RE = re.compile(r"^(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
+_RAW_DEVICE_RE = re.compile(r"^\\\\\.\\(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
+# Destinos de archivo permitidos (spooler "imprimir a archivo" y pruebas). Nunca otros archivos (OPS-04).
+PRINT_FILE_SUFFIXES = (".prn",)
 
 # Sustituciones para caracteres que no existen en la página de códigos
 _TRANSLITERATIONS = {"€": "EUR", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "…": "..."}
@@ -145,12 +148,20 @@ class PrinterService:
     def validate_target(target: str | os.PathLike) -> str:
         """Valida el destino: ruta absoluta local o puerto COM/LPT. Rechaza rutas UNC y relativas."""
         target_str = str(target).strip()
-        if _DEVICE_RE.match(target_str):
-            return target_str.upper()
+        device = _DEVICE_RE.match(target_str) or _RAW_DEVICE_RE.match(target_str)
+        if device:
+            name = device[1].upper()
+            # En Win32, COM10 o mayor solo existe como \\.\COMn; sin el prefijo se crearía un archivo
+            if name.startswith("COM") and int(name[3:]) >= 10:
+                return "\\\\.\\" + name
+            return name
         if target_str.startswith(("\\\\", "//")):
             raise ValueError("Ruta de impresora no válida")
-        if not Path(target_str).is_absolute():
+        path = Path(target_str)
+        if not path.is_absolute():
             raise ValueError("La ruta de la impresora debe ser absoluta o un puerto COM/LPT")
+        if path.suffix.lower() not in PRINT_FILE_SUFFIXES:
+            raise ValueError("La impresora debe ser un puerto COM/LPT o un archivo .prn")
         return target_str
 
     @staticmethod
