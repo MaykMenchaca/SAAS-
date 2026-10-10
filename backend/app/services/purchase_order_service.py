@@ -1,5 +1,5 @@
 """Purchase order service — create, send, receive, cancel."""
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import text
@@ -9,6 +9,7 @@ from app.models.inventory import Stock
 from app.models.product import Product
 from app.models.purchase import PurchaseOrder, PurchaseOrderItem, Supplier
 from app.services.inventory_service import InventoryService
+from app.utils.timeutil import local_today
 
 
 class PurchaseOrderService:
@@ -324,8 +325,7 @@ class PurchaseOrderService:
 
         Format: OC-YYYYMMDD-NNNN (e.g., OC-20260607-0001)
         """
-        now = datetime.now(timezone.utc)
-        date_str = now.strftime("%Y%m%d")
+        date_str = local_today().strftime("%Y%m%d")
         result = db.session.execute(text("SELECT nextval('purchase_order_folio_seq')"))
         seq = result.scalar()
         return f"OC-{date_str}-{seq:04d}"

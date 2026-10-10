@@ -1,5 +1,4 @@
 """Sale service — complete transactional sale logic."""
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import text
@@ -11,6 +10,7 @@ from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem, SaleRe
 from app.models.user import User
 from app.services import config_service
 from app.services.inventory_service import InventoryService
+from app.utils.timeutil import local_today
 
 
 class SaleService:
@@ -521,8 +521,7 @@ class SaleService:
         Format: V-YYYYMMDD-NNNN (e.g., V-20260606-0042)
         Thread-safe via database sequence.
         """
-        now = datetime.now(timezone.utc)
-        date_str = now.strftime("%Y%m%d")
+        date_str = local_today().strftime("%Y%m%d")
         result = db.session.execute(text("SELECT nextval('sale_folio_seq')"))
         seq = result.scalar()
         return f"V-{date_str}-{seq:04d}"

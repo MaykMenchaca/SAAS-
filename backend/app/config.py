@@ -25,6 +25,7 @@ class Config:
     SERVE_FRONTEND = os.getenv("SERVE_FRONTEND", "false").lower() == "true"
     FRONTEND_DIST = os.getenv("FRONTEND_DIST")
     JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 días
+    APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Mexico_City")
 
 
 class TestConfig(Config):

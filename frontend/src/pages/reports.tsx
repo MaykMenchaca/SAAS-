@@ -18,6 +18,7 @@ import {
 import type { GrossMarginReport, InventoryValuation, SalesReport, TopProductsReport } from "../api/reports";
 import { fetchGrossMargin, fetchInventoryValuation, fetchSalesReport, fetchTopProducts } from "../api/reports";
 import { Badge, Button, Card, ErrorState, Input, SkeletonKPI, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { addLocalDays, localISODate } from "../lib/dates";
 
 // ── CSV Helper ───────────────────────────────────────────────────
 
@@ -54,8 +55,8 @@ const tabs: { id: Tab; label: string; icon: typeof BarChart3 }[] = [
 
 function defaultDates() {
   const now = new Date();
-  const to = now.toISOString().slice(0, 10);
-  const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const to = localISODate(now);
+  const from = localISODate(addLocalDays(now, -30));
   return { from, to };
 }
 

@@ -10,6 +10,8 @@ import click
 from flask import current_app
 from flask.cli import with_appcontext
 
+from app.utils.timeutil import local_now, to_local
+
 
 def _get_backup_dir() -> Path:
     """Return the backup directory, creating it if needed."""
@@ -113,7 +115,7 @@ def create_backup() -> dict:
     backup_dir = _get_backup_dir()
     db_info = _parse_db_url()
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = local_now().strftime("%Y%m%d_%H%M%S")
     filename = f"backup_{db_info['dbname']}_{timestamp}.dump"
     filepath = backup_dir / filename
 
@@ -218,7 +220,7 @@ def apply_retention(daily_keep: int = 14, weekly_keep: int = 8) -> dict:
             except ValueError:
                 fallback_files.append(f)
         else:
-            d = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).date()
+            d = to_local(datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)).date()
             files_by_day.setdefault(d, []).append(f)
 
     sorted_days = sorted(files_by_day.keys(), reverse=True)

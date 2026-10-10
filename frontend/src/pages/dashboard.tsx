@@ -6,15 +6,13 @@ import { getLowStock } from "../api/inventory";
 import { fetchDashboardSummary } from "../api/reports";
 import { listSales } from "../api/sales";
 import { Badge, Button, Card, ErrorState, SkeletonKPI, SkeletonTable } from "../components/ui";
+import { addLocalDays, localISODate } from "../lib/dates";
 import { useAuthStore } from "../stores/auth-store";
 
 async function fetchWeeklySales() {
   const now = new Date();
-  const weekAgo = new Date();
-  weekAgo.setDate(now.getDate() - 6);
-
-  const fromStr = weekAgo.toISOString().split("T")[0];
-  const toStr = now.toISOString().split("T")[0];
+  const fromStr = localISODate(addLocalDays(now, -6));
+  const toStr = localISODate(now);
 
   const response = await apiClient.get<any>("/reports/sales", {
     params: { from: fromStr, to: toStr },
@@ -61,16 +59,13 @@ export function DashboardPage() {
   const recentSales = salesQuery.data?.items ?? [];
 
   // Generate last 7 days list
-  const last7Days = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d;
-  });
+  const today = new Date();
+  const last7Days = Array.from({ length: 7 }).map((_, i) => addLocalDays(today, i - 6));
 
   const dailyReportData = weeklySalesQuery.data?.daily ?? [];
 
   const chartData = last7Days.map((dateObj) => {
-    const dateStr = dateObj.toISOString().split("T")[0];
+    const dateStr = localISODate(dateObj);
     const match = dailyReportData.find((d: any) => d.date === dateStr);
     const dayLabel = dateObj.toLocaleDateString("es-MX", { weekday: "short" }).toUpperCase().replace(".", "");
     return {

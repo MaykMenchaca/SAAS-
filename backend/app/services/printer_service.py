@@ -8,6 +8,7 @@ from textwrap import shorten
 
 from app.models.product import Product
 from app.models.sale import Sale
+from app.utils.timeutil import to_local
 
 
 class PrinterService:
@@ -19,7 +20,7 @@ class PrinterService:
     def format_sale_ticket(sale: Sale, business_name: str | None = None) -> str:
         """Create a plain text ticket that can be sent to an ESC/POS printer."""
         name = business_name or os.getenv("BUSINESS_NAME", "POS Local")
-        created_at = sale.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at = to_local(sale.created_at).strftime("%Y-%m-%d %H:%M")
         cashier = sale.user.username if sale.user else f"Usuario {sale.user_id}"
 
         lines = [

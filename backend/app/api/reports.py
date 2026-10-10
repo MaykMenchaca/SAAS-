@@ -1,5 +1,5 @@
 """Reports API — dashboard KPIs, sales reports, inventory valuation, and margin analysis."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
@@ -10,6 +10,12 @@ from app.models.inventory import Stock
 from app.models.product import Product
 from app.models.sale import Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.utils.decorators import require_permission
+from app.utils.timeutil import (
+    app_tz,
+    local_day_bounds,
+    local_today,
+    parse_local_date,
+)
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -18,15 +24,15 @@ reports_bp = Blueprint("reports", __name__)
 @require_permission("reportes:ver")
 def dashboard():
     """Return dashboard KPIs: sales counts, revenue, top products, low stock."""
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = today_start - timedelta(days=today_start.weekday())
-    month_start = today_start.replace(day=1)
+    today = local_today()
+    today_start, today_end = local_day_bounds(today)
+    week_start, _ = local_day_bounds(today - timedelta(days=today.weekday()))
+    month_start, _ = local_day_bounds(today.replace(day=1))
 
-    # Sales and revenue — today
-    today_stats = _get_period_stats(today_start, now)
-    week_stats = _get_period_stats(week_start, now)
-    month_stats = _get_period_stats(month_start, now)
+    # Sales and revenue — today (días en la zona horaria de la tienda)
+    today_stats = _get_period_stats(today_start, today_end)
+    week_stats = _get_period_stats(week_start, today_end)
+    month_stats = _get_period_stats(month_start, today_end)
 
     # Top 5 products by quantity sold (this month, net of returns)
     sold_rows = (
@@ -106,7 +112,7 @@ def dashboard():
 
 
 def _get_period_stats(start: datetime, end: datetime) -> dict:
-    """Get sale count and total revenue for a period, net of returns."""
+    """Get sale count and total revenue for [start, end), net of returns."""
     result = (
         db.session.query(
             func.count(Sale.id).label("count"),
@@ -115,7 +121,7 @@ def _get_period_stats(start: datetime, end: datetime) -> dict:
         .filter(
             Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
         .one()
     )
@@ -123,7 +129,7 @@ def _get_period_stats(start: datetime, end: datetime) -> dict:
         db.session.query(func.coalesce(func.sum(SaleReturn.refund_total), 0))
         .filter(
             SaleReturn.created_at >= start,
-            SaleReturn.created_at <= end,
+            SaleReturn.created_at < end,
         )
         .scalar()
     )
@@ -132,6 +138,15 @@ def _get_period_stats(start: datetime, end: datetime) -> dict:
         "count": result.count,
         "revenue": str(max(Decimal("0"), net_revenue).quantize(Decimal("0.01"))),
     }
+
+
+def _resolve_local_range():
+    """Fechas locales `from`/`to` (YYYY-MM-DD); por defecto, los últimos 30 días hasta hoy."""
+    date_from = request.args.get("from")
+    date_to = request.args.get("to")
+    last_day = parse_local_date(date_to) if date_to else local_today()
+    first_day = parse_local_date(date_from) if date_from else last_day - timedelta(days=30)
+    return first_day, last_day
 
 
 # --- Task 31: Sales report by period ---
@@ -146,52 +161,41 @@ def sales_report():
         from: Start date (YYYY-MM-DD), defaults to 30 days ago.
         to: End date (YYYY-MM-DD), defaults to today.
     """
-    now = datetime.now(timezone.utc)
-    date_from = request.args.get("from")
-    date_to = request.args.get("to")
-
-    if date_from:
-        start = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    else:
-        start = (now - timedelta(days=30)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-    if date_to:
-        end = datetime.strptime(date_to, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, tzinfo=timezone.utc
-        )
-    else:
-        end = now
+    first_day, last_day = _resolve_local_range()
+    start, _ = local_day_bounds(first_day)
+    _, end = local_day_bounds(last_day)
 
     # Summary stats
     stats = _get_period_stats(start, end)
 
-    # Sales by day (net of refunds)
+    # Sales by day (net of refunds), agrupadas por día local
+    tz_name = app_tz().key
+    sale_day = func.date_trunc("day", func.timezone(tz_name, Sale.created_at))
+    return_day = func.date_trunc("day", func.timezone(tz_name, SaleReturn.created_at))
     daily_sales = (
         db.session.query(
-            func.date_trunc("day", Sale.created_at).label("day"),
+            sale_day.label("day"),
             func.count(Sale.id).label("count"),
             func.coalesce(func.sum(Sale.total), 0).label("revenue"),
         )
         .filter(
             Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
-        .group_by(func.date_trunc("day", Sale.created_at))
+        .group_by(sale_day)
         .all()
     )
     daily_refunds = (
         db.session.query(
-            func.date_trunc("day", SaleReturn.created_at).label("day"),
+            return_day.label("day"),
             func.coalesce(func.sum(SaleReturn.refund_total), 0).label("refund_total"),
         )
         .filter(
             SaleReturn.created_at >= start,
-            SaleReturn.created_at <= end,
+            SaleReturn.created_at < end,
         )
-        .group_by(func.date_trunc("day", SaleReturn.created_at))
+        .group_by(return_day)
         .all()
     )
     ref_day_map = {d: Decimal(str(tot)) for d, tot in daily_refunds}
@@ -214,7 +218,7 @@ def sales_report():
         .filter(
             Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
         .group_by(Payment.method)
         .all()
@@ -226,7 +230,7 @@ def sales_report():
         )
         .filter(
             SaleReturn.created_at >= start,
-            SaleReturn.created_at <= end,
+            SaleReturn.created_at < end,
         )
         .group_by(SaleReturn.refund_method)
         .all()
@@ -239,15 +243,15 @@ def sales_report():
         .filter(
             Sale.status == "cancelada",
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
         .scalar()
     )
 
     return jsonify({
         "period": {
-            "from": start.strftime("%Y-%m-%d"),
-            "to": end.strftime("%Y-%m-%d"),
+            "from": first_day.isoformat(),
+            "to": last_day.isoformat(),
         },
         "total_sales": stats["count"],
         "total_revenue": stats["revenue"],
@@ -332,25 +336,11 @@ def top_products_report():
         sort: "quantity" (default) or "revenue".
         limit: Number of products (default 20, max 100).
     """
-    now = datetime.now(timezone.utc)
-    date_from = request.args.get("from")
-    date_to = request.args.get("to")
+    first_day, last_day = _resolve_local_range()
     sort_by = request.args.get("sort", "quantity")
     limit = min(request.args.get("limit", 20, type=int), 100)
-
-    if date_from:
-        start = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    else:
-        start = (now - timedelta(days=30)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-    if date_to:
-        end = datetime.strptime(date_to, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, tzinfo=timezone.utc
-        )
-    else:
-        end = now
+    start, _ = local_day_bounds(first_day)
+    _, end = local_day_bounds(last_day)
 
     sold_rows = (
         db.session.query(
@@ -365,7 +355,7 @@ def top_products_report():
         .filter(
             Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.product_sku)
         .all()
@@ -379,7 +369,7 @@ def top_products_report():
         .join(SaleReturn, SaleReturn.id == SaleReturnItem.sale_return_id)
         .filter(
             SaleReturn.created_at >= start,
-            SaleReturn.created_at <= end,
+            SaleReturn.created_at < end,
         )
         .group_by(SaleReturnItem.product_id)
         .all()
@@ -408,8 +398,8 @@ def top_products_report():
 
     return jsonify({
         "period": {
-            "from": start.strftime("%Y-%m-%d"),
-            "to": end.strftime("%Y-%m-%d"),
+            "from": first_day.isoformat(),
+            "to": last_day.isoformat(),
         },
         "sort_by": sort_by,
         "items": [
@@ -438,23 +428,9 @@ def gross_margin_report():
         from: Start date (YYYY-MM-DD), defaults to 30 days ago.
         to: End date (YYYY-MM-DD), defaults to today.
     """
-    now = datetime.now(timezone.utc)
-    date_from = request.args.get("from")
-    date_to = request.args.get("to")
-
-    if date_from:
-        start = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    else:
-        start = (now - timedelta(days=30)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-    if date_to:
-        end = datetime.strptime(date_to, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, tzinfo=timezone.utc
-        )
-    else:
-        end = now
+    first_day, last_day = _resolve_local_range()
+    start, _ = local_day_bounds(first_day)
+    _, end = local_day_bounds(last_day)
 
     sold_rows = (
         db.session.query(
@@ -469,7 +445,7 @@ def gross_margin_report():
         .filter(
             Sale.status.in_(["completada", "devolucion_parcial", "devolucion_total"]),
             Sale.created_at >= start,
-            Sale.created_at <= end,
+            Sale.created_at < end,
         )
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.product_sku)
         .all()
@@ -483,7 +459,7 @@ def gross_margin_report():
         .join(SaleReturn, SaleReturn.id == SaleReturnItem.sale_return_id)
         .filter(
             SaleReturn.created_at >= start,
-            SaleReturn.created_at <= end,
+            SaleReturn.created_at < end,
         )
         .group_by(SaleReturnItem.product_id)
         .all()
@@ -528,8 +504,8 @@ def gross_margin_report():
 
     return jsonify({
         "period": {
-            "from": start.strftime("%Y-%m-%d"),
-            "to": end.strftime("%Y-%m-%d"),
+            "from": first_day.isoformat(),
+            "to": last_day.isoformat(),
         },
         "summary": {
             "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
