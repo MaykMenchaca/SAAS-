@@ -333,6 +333,12 @@ function CashSessionDetailsView({
     queryFn: () => getSessionSummary(session.id),
   });
 
+  // Ventas cobradas sin conexión en esta sesión que aún no llegan al servidor (OPS-07)
+  const pendingOffline = usePosStore(
+    (s) => s.offlineSalesQueue.filter((q) => q.sale.session_id === session.id).length,
+  );
+  const [acceptPending, setAcceptPending] = useState(false);
+
   const closeMutation = useMutation({
     mutationFn: () => closeCashRegister(session.id, countedTotal.toFixed(2), closeNotes),
     onSuccess: async () => {
@@ -749,7 +755,7 @@ function CashSessionDetailsView({
                 Cancelar
               </Button>
               <Button
-                disabled={closeMutation.isPending}
+                disabled={closeMutation.isPending || (pendingOffline > 0 && !acceptPending)}
                 onClick={() => {
                   closeMutation.mutate(undefined, {
                     onSuccess: () => setShowConfirmClose(false),
@@ -770,6 +776,28 @@ function CashSessionDetailsView({
             <span className="font-semibold text-neutral-text-primary font-mono">${countedTotal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>{" "}
             contados? Esta acción no se puede deshacer.
           </p>
+          {pendingOffline > 0 ? (
+            <div className="mt-3 grid gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning" role="alert">
+              <p className="font-semibold">
+                {pendingOffline === 1
+                  ? "Hay 1 venta de este turno cobrada sin conexión que todavía no llega al servidor."
+                  : `Hay ${pendingOffline} ventas de este turno cobradas sin conexión que todavía no llegan al servidor.`}
+              </p>
+              <p>
+                Si cierras ahora, el servidor las rechazará: no contarán en el corte ni descontarán inventario.
+                Espera a que se sincronicen (indicador del encabezado) antes de cerrar.
+              </p>
+              <label className="flex min-h-11 items-center gap-2 font-medium text-neutral-text-primary">
+                <input
+                  checked={acceptPending}
+                  className="h-5 w-5 accent-danger"
+                  onChange={(e) => setAcceptPending(e.target.checked)}
+                  type="checkbox"
+                />
+                Entiendo, cerrar de todos modos
+              </label>
+            </div>
+          ) : null}
         </Modal>
       ) : null}
     </div>

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from flask import Flask, abort, send_from_directory
-from app.config import Config, validate_secrets
+from app.config import Config, validate_secrets, validate_timezone
 from app.extensions import db, jwt, migrate, cors
 
 
@@ -11,6 +11,7 @@ def create_app(config_class=Config):
 
     _setup_logging(application)
     validate_secrets(application)
+    validate_timezone(application)
 
     db.init_app(application)
     jwt.init_app(application)

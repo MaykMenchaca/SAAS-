@@ -16,6 +16,10 @@ class CashRegister(db.Model):
     printer_codepage = db.Column(
         db.String(10), nullable=False, default="cp850", server_default="cp850"
     )
+    # Impresora USB en la propia caja: el servidor encola y el agente local imprime (OPS-03)
+    print_via_agent = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
+    agent_key_hash = db.Column(db.String(64), nullable=True)
+    agent_last_seen_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

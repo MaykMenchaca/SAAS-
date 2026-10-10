@@ -30,6 +30,9 @@ DRAWER_KICK = b"\x1bp\x00\x19\x96"  # ESC p 0 25 150: pulso al pin 2 del cajón
 FEED_AND_CUT = b"\x1bd\x04\x1dV\x42\x00"  # ESC d 4 + GS V 66 0: avanza y corta
 
 _DEVICE_RE = re.compile(r"^(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
+_RAW_DEVICE_RE = re.compile(r"^\\\\\.\\(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
+# Destinos de archivo permitidos (spooler "imprimir a archivo" y pruebas). Nunca otros archivos (OPS-04).
+PRINT_FILE_SUFFIXES = (".prn",)
 
 # Sustituciones para caracteres que no existen en la página de códigos
 _TRANSLITERATIONS = {"€": "EUR", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "…": "..."}
@@ -145,12 +148,20 @@ class PrinterService:
     def validate_target(target: str | os.PathLike) -> str:
         """Valida el destino: ruta absoluta local o puerto COM/LPT. Rechaza rutas UNC y relativas."""
         target_str = str(target).strip()
-        if _DEVICE_RE.match(target_str):
-            return target_str.upper()
+        device = _DEVICE_RE.match(target_str) or _RAW_DEVICE_RE.match(target_str)
+        if device:
+            name = device[1].upper()
+            # En Win32, COM10 o mayor solo existe como \\.\COMn; sin el prefijo se crearía un archivo
+            if name.startswith("COM") and int(name[3:]) >= 10:
+                return "\\\\.\\" + name
+            return name
         if target_str.startswith(("\\\\", "//")):
             raise ValueError("Ruta de impresora no válida")
-        if not Path(target_str).is_absolute():
+        path = Path(target_str)
+        if not path.is_absolute():
             raise ValueError("La ruta de la impresora debe ser absoluta o un puerto COM/LPT")
+        if path.suffix.lower() not in PRINT_FILE_SUFFIXES:
+            raise ValueError("La impresora debe ser un puerto COM/LPT o un archivo .prn")
         return target_str
 
     @staticmethod
@@ -229,9 +240,36 @@ class PrinterService:
         return True
 
     @staticmethod
+    def _agent_register(sale: Sale | None):
+        register = sale.session.cash_register if sale is not None and sale.session else None
+        return register if register is not None and register.print_via_agent else None
+
+    @staticmethod
+    def dispatch_sale_ticket(sale: Sale, content: str) -> str:
+        """Imprime el ticket en la impresora de la caja. Devuelve "queued" si lo imprimirá el agente."""
+        path, codepage = PrinterService.resolve_printer(sale)
+        register = PrinterService._agent_register(sale)
+        if register is not None:
+            from app.services import print_queue_service
+
+            print_queue_service.enqueue(register.id, "ticket", PrinterService.build_payload(content, codepage))
+            return "queued"
+        PrinterService.send_to_printer(content, path, codepage=codepage)
+        return "sent"
+
+    @staticmethod
     def open_drawer_for_sale(sale: Sale) -> bool:
         """Abre el cajón de la caja de la venta (best-effort). Nunca lanza excepción."""
         path, codepage = PrinterService.resolve_printer(sale)
+        register = PrinterService._agent_register(sale)
+        if register is not None:
+            from app.services import print_queue_service
+
+            cp = PrinterService.validate_codepage(codepage)
+            print_queue_service.enqueue(
+                register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
+            )
+            return True
         if not path:
             return False
         try:

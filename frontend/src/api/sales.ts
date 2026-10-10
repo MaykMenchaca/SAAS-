@@ -102,12 +102,24 @@ export type CashRegisterInfo = {
   is_active: boolean;
   printer_path: string | null;
   printer_codepage: string;
+  print_via_agent: boolean;
+  agent_configured: boolean;
+  agent_last_seen_at: string | null;
 };
 
 export type CashRegisterUpdate = {
   printer_path?: string | null;
   printer_codepage?: string;
+  print_via_agent?: boolean;
 };
+
+/** Genera la clave del agente de impresión de la caja. Solo se muestra esta vez. */
+export async function createAgentKey(registerId: number) {
+  const response = await apiClient.post<{ agent_key: string; register: CashRegisterInfo }>(
+    `/cash-register/registers/${registerId}/agent-key`,
+  );
+  return response.data;
+}
 
 export async function updateCashRegister(registerId: number, payload: CashRegisterUpdate) {
   const response = await apiClient.patch<CashRegisterInfo>(`/cash-register/registers/${registerId}`, payload);

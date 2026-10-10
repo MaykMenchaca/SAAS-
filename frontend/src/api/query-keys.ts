@@ -28,6 +28,7 @@ export const qk = {
   lowStock: key("low-stock"),
   movements: key("movements"),
   orderProducts: key("order-products"),
+  posCatalog: key("pos-catalog"),
   posCategories: key("pos-categories"),
   posProducts: key("pos-products"),
   products: key("products"),

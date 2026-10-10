@@ -384,7 +384,15 @@ class SaleService:
             raise ValueError(f"Método de reembolso inválido: {refund_method}")
 
         if session_id is not None:
-            session = db.session.get(CashRegisterSession, session_id)
+            # Mismo orden de bloqueo que create_sale: sesión y luego venta. Una devolución que
+            # coincide con el cierre espera y ve la caja cerrada (OPS-08)
+            session = (
+                db.session.query(CashRegisterSession)
+                .filter_by(id=session_id)
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
             if not session or session.status != "abierta":
                 raise ValueError("La sesión de caja no está abierta")
 

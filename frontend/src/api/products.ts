@@ -92,6 +92,29 @@ export async function updateProduct(id: number, payload: ProductUpdatePayload) {
   return response.data;
 }
 
+export type PosCatalogItem = {
+  id: number;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  sale_price: string;
+  tax_rate: string;
+  category_id: number | null;
+  unit: { abbreviation: string; allows_fractions: boolean };
+};
+
+/** Búsqueda exacta por código de barras o SKU (lector de código, OPS-14). */
+export async function getProductByCode(code: string) {
+  const response = await apiClient.get<Product>(`/products/by-code/${encodeURIComponent(code)}`);
+  return response.data;
+}
+
+/** Catálogo compacto para la copia local del POS (OPS-02). */
+export async function fetchPosCatalog() {
+  const response = await apiClient.get<{ generated_at: string; items: PosCatalogItem[] }>("/products/pos-catalog");
+  return response.data;
+}
+
 export async function deactivateProduct(id: number) {
   const response = await apiClient.delete<Product>(`/products/${id}`);
   return response.data;

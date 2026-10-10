@@ -1,5 +1,5 @@
 """Audit log API — query audit trail entries."""
-from datetime import datetime, timezone
+from app.utils.timeutil import local_day_bounds, parse_local_date
 
 from flask import Blueprint, jsonify, request
 
@@ -38,12 +38,11 @@ def list_audit_logs():
     raw_from = request.args.get("from")
     raw_to = request.args.get("to")
 
+    # Días en la zona horaria de la tienda, intervalo [inicio, fin) (OPS-11, H-21)
     if raw_from:
-        date_from = datetime.strptime(raw_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        date_from, _ = local_day_bounds(parse_local_date(raw_from))
     if raw_to:
-        date_to = datetime.strptime(raw_to, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, tzinfo=timezone.utc
-        )
+        _, date_to = local_day_bounds(parse_local_date(raw_to))
 
     result = get_logs(
         page=page,

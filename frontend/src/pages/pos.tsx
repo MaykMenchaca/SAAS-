@@ -6,7 +6,7 @@ import { Banknote, Barcode, CreditCard, Delete, Droplet, Hammer, Landmark, Minus
 import { toast } from "sonner";
 
 import type { Product } from "../api/products";
-import { listProducts, listCategories } from "../api/products";
+import { fetchPosCatalog, getProductByCode, listCategories, listProducts } from "../api/products";
 import { previewSaleTicket, printSaleTicket } from "../api/printing";
 import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
@@ -19,6 +19,7 @@ import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
 import { qk } from "../api/query-keys";
 import { useCommandPalette } from "../components/layout/command-palette-context";
 import { invalidateAfterSale } from "../api/invalidate";
+import { findByCodeOffline, saveCatalog, searchOffline } from "../lib/offline-catalog";
 
 // ── Main POS Page ──────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export function PosPage() {
     queryFn: () => getSession(sessionId!),
     enabled: Boolean(sessionId),
     staleTime: 10_000,
+    // Sin reintentos por foco: con el servidor caído no debe interrumpir la venta en curso
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -49,10 +52,14 @@ export function PosPage() {
   }, [sessionId, sessionQuery.data, sessionQuery.isLoading, user?.id, user?.role, user?.permissions, clearSession]);
 
   useEffect(() => {
-    if (sessionQuery.isError) {
+    // Solo se descarta la sesión si el servidor la rechazó (no existe o no es accesible).
+    // Con la red caída, un timeout o un 5xx se conservan la sesión y el carrito (OPS-01, H-24).
+    const status = sessionQuery.error instanceof AxiosError ? sessionQuery.error.response?.status : undefined;
+    if (status === 404 || status === 403) {
       clearSession();
+      toast.warning("La sesión de caja ya no existe o no tienes acceso a ella.");
     }
-  }, [sessionQuery.isError, clearSession]);
+  }, [sessionQuery.error, clearSession]);
 
   if (!sessionId || (sessionId && sessionQuery.isLoading)) {
     if (sessionId && sessionQuery.isLoading) {
@@ -252,33 +259,48 @@ function PosTerminal() {
 
   const totals = getCartTotals(cart);
 
-  // Lector de código de barras global
+  // Copia local del catálogo: se refresca cada 10 min mientras haya servidor (OPS-02)
+  const catalogQuery = useQuery({
+    queryKey: qk.posCatalog(),
+    queryFn: fetchPosCatalog,
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (catalogQuery.data) saveCatalog(catalogQuery.data.generated_at, catalogQuery.data.items);
+  }, [catalogQuery.data]);
+
+  // Lector de código de barras global: búsqueda exacta; sin servidor, en el catálogo local
   useBarcodeScanner(async (barcode) => {
+    let product: Product | null = null;
+    let offline = false;
     try {
-      const result = await listProducts({ page: 1, perPage: 1, search: barcode });
-      if (result.items && result.items.length > 0) {
-        const product = result.items[0];
-        // Validar coincidencia exacta en SKU o código de barras
-        if (product.barcode === barcode || product.sku === barcode) {
-          addToCart({
-            product_id: product.id,
-            product_name: product.name,
-            product_sku: product.sku,
-            unit_price: product.sale_price,
-            tax_rate: product.tax_rate,
-            unit_abbreviation: product.unit?.abbreviation ?? "pz",
-          });
-          toast.success(`Escaneado: ${product.name}`);
-        } else {
-          toast.error(`Producto no coincide exactamente: ${barcode}`);
+      product = await getProductByCode(barcode);
+    } catch (err) {
+      if (err instanceof AxiosError && err.response) {
+        if (err.response.status !== 404) {
+          toast.error(err.response.data?.error ?? "Error al procesar la lectura del código.");
+          return;
         }
       } else {
-        toast.error(`Producto no registrado: ${barcode}`);
+        offline = true;
+        product = findByCodeOffline(barcode);
       }
-    } catch (err) {
-      console.error("Fallo al escanear codigo:", err);
-      toast.error("Error al procesar lectura de codigo.");
     }
+    if (!product) {
+      toast.error(`Producto no registrado: ${barcode}`);
+      return;
+    }
+    addToCart({
+      product_id: product.id,
+      product_name: product.name,
+      product_sku: product.sku,
+      unit_price: product.sale_price,
+      tax_rate: product.tax_rate,
+      unit_abbreviation: product.unit?.abbreviation ?? "pz",
+    });
+    toast.success(offline ? `Escaneado sin conexión: ${product.name}` : `Escaneado: ${product.name}`);
   });
 
   // F2 = focus search, F5 = pay, Esc = clear cart
@@ -493,8 +515,13 @@ function ProductSearch({
       }),
   });
 
+  // Sin servidor (error de red, no un 4xx/5xx), se busca en la copia local del catálogo (OPS-02)
+  const serverDown =
+    productsQuery.isError && productsQuery.error instanceof AxiosError && !productsQuery.error.response;
   const categories = categoriesQuery.data ?? [];
-  const products = productsQuery.data?.items ?? [];
+  const products = serverDown
+    ? searchOffline(debouncedSearch, selectedCategoryId)
+    : (productsQuery.data?.items ?? []);
 
   return (
     <div className="flex flex-col h-full">
@@ -548,6 +575,11 @@ function ProductSearch({
 
       {/* Products Grid list */}
       <div className="flex-1 overflow-y-auto p-4">
+        {serverDown ? (
+          <div className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning" role="status">
+            Sin conexión con el servidor: mostrando el catálogo guardado en este equipo. Precios sujetos a confirmación al sincronizar.
+          </div>
+        ) : null}
         {productsQuery.isLoading ? (
           <div className="py-12 text-center text-xs text-neutral-text-secondary">Cargando catálogo...</div>
         ) : products.length === 0 ? (
@@ -555,9 +587,11 @@ function ProductSearch({
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
             {products.map((product) => {
+              // Los productos del catálogo local no traen existencias: no se marcan como agotados
+              const stockKnown = product.stock_qty !== undefined && product.stock_qty !== null;
               const stock = Number(product.stock_qty ?? "0.000");
               const min = Number(product.min_stock ?? "0.000");
-              const isOut = stock === 0;
+              const isOut = stockKnown && stock === 0;
               const isLow = min > 0 && stock < min;
 
               const CategoryIcon = getCategoryIcon(product.category?.name ?? "");
@@ -590,7 +624,7 @@ function ProductSearch({
                         isOut ? "text-danger" : isLow ? "text-warning" : "text-success"
                       }`}
                     >
-                      {isOut ? "Agotado" : isLow ? `${stock} u.` : "Stock"}
+                      {!stockKnown ? "" : isOut ? "Agotado" : isLow ? `${stock} u.` : "Stock"}
                     </div>
                   </div>
                 </button>

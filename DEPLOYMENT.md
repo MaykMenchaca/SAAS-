@@ -28,16 +28,17 @@ En Linux/PowerShell usa Gunicorn con `backend/gunicorn.conf.py`.
 
 ## Actualizacion
 
-Despues de traer cambios nuevos:
+Después de traer cambios nuevos, en PowerShell como administrador:
 
 ```powershell
-.\build-production.ps1
-cd backend
-.\venv\Scripts\python.exe -m flask --app run db upgrade
-.\venv\Scripts\python.exe -m flask --app run seed
-cd ..
-.\start-production.ps1
+.\update-production.ps1
 ```
+
+El script compila, detiene el servicio `pos-backend`, respalda la base con `pg_dump` en `backend\backups\pre-update_<fecha>.dump`, aplica las migraciones, ejecuta el seed y vuelve a arrancar. Si un paso falla, se detiene, deja el servicio apagado e indica cómo restaurar con `restore-backup.ps1`. Una migración que falla no deja el esquema a medias (PostgreSQL las aplica en una transacción).
+
+## Servicio de Windows
+
+`install-service.ps1` (como administrador) registra el servicio `pos-backend` con NSSM. El servicio ejecuta **waitress** en `0.0.0.0:5000` y sirve el frontend compilado, de modo que las cajas de la LAN entran en `http://<ip-servidor>:5000`. También abre el puerto en el firewall de Windows.
 
 ## Backups y USB
 
@@ -80,12 +81,26 @@ En **Configuración → Cajas**, el administrador indica para cada caja:
 
 El cajón se abre automáticamente al completar una venta con pago en efectivo. Reimprimir un ticket (Historial de ventas → detalle → "Reimprimir ticket") no abre el cajón. Si la impresora no responde en 5 segundos, la venta se registra igual y el error queda en `logs/pos.log`.
 
+## Impresora USB en una caja (agente de impresión)
+
+Si la impresora de tickets y el cajón están conectados por USB a una caja que **no** es el servidor:
+
+1. En el servidor: **Configuración → Cajas**, elegir "USB en esta caja (agente de impresión)", guardar y pulsar **Generar clave del agente**. Copiar la clave (se muestra una sola vez).
+2. En la caja: instalar Python 3.11+ y NSSM, copiar la carpeta `tools\print-agent` y, en PowerShell como administrador:
+
+```powershell
+.\install-agent.ps1 -ServerUrl http://<ip-servidor>:5000 -AgentKey "<clave>" -PrinterName "<nombre de la impresora en Windows>"
+```
+
+El agente es un servicio de Windows (`pos-print-agent`) que cada segundo pide al servidor los tickets y pulsos de cajón de su caja y los envía en modo RAW a la impresora. No abre puertos en la caja. En Configuración → Cajas aparece "Agente conectado". Un pulso de cajón que no se entregó en 30 segundos se descarta (no abre el cajón tarde); un ticket caduca a los 10 minutos. Registro del agente: `tools\print-agent\logs\agent.log`.
+
 ## Modo offline: alcance
 
 Decisión de la fase 4.3: **no se configura HTTPS local**. Por eso:
 
 - El navegador solo permite el service worker en `http://localhost`. En las cajas de la LAN (`http://<ip-servidor>:5000`) **no hay caché de la aplicación**: si se recarga la página sin servidor, no carga.
 - Mientras la página siga abierta, una caída de red o del servidor no detiene la venta: se guarda en el equipo con la marca **PENDIENTE DE SINCRONIZAR**, se envía sola cuando el servidor vuelve a responder (ping a `/api/health` cada 30 s, con reintentos crecientes) y no se duplica, porque cada venta lleva su `client_uuid`.
+- El POS guarda en el equipo una **copia del catálogo** (se refresca cada 10 minutos con servidor). Sin servidor, el lector de código y la búsqueda usan esa copia y avisan que los precios se confirman al sincronizar. La sesión de caja y el carrito no se pierden por una caída de red.
 - El header muestra **"N ventas pendientes"**. Si el servidor rechaza una venta (por ejemplo, la caja ya se cerró o no hay stock), pasa a **"Rechazadas"**: no bloquea a las demás y se revisa o descarta desde ese mismo panel.
 - Las ventas pendientes se guardan en el navegador de esa caja: **no borres los datos del navegador** mientras haya pendientes.
 - Para tener caché real en las cajas haría falta HTTPS local con un certificado confiable en cada equipo; queda fuera de esta fase.

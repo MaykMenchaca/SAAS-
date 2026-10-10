@@ -20,7 +20,7 @@ import { listAuditLogs } from "../api/audit";
 import type { BackupEntry, ConfigMap } from "../api/config";
 import { createBackup, deleteBackup, getConfig, listBackups, updateConfig, verifyBackup } from "../api/config";
 import type { CashRegisterInfo } from "../api/sales";
-import { listCashRegisters, updateCashRegister } from "../api/sales";
+import { createAgentKey, listCashRegisters, updateCashRegister } from "../api/sales";
 import { useServerStatus } from "../hooks/useServerStatus";
 import { queryClient } from "../lib/query-client";
 import { usePosStore } from "../stores/pos-store";
@@ -275,6 +275,8 @@ function CashRegistersTab() {
   const registersQuery = useQuery({
     queryKey: qk.cashRegisters(),
     queryFn: listCashRegisters,
+    // Estado del agente de impresión casi en tiempo real
+    refetchInterval: 10_000,
   });
 
   if (registersQuery.isLoading) {
@@ -305,23 +307,49 @@ function CashRegistersTab() {
   );
 }
 
+function agentStatus(register: CashRegisterInfo): { label: string; tone: "success" | "warning" | "neutral" } {
+  if (!register.agent_configured) return { label: "Sin clave generada", tone: "neutral" };
+  if (!register.agent_last_seen_at) return { label: "Nunca se ha conectado", tone: "warning" };
+  const seconds = (Date.now() - new Date(register.agent_last_seen_at).getTime()) / 1000;
+  if (seconds < 15) return { label: "Agente conectado", tone: "success" };
+  const when = new Date(register.agent_last_seen_at).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  return { label: `Sin conexión desde ${when}`, tone: "warning" };
+}
+
 function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
   const queryClient = useQueryClient();
   const [printerPath, setPrinterPath] = useState(register.printer_path ?? "");
   const [codepage, setCodepage] = useState(register.printer_codepage || "cp850");
+  const [viaAgent, setViaAgent] = useState(register.print_via_agent);
+  const [confirmNewKey, setConfirmNewKey] = useState(false);
+  const [agentKey, setAgentKey] = useState<string | null>(null);
+
+  function apiError(error: unknown, fallback: string) {
+    return error instanceof AxiosError ? error.response?.data?.error ?? fallback : fallback;
+  }
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      updateCashRegister(register.id, { printer_path: printerPath.trim() || null, printer_codepage: codepage }),
+      updateCashRegister(register.id, {
+        printer_path: viaAgent ? register.printer_path : printerPath.trim() || null,
+        printer_codepage: codepage,
+        print_via_agent: viaAgent,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.cashRegisters() });
       toast.success(`Impresora de ${register.name} guardada.`);
     },
-    onError: (error) => {
-      const message =
-        error instanceof AxiosError ? error.response?.data?.error ?? "No se pudo guardar." : "No se pudo guardar.";
-      toast.error(message);
+    onError: (error) => toast.error(apiError(error, "No se pudo guardar.")),
+  });
+
+  const keyMutation = useMutation({
+    mutationFn: () => createAgentKey(register.id),
+    onSuccess: async (data) => {
+      setConfirmNewKey(false);
+      setAgentKey(data.agent_key);
+      await queryClient.invalidateQueries({ queryKey: qk.cashRegisters() });
     },
+    onError: (error) => toast.error(apiError(error, "No se pudo generar la clave.")),
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -329,17 +357,26 @@ function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
     saveMutation.mutate();
   }
 
+  const status = agentStatus(register);
+  const serverUrl = window.location.origin;
+
   return (
     <Card className="p-4">
       <form className="grid gap-4" onSubmit={handleSubmit}>
-        <h4 className="text-base font-semibold text-neutral-text-primary">{register.name}</h4>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-base font-semibold text-neutral-text-primary">{register.name}</h4>
+          {register.print_via_agent ? <Badge tone={status.tone}>{status.label}</Badge> : null}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Impresora"
-            name={`printer_path_${register.id}`}
-            onChange={(e) => setPrinterPath(e.target.value)}
-            placeholder="COM3"
-            value={printerPath}
+          <Select
+            label="Conexión de la impresora"
+            name={`printer_mode_${register.id}`}
+            onChange={(e) => setViaAgent(e.target.value === "agente")}
+            options={[
+              { value: "servidor", label: "Conectada al servidor" },
+              { value: "agente", label: "USB en esta caja (agente de impresión)" },
+            ]}
+            value={viaAgent ? "agente" : "servidor"}
           />
           <Select
             label="Página de códigos"
@@ -348,13 +385,88 @@ function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
             options={codepageOptions}
             value={codepage}
           />
+          {!viaAgent ? (
+            <Input
+              label="Impresora en el servidor"
+              name={`printer_path_${register.id}`}
+              onChange={(e) => setPrinterPath(e.target.value)}
+              placeholder="COM3"
+              value={printerPath}
+            />
+          ) : null}
         </div>
-        <div className="flex justify-end">
+        {viaAgent ? (
+          <p className="text-sm text-neutral-text-secondary">
+            La caja imprime con su propia impresora USB mediante el agente de impresión. Genera una clave e instala el
+            agente en esa caja con <span className="font-mono">tools\print-agent\install-agent.ps1</span>.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          {register.print_via_agent ? (
+            <Button disabled={keyMutation.isPending} onClick={() => setConfirmNewKey(true)} variant="secondary">
+              {register.agent_configured ? "Generar nueva clave" : "Generar clave del agente"}
+            </Button>
+          ) : null}
           <Button disabled={saveMutation.isPending} icon={<Save aria-hidden="true" size={17} />} type="submit">
             {saveMutation.isPending ? "Guardando..." : "Guardar"}
           </Button>
         </div>
       </form>
+
+      {confirmNewKey ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmNewKey(false)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button disabled={keyMutation.isPending} onClick={() => keyMutation.mutate()}>
+                {keyMutation.isPending ? "Generando..." : "Generar clave"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmNewKey(false)}
+          open
+          title={`Clave del agente · ${register.name}`}
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            {register.agent_configured
+              ? "La clave anterior dejará de funcionar y el agente de esta caja no imprimirá hasta que lo reconfigures."
+              : "Se generará la clave con la que el agente de esta caja se conecta al servidor."}
+          </p>
+        </Modal>
+      ) : null}
+
+      {agentKey ? (
+        <Modal
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  void navigator.clipboard?.writeText(agentKey).then(() => toast.success("Clave copiada."));
+                }}
+                variant="secondary"
+              >
+                Copiar clave
+              </Button>
+              <Button onClick={() => setAgentKey(null)}>Listo</Button>
+            </>
+          }
+          onClose={() => setAgentKey(null)}
+          open
+          size="lg"
+          title="Clave del agente generada"
+        >
+          <div className="grid gap-3 text-sm">
+            <p className="font-semibold text-warning">Cópiala ahora: no se volverá a mostrar.</p>
+            <code className="break-all rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-sm">{agentKey}</code>
+            <p className="text-neutral-text-secondary">En la caja, en PowerShell como administrador:</p>
+            <code className="break-all rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-xs">
+              {`.\\install-agent.ps1 -ServerUrl ${serverUrl} -AgentKey "<clave>" -PrinterName "<nombre de la impresora>"`}
+            </code>
+          </div>
+        </Modal>
+      ) : null}
     </Card>
   );
 }

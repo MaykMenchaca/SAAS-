@@ -40,6 +40,9 @@ def _register_dict(register: CashRegister) -> dict:
         "is_active": register.is_active,
         "printer_path": register.printer_path,
         "printer_codepage": register.printer_codepage,
+        "print_via_agent": register.print_via_agent,
+        "agent_configured": bool(register.agent_key_hash),
+        "agent_last_seen_at": register.agent_last_seen_at.isoformat() if register.agent_last_seen_at else None,
     }
 
 
@@ -59,6 +62,8 @@ def update_register(register_id):
             register.printer_path = PrinterService.validate_target(raw_path) if raw_path else None
         if "printer_codepage" in data:
             register.printer_codepage = PrinterService.validate_codepage(data.get("printer_codepage"))
+        if "print_via_agent" in data:
+            register.print_via_agent = bool(data.get("print_via_agent"))
         if "name" in data:
             name = (data.get("name") or "").strip()
             if not name or len(name) > 50:
@@ -83,6 +88,29 @@ def update_register(register_id):
 
 def _find_open_session(register_id: int) -> CashRegisterSession | None:
     return CashRegisterSession.query.filter_by(cash_register_id=register_id, status="abierta").first()
+
+
+@cash_register_bp.route("/registers/<int:register_id>/agent-key", methods=["POST"])
+@require_role("admin")
+def create_agent_key(register_id):
+    """Genera (o reemplaza) la clave del agente de impresión de la caja. Se muestra una sola vez."""
+    register = db.session.get(CashRegister, register_id)
+    if not register:
+        return jsonify({"error": "Caja registradora no encontrada"}), 404
+
+    from app.services import print_queue_service
+    from app.services.audit_service import log_action
+
+    key = print_queue_service.generate_agent_key(register)
+    log_action(
+        action="generar_clave_agente",
+        entity_type="cash_register",
+        entity_id=register.id,
+        details={"name": register.name},
+        user_id=int(get_jwt_identity()),
+    )
+    db.session.commit()
+    return jsonify({"agent_key": key, "register": _register_dict(register)}), 201
 
 
 @cash_register_bp.route("/open", methods=["POST"])
