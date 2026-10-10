@@ -66,15 +66,17 @@ type ListProductsParams = {
   perPage?: number;
   search?: string;
   category_id?: number;
+  includeInactive?: boolean;
 };
 
-export async function listProducts({ page = 1, perPage = 20, search = "", category_id }: ListProductsParams) {
+export async function listProducts({ page = 1, perPage = 20, search = "", category_id, includeInactive = false }: ListProductsParams) {
   const response = await apiClient.get<PaginatedResponse<Product>>("/products/", {
     params: {
       page,
       per_page: perPage,
       search: search || undefined,
       category_id: category_id || undefined,
+      include_inactive: includeInactive || undefined,
     },
   });
   return response.data;
@@ -92,6 +94,11 @@ export async function updateProduct(id: number, payload: ProductUpdatePayload) {
 
 export async function deactivateProduct(id: number) {
   const response = await apiClient.delete<Product>(`/products/${id}`);
+  return response.data;
+}
+
+export async function reactivateProduct(id: number) {
+  const response = await apiClient.post<Product>(`/products/${id}/reactivate`);
   return response.data;
 }
 

@@ -122,3 +122,14 @@ def deactivate_product(product_id):
 
     product = ProductService.deactivate_product(product)
     return jsonify(product_schema.dump(product)), 200
+
+
+@products_bp.route("/<int:product_id>/reactivate", methods=["POST"])
+@require_permission("productos:desactivar")
+def reactivate_product(product_id):
+    product = ProductService.get_product(product_id)
+    if not product:
+        return jsonify({"error": "Producto no encontrado"}), 404
+
+    product = ProductService.reactivate_product(product)
+    return jsonify(product_schema.dump(product)), 200

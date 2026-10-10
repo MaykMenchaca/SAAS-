@@ -2,7 +2,12 @@ from marshmallow import ValidationError
 from sqlalchemy import or_, func
 
 from app.extensions import db
+from app.models.inventory import Stock
 from app.models.product import Category, Product, UnitOfMeasure
+
+# Umbral de word_similarity calibrado con QA-18: "martilo", "tornilo", "pintrua" y "foko led"
+# quedan >= 0.5, y el ruido ("martillo" contra "Tornillo") queda en 0.36.
+SEARCH_SIMILARITY_THRESHOLD = 0.4
 
 
 class ProductService:
@@ -17,16 +22,18 @@ class ProductService:
             query = query.filter_by(category_id=category_id)
 
         if search:
+            search = search.strip()
             pattern = f"%{search}%"
+            relevance = func.word_similarity(search, Product.name)
             query = query.filter(
                 or_(
                     Product.sku.ilike(pattern),
                     Product.barcode.ilike(pattern),
                     Product.name.ilike(pattern),
-                    func.similarity(Product.name, search) > 0.25
+                    relevance > SEARCH_SIMILARITY_THRESHOLD,
                 )
             )
-            return query.order_by(func.similarity(Product.name, search).desc(), Product.name.asc())
+            return query.order_by(relevance.desc(), Product.name.asc())
 
         return query.order_by(Product.name.asc())
 
@@ -141,9 +148,14 @@ class ProductService:
             barcode=data.get("barcode"),
         )
 
+        # El costo promedio lo calcula el sistema: arranca en el precio de compra (H-26)
+        data.pop("avg_cost", None)
         product = Product(**data)
+        product.avg_cost = product.purchase_price or 0
         db.session.add(product)
         db.session.flush()
+        # Registro de stock en 0 para que aparezca en inventario y alertas desde el alta (H-26)
+        db.session.add(Stock(product_id=product.id, quantity=0))
 
         from app.services.audit_service import log_action
         log_action(
@@ -211,6 +223,24 @@ class ProductService:
             details={"sku": product.sku, "name": product.name},
             previous_value={"is_active": prev_active},
             new_value={"is_active": False},
+        )
+
+        db.session.commit()
+        return product
+
+    @staticmethod
+    def reactivate_product(product):
+        prev_active = product.is_active
+        product.is_active = True
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="reactivar",
+            entity_type="product",
+            entity_id=product.id,
+            details={"sku": product.sku, "name": product.name},
+            previous_value={"is_active": prev_active},
+            new_value={"is_active": True},
         )
 
         db.session.commit()

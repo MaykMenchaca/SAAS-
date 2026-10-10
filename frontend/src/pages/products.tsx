@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { AlertTriangle, Edit, Package, PackagePlus, Plus, Printer, Search, Trash2, Tag, Scale } from "lucide-react";
+import { AlertTriangle, Edit, Package, PackagePlus, Plus, Printer, RotateCcw, Search, Trash2, Tag, Scale } from "lucide-react";
 import { toast } from "sonner";
 
 import { getLowStock } from "../api/inventory";
@@ -12,6 +12,7 @@ import {
   createCategory,
   createProduct,
   deactivateProduct,
+  reactivateProduct,
   listCategories,
   listProducts,
   listUnits,
@@ -99,9 +100,11 @@ export function ProductsPage() {
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"productos" | "categorias" | "unidades">("productos");
 
+  const [showInactive, setShowInactive] = useState(false);
+
   const productsQuery = useQuery({
-    queryKey: ["products", page, search],
-    queryFn: () => listProducts({ page, search }),
+    queryKey: ["products", page, search, showInactive],
+    queryFn: () => listProducts({ page, search, includeInactive: showInactive }),
   });
 
   const categoriesQuery = useQuery({
@@ -139,6 +142,20 @@ export function ProductsPage() {
     mutationFn: deactivateProduct,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: reactivateProduct,
+    onSuccess: async (product) => {
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: ["stock"] });
+      toast.success(`${product.name} reactivado.`);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof AxiosError ? error.response?.data?.error ?? "No se pudo reactivar." : "No se pudo reactivar.";
+      toast.error(message);
     },
   });
 
@@ -244,6 +261,18 @@ export function ProductsPage() {
                 Buscar
               </Button>
             </div>
+            <label className="flex min-h-11 items-center gap-2 self-end text-sm font-medium text-neutral-text-primary sm:whitespace-nowrap">
+              <input
+                checked={showInactive}
+                className="h-5 w-5 accent-primary"
+                onChange={(event) => {
+                  setShowInactive(event.target.checked);
+                  setPage(1);
+                }}
+                type="checkbox"
+              />
+              Mostrar inactivos
+            </label>
           </form>
 
           {productsQuery.isLoading ? (
@@ -312,17 +341,30 @@ export function ProductsPage() {
                                 <Printer aria-hidden="true" size={17} />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="Desactivar">
-                              <Button
-                                aria-label={`Desactivar ${product.name}`}
-                                className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
-                                disabled={!product.is_active}
-                                onClick={() => setConfirmDeactivateId(product.id)}
-                                variant="ghost"
-                              >
-                                <Trash2 aria-hidden="true" size={17} />
-                              </Button>
-                            </Tooltip>
+                            {product.is_active ? (
+                              <Tooltip content="Desactivar">
+                                <Button
+                                  aria-label={`Desactivar ${product.name}`}
+                                  className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
+                                  onClick={() => setConfirmDeactivateId(product.id)}
+                                  variant="ghost"
+                                >
+                                  <Trash2 aria-hidden="true" size={17} />
+                                </Button>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip content="Reactivar">
+                                <Button
+                                  aria-label={`Reactivar ${product.name}`}
+                                  className="h-11 w-11 px-0 hover:text-success hover:bg-success/10"
+                                  disabled={reactivateMutation.isPending}
+                                  onClick={() => reactivateMutation.mutate(product.id)}
+                                  variant="ghost"
+                                >
+                                  <RotateCcw aria-hidden="true" size={17} />
+                                </Button>
+                              </Tooltip>
+                            )}
                           </div>
                         </td>
                       </tr>
