@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchDashboardSummary } from "../api/reports";
 import { listOrders } from "../api/purchases";
 import { useCan } from "../components/auth/require-permission";
+import { qk } from "../api/query-keys";
 
 export type SidebarBadges = {
   lowStock: number;
@@ -17,7 +18,7 @@ export function useSidebarBadges(): SidebarBadges {
   const canPurchases = can("compras:ver");
 
   const dashboard = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: qk.dashboard(),
     queryFn: fetchDashboardSummary,
     enabled: canReports,
     refetchInterval: canReports ? 60_000 : false,
@@ -25,7 +26,7 @@ export function useSidebarBadges(): SidebarBadges {
   });
 
   const purchases = useQuery({
-    queryKey: ["sidebar-pending-purchases"],
+    queryKey: qk.sidebarPendingPurchases(),
     queryFn: () => listOrders({ status: "borrador", perPage: 1 }),
     enabled: canPurchases,
     refetchInterval: canPurchases ? 60_000 : false,

@@ -25,6 +25,7 @@ import { cn } from "../../lib/cn";
 import { useThemeStore } from "../../stores/theme-store";
 import { useCan } from "../auth/require-permission";
 import { useCommandPalette } from "./command-palette-context";
+import { qk } from "../../api/query-keys";
 
 type CommandSection = "pages" | "products" | "actions";
 
@@ -82,7 +83,7 @@ export function CommandPalette() {
   }, [query]);
 
   const productsQuery = useQuery({
-    queryKey: ["command-palette-products", debouncedQuery],
+    queryKey: qk.commandPaletteProducts(debouncedQuery),
     queryFn: () => listProducts({ page: 1, perPage: 6, search: debouncedQuery }),
     enabled: open && can("productos:ver") && debouncedQuery.length >= 2,
     staleTime: 30_000,

@@ -24,6 +24,7 @@ import {
   deleteUnit,
 } from "../api/products";
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
 
 type ProductFormState = {
   sku: string;
@@ -103,29 +104,29 @@ export function ProductsPage() {
   const [showInactive, setShowInactive] = useState(false);
 
   const productsQuery = useQuery({
-    queryKey: ["products", page, search, showInactive],
+    queryKey: qk.products(page, search, showInactive),
     queryFn: () => listProducts({ page, search, includeInactive: showInactive }),
   });
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: qk.categories(),
     queryFn: listCategories,
   });
 
   const unitsQuery = useQuery({
-    queryKey: ["units"],
+    queryKey: qk.units(),
     queryFn: listUnits,
   });
 
   const lowStockQuery = useQuery({
-    queryKey: ["low-stock"],
+    queryKey: qk.lowStock(),
     queryFn: getLowStock,
   });
 
   const createMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: qk.products() });
       closeModal();
     },
   });
@@ -133,7 +134,7 @@ export function ProductsPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: ProductPayload }) => updateProduct(id, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: qk.products() });
       closeModal();
     },
   });
@@ -141,15 +142,15 @@ export function ProductsPage() {
   const deactivateMutation = useMutation({
     mutationFn: deactivateProduct,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: qk.products() });
     },
   });
 
   const reactivateMutation = useMutation({
     mutationFn: reactivateProduct,
     onSuccess: async (product) => {
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
-      await queryClient.invalidateQueries({ queryKey: ["stock"] });
+      await queryClient.invalidateQueries({ queryKey: qk.products() });
+      await queryClient.invalidateQueries({ queryKey: qk.stock() });
       toast.success(`${product.name} reactivado.`);
     },
     onError: (error) => {
@@ -484,7 +485,7 @@ function ProductFormModal({
   const createCategoryMutation = useMutation({
     mutationFn: createCategory,
     onSuccess: async (newCategory) => {
-      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: qk.categories() });
       setField("category_id", String(newCategory.id));
       setShowCreateCategoryModal(false);
       setNewCategoryName("");
@@ -699,7 +700,7 @@ function getErrorMessage(error: Error | null) {
 
 function LabelPreviewModal({ productId, onClose }: { productId: number; onClose: () => void }) {
   const previewQuery = useQuery({
-    queryKey: ["label-preview", productId],
+    queryKey: qk.labelPreview(productId),
     queryFn: () => previewProductLabel(productId),
   });
 
@@ -761,14 +762,14 @@ function CategoriesTab() {
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<number | null>(null);
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: qk.categories(),
     queryFn: listCategories,
   });
 
   const createMutation = useMutation({
     mutationFn: createCategory,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: qk.categories() });
       closeCategoryModal();
       toast.success("Categoría creada con éxito.");
     },
@@ -781,7 +782,7 @@ function CategoriesTab() {
     mutationFn: ({ id, payload }: { id: number; payload: { name: string; description?: string } }) =>
       updateCategory(id, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: qk.categories() });
       closeCategoryModal();
       toast.success("Categoría actualizada con éxito.");
     },
@@ -793,7 +794,7 @@ function CategoriesTab() {
   const deactivateMutation = useMutation({
     mutationFn: deactivateCategory,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: qk.categories() });
       toast.success("Categoría desactivada con éxito.");
     },
     onError: () => {
@@ -1005,14 +1006,14 @@ function UnitsTab() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const unitsQuery = useQuery({
-    queryKey: ["units"],
+    queryKey: qk.units(),
     queryFn: listUnits,
   });
 
   const createMutation = useMutation({
     mutationFn: createUnit,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["units"] });
+      await queryClient.invalidateQueries({ queryKey: qk.units() });
       closeUnitModal();
       toast.success("Unidad de medida creada con éxito.");
     },
@@ -1026,7 +1027,7 @@ function UnitsTab() {
     mutationFn: ({ id, payload }: { id: number; payload: { name: string; abbreviation: string; allows_fractions: boolean } }) =>
       updateUnit(id, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["units"] });
+      await queryClient.invalidateQueries({ queryKey: qk.units() });
       closeUnitModal();
       toast.success("Unidad de medida actualizada con éxito.");
     },
@@ -1039,7 +1040,7 @@ function UnitsTab() {
   const deleteMutation = useMutation({
     mutationFn: deleteUnit,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["units"] });
+      await queryClient.invalidateQueries({ queryKey: qk.units() });
       toast.success("Unidad de medida eliminada con éxito.");
       setConfirmDeleteId(null);
     },

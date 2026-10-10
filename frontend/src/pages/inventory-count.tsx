@@ -24,6 +24,8 @@ import {
   listInventoryCounts,
 } from "../api/inventory";
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
+import { invalidateInventory } from "../api/invalidate";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -45,7 +47,7 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
   const [showCreate, setShowCreate] = useState(false);
 
   const countsQuery = useQuery({
-    queryKey: ["inventory-counts", page],
+    queryKey: qk.inventoryCounts(page),
     queryFn: () => listInventoryCounts(page),
   });
 
@@ -55,7 +57,7 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
   const createMutation = useMutation({
     mutationFn: (notes?: string) => createInventoryCount(notes),
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: ["inventory-counts"] });
+      void queryClient.invalidateQueries({ queryKey: qk.inventoryCounts() });
       setShowCreate(false);
       onOpenCount(data.id);
     },
@@ -273,15 +275,15 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
 
   const countQuery = useQuery({
-    queryKey: ["inventory-count", countId],
+    queryKey: qk.inventoryCount(countId),
     queryFn: () => getInventoryCount(countId),
   });
 
   const closeMutation = useMutation({
     mutationFn: () => closeInventoryCount(countId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["inventory-count", countId] });
-      void queryClient.invalidateQueries({ queryKey: ["inventory-counts"] });
+      // Cerrar el conteo ajusta existencias: refrescar todo lo que depende del stock (H-29)
+      void invalidateInventory(queryClient);
       setShowConfirmClose(false);
     },
   });
@@ -289,8 +291,8 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
   const cancelMutation = useMutation({
     mutationFn: () => cancelInventoryCount(countId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["inventory-count", countId] });
-      void queryClient.invalidateQueries({ queryKey: ["inventory-counts"] });
+      void queryClient.invalidateQueries({ queryKey: qk.inventoryCount(countId) });
+      void queryClient.invalidateQueries({ queryKey: qk.inventoryCounts() });
       setShowConfirmCancel(false);
     },
   });
@@ -530,7 +532,7 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
           item={captureProduct}
           onClose={() => setCaptureProduct(null)}
           onSuccess={() => {
-            void queryClient.invalidateQueries({ queryKey: ["inventory-count", countId] });
+            void queryClient.invalidateQueries({ queryKey: qk.inventoryCount(countId) });
             setCaptureProduct(null);
           }}
         />

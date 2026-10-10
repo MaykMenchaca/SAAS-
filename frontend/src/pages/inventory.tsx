@@ -9,6 +9,8 @@ import type { StockAdjustPayload, StockItem, StockMovement } from "../api/invent
 import { adjustStock, listMovements, listStock } from "../api/inventory";
 import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Input, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { formatStock } from "../lib/formatters";
+import { qk } from "../api/query-keys";
+import { invalidateInventory } from "../api/invalidate";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -22,7 +24,7 @@ export function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "normal">("all");
 
   const stockQuery = useQuery({
-    queryKey: ["stock", page, search],
+    queryKey: qk.stock(page, search),
     queryFn: () => listStock({ page, search }),
   });
 
@@ -181,7 +183,7 @@ export function InventoryPage() {
         <AdjustStockModal
           onClose={() => setAdjustProduct(null)}
           onSuccess={async () => {
-            await queryClient.invalidateQueries({ queryKey: ["stock"] });
+            await invalidateInventory(queryClient);
             setAdjustProduct(null);
           }}
           product={adjustProduct}
@@ -195,7 +197,7 @@ export function InventoryPage() {
 
 function MovementHistoryModal({ product, onClose }: { product: StockItem; onClose: () => void }) {
   const movementsQuery = useQuery({
-    queryKey: ["movements", product.product_id],
+    queryKey: qk.movements(product.product_id),
     queryFn: () => listMovements(product.product_id),
   });
 

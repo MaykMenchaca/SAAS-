@@ -7,6 +7,7 @@ import { Edit, Search, Shield, UserMinus, UserPlus, Users } from "lucide-react";
 import type { Role, User, UserCreatePayload, UserUpdatePayload } from "../api/users";
 import { createUser, deactivateUser, listRoles, listUsers, updateUser } from "../api/users";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Toggle, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -45,19 +46,19 @@ export function UsersPage() {
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<number | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ["users", page, search, showInactive],
+    queryKey: qk.users(page, search, showInactive),
     queryFn: () => listUsers({ page, search, includeInactive: showInactive }),
   });
 
   const rolesQuery = useQuery({
-    queryKey: ["roles"],
+    queryKey: qk.roles(),
     queryFn: listRoles,
   });
 
   const createMutation = useMutation({
     mutationFn: createUser,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
       closeModal();
     },
   });
@@ -65,7 +66,7 @@ export function UsersPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UserUpdatePayload }) => updateUser(id, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
       closeModal();
     },
   });
@@ -73,7 +74,7 @@ export function UsersPage() {
   const deactivateMutation = useMutation({
     mutationFn: deactivateUser,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
     },
   });
 

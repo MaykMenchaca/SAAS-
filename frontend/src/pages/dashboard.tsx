@@ -10,6 +10,7 @@ import { Badge, Button, Card, ErrorState, SkeletonKPI, SkeletonTable } from "../
 import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
+import { qk } from "../api/query-keys";
 
 async function fetchWeeklySales() {
   const now = new Date();
@@ -42,25 +43,25 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
 
   const dashboardQuery = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: qk.dashboard(),
     queryFn: fetchDashboardSummary,
     refetchInterval: 60_000,
   });
 
   const lowStockQuery = useQuery({
-    queryKey: ["low-stock"],
+    queryKey: qk.lowStock(),
     queryFn: getLowStock,
     refetchInterval: 60_000,
   });
 
   const salesQuery = useQuery({
-    queryKey: ["dashboard-sales"],
+    queryKey: qk.dashboardSales(),
     queryFn: () => listSales(1, 5),
     refetchInterval: 60_000,
   });
 
   const weeklySalesQuery = useQuery({
-    queryKey: ["dashboard-weekly-sales"],
+    queryKey: qk.dashboardWeeklySales(),
     queryFn: fetchWeeklySales,
     refetchInterval: 60_000,
   });

@@ -3,7 +3,9 @@ import { isAxiosError } from "axios";
 import { toast } from "sonner";
 
 import { apiClient } from "../api/client";
+import { invalidateAfterSale } from "../api/invalidate";
 import { createSale } from "../api/sales";
+import { queryClient } from "../lib/query-client";
 import { useAuthStore } from "../stores/auth-store";
 import { useConnectionStore } from "../stores/connection-store";
 import { queuedSaleId, usePosStore } from "../stores/pos-store";
@@ -90,7 +92,10 @@ export function syncOfflineQueue(): Promise<void> {
       connection.setServerReachable(true);
     } finally {
       connection.setSyncing(false);
-      if (synced > 0) toast.success(`Se sincronizaron ${synced} venta(s) pendientes.`);
+      if (synced > 0) {
+        void invalidateAfterSale(queryClient);
+        toast.success(`Se sincronizaron ${synced} venta(s) pendientes.`);
+      }
       if (rejected > 0) {
         toast.error(`${rejected} venta(s) fueron rechazadas por el servidor. Revísalas en "Ventas pendientes".`);
       }

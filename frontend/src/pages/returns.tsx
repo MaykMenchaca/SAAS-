@@ -7,6 +7,8 @@ import { CornerDownLeft, Search, Undo2 } from "lucide-react";
 import type { ReturnItemInput, SaleItem } from "../api/sales";
 import { getSale, listSales, returnSale } from "../api/sales";
 import { Badge, Button, Card, ErrorState, Input, Modal, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
+import { qk } from "../api/query-keys";
+import { invalidateAfterSale } from "../api/invalidate";
 
 // ── Main Page ────────────────────────────────────────────────────
 
@@ -17,7 +19,7 @@ export function ReturnsPage() {
 
   // Search for recent completed sales to show as quick picks
   const recentQuery = useQuery({
-    queryKey: ["sales-history", 1],
+    queryKey: qk.salesHistory(1),
     queryFn: () => listSales(1, 20),
   });
 
@@ -137,7 +139,7 @@ export function ReturnsPage() {
         <ReturnModal
           onClose={() => {
             setSelectedSaleId(null);
-            void queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+            void queryClient.invalidateQueries({ queryKey: qk.salesHistory() });
           }}
           saleId={selectedSaleId}
         />
@@ -163,7 +165,7 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
   const [success, setSuccess] = useState(false);
 
   const saleQuery = useQuery({
-    queryKey: ["sale-detail", saleId],
+    queryKey: qk.saleDetail(saleId),
     queryFn: () => getSale(saleId),
     refetchOnMount: "always",
   });
@@ -194,8 +196,7 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
     mutationFn: (data: { reason: string; items: ReturnItemInput[] }) =>
       returnSale(saleId, data.reason, data.items),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["sales-history"] });
-      await queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
+      await invalidateAfterSale(queryClient);
       setSuccess(true);
     },
   });

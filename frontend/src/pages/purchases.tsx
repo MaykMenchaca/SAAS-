@@ -41,6 +41,8 @@ import {
   updateSupplier,
 } from "../api/purchases";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
+import { invalidateAfterPurchase } from "../api/invalidate";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -125,21 +127,21 @@ function OrdersTab() {
   const [confirmCancelOrderId, setConfirmCancelOrderId] = useState<number | null>(null);
 
   const ordersQuery = useQuery({
-    queryKey: ["purchase-orders", page, statusFilter],
+    queryKey: qk.purchaseOrders(page, statusFilter),
     queryFn: () => listOrders({ page, status: statusFilter }),
   });
 
   const sendMutation = useMutation({
     mutationFn: sendOrder,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      await queryClient.invalidateQueries({ queryKey: qk.purchaseOrders() });
     },
   });
 
   const cancelMutation = useMutation({
     mutationFn: cancelOrder,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      await queryClient.invalidateQueries({ queryKey: qk.purchaseOrders() });
     },
   });
 
@@ -300,7 +302,7 @@ function OrdersTab() {
           onClose={() => setShowCreateOrder(false)}
           onSuccess={async () => {
             setShowCreateOrder(false);
-            await queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+            await queryClient.invalidateQueries({ queryKey: qk.purchaseOrders() });
           }}
         />
       ) : null}
@@ -310,7 +312,7 @@ function OrdersTab() {
           onClose={() => setReceivingOrderId(null)}
           onSuccess={async () => {
             setReceivingOrderId(null);
-            await queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+            await invalidateAfterPurchase(queryClient);
           }}
           orderId={receivingOrderId}
         />
@@ -353,7 +355,7 @@ function OrdersTab() {
 
 function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () => void }) {
   const orderQuery = useQuery({
-    queryKey: ["purchase-order-detail", orderId],
+    queryKey: qk.purchaseOrderDetail(orderId),
     queryFn: () => getOrder(orderId),
   });
 
@@ -464,7 +466,7 @@ type OrderLineItem = {
 let lineIdCounter = 0;
 
 function CreateOrderModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const suppliersQuery = useQuery({ queryKey: ["suppliers"], queryFn: listSuppliers });
+  const suppliersQuery = useQuery({ queryKey: qk.suppliers(), queryFn: listSuppliers });
   const [supplierId, setSupplierId] = useState<number | "">("");
   const [lines, setLines] = useState<OrderLineItem[]>([]);
   const [notes, setNotes] = useState("");
@@ -473,7 +475,7 @@ function CreateOrderModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const productsQuery = useQuery({
-    queryKey: ["order-products", debouncedSearch],
+    queryKey: qk.orderProducts(debouncedSearch),
     queryFn: () => listProducts({ page: 1, perPage: 30, search: debouncedSearch }),
     enabled: debouncedSearch.length > 0,
   });
@@ -724,7 +726,7 @@ function ReceiveOrderModal({
   onSuccess: () => void;
 }) {
   const orderQuery = useQuery({
-    queryKey: ["purchase-order-detail", orderId],
+    queryKey: qk.purchaseOrderDetail(orderId),
     queryFn: () => getOrder(orderId),
   });
 
@@ -856,14 +858,14 @@ function SuppliersTab() {
   const [confirmDeactivateSupplierId, setConfirmDeactivateSupplierId] = useState<number | null>(null);
 
   const suppliersQuery = useQuery({
-    queryKey: ["suppliers"],
+    queryKey: qk.suppliers(),
     queryFn: listSuppliers,
   });
 
   const createMutation = useMutation({
     mutationFn: createSupplier,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
       setIsModalOpen(false);
     },
   });
@@ -872,7 +874,7 @@ function SuppliersTab() {
     mutationFn: ({ id, payload }: { id: number; payload: SupplierUpdatePayload }) =>
       updateSupplier(id, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
       setEditingSupplier(null);
     },
   });
@@ -880,7 +882,7 @@ function SuppliersTab() {
   const deactivateMutation = useMutation({
     mutationFn: deactivateSupplier,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
     },
   });
 

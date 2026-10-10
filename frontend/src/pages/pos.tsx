@@ -16,6 +16,8 @@ import { useAuthStore } from "../stores/auth-store";
 import type { CartItem } from "../stores/pos-store";
 import { calcLineTotal, getCartTotals, usePosStore } from "../stores/pos-store";
 import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
+import { qk } from "../api/query-keys";
+import { invalidateAfterSale } from "../api/invalidate";
 
 // ── Main POS Page ──────────────────────────────────────────────────
 
@@ -26,7 +28,7 @@ export function PosPage() {
 
   // Validar al montar que la sesión de caja siga abierta y sea del usuario (H-18)
   const sessionQuery = useQuery({
-    queryKey: ["active-pos-session", sessionId],
+    queryKey: qk.activePosSession(sessionId),
     queryFn: () => getSession(sessionId!),
     enabled: Boolean(sessionId),
     staleTime: 10_000,
@@ -76,12 +78,12 @@ function SessionSelector() {
   const [error, setError] = useState("");
 
   const sessionsQuery = useQuery({
-    queryKey: ["cash-sessions"],
+    queryKey: qk.cashSessions(),
     queryFn: listSessions,
   });
 
   const registersQuery = useQuery({
-    queryKey: ["cash-registers"],
+    queryKey: qk.cashRegisters(),
     queryFn: listCashRegisters,
   });
 
@@ -441,12 +443,12 @@ function ProductSearch({
 
   // Load Categories for tabs
   const categoriesQuery = useQuery({
-    queryKey: ["pos-categories"],
+    queryKey: qk.posCategories(),
     queryFn: listCategories,
   });
 
   const productsQuery = useQuery({
-    queryKey: ["pos-products", debouncedSearch, selectedCategoryId],
+    queryKey: qk.posProducts(debouncedSearch, selectedCategoryId),
     queryFn: () =>
       listProducts({
         page: 1,
@@ -829,7 +831,7 @@ function PaymentModal({
     mutationFn: (payload: CreateSalePayload) => createSale(payload),
     onSuccess: async (sale) => {
       clearCart();
-      await queryClient.invalidateQueries({ queryKey: ["stock"] });
+      await invalidateAfterSale(queryClient);
       onSuccess(sale);
     },
   });
@@ -1201,7 +1203,7 @@ function PaymentModal({
 function TicketPreviewModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
   const [printError, setPrintError] = useState("");
   const ticketQuery = useQuery({
-    queryKey: ["sale-ticket", saleId],
+    queryKey: qk.saleTicket(saleId),
     queryFn: () => previewSaleTicket(saleId),
   });
 

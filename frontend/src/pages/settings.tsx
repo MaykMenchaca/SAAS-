@@ -25,6 +25,7 @@ import { useServerStatus } from "../hooks/useServerStatus";
 import { queryClient } from "../lib/query-client";
 import { usePosStore } from "../stores/pos-store";
 import { Badge, Button, Card, ErrorState, Input, Modal, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ function GeneralTab() {
   const [confirmRestart, setConfirmRestart] = useState(false);
 
   const configQuery = useQuery({
-    queryKey: ["system-config"],
+    queryKey: qk.systemConfig(),
     queryFn: getConfig,
   });
 
@@ -117,7 +118,7 @@ function GeneralTab() {
   const updateMutation = useMutation({
     mutationFn: updateConfig,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["system-config"] });
+      await queryClient.invalidateQueries({ queryKey: qk.systemConfig() });
       toast.success("Configuracion guardada correctamente.");
     },
   });
@@ -272,7 +273,7 @@ const codepageOptions = [
 
 function CashRegistersTab() {
   const registersQuery = useQuery({
-    queryKey: ["cash-registers"],
+    queryKey: qk.cashRegisters(),
     queryFn: listCashRegisters,
   });
 
@@ -313,7 +314,7 @@ function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
     mutationFn: () =>
       updateCashRegister(register.id, { printer_path: printerPath.trim() || null, printer_codepage: codepage }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["cash-registers"] });
+      await queryClient.invalidateQueries({ queryKey: qk.cashRegisters() });
       toast.success(`Impresora de ${register.name} guardada.`);
     },
     onError: (error) => {
@@ -366,7 +367,7 @@ function AuditTab() {
   const [entityFilter, setEntityFilter] = useState("");
 
   const auditQuery = useQuery({
-    queryKey: ["audit-logs", page, actionFilter, entityFilter],
+    queryKey: qk.auditLogs(page, actionFilter, entityFilter),
     queryFn: () =>
       listAuditLogs({
         page,
@@ -506,14 +507,14 @@ function BackupsTab() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const backupsQuery = useQuery({
-    queryKey: ["backups"],
+    queryKey: qk.backups(),
     queryFn: listBackups,
   });
 
   const createMutation = useMutation({
     mutationFn: createBackup,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["backups"] });
+      await queryClient.invalidateQueries({ queryKey: qk.backups() });
       toast.success("Backup creado correctamente.");
     },
     onError: (err) => {
@@ -525,7 +526,7 @@ function BackupsTab() {
   const deleteMutation = useMutation({
     mutationFn: deleteBackup,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["backups"] });
+      await queryClient.invalidateQueries({ queryKey: qk.backups() });
       setConfirmDelete(null);
     },
   });

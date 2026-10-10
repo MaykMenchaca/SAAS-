@@ -43,6 +43,7 @@ import { cn } from "../../lib/cn";
 import { Badge, Button, Input, Modal } from "../ui";
 import { CommandPalette } from "./command-palette";
 import { useCommandPalette } from "./command-palette-context";
+import { qk } from "../../api/query-keys";
 
 type BadgeKey = keyof SidebarBadges;
 
@@ -212,7 +213,7 @@ export function AppShell() {
 
   // Dynamic system branding query (accesible a todos los roles)
   const brandingQuery = useQuery({
-    queryKey: ["branding"],
+    queryKey: qk.branding(),
     queryFn: getBranding,
   });
 
@@ -239,8 +240,8 @@ export function AppShell() {
   const configMutation = useMutation({
     mutationFn: (updates: Record<string, string>) => updateConfig(updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["branding"] });
-      queryClient.invalidateQueries({ queryKey: ["system-config"] });
+      queryClient.invalidateQueries({ queryKey: qk.branding() });
+      queryClient.invalidateQueries({ queryKey: qk.systemConfig() });
       toast.success("Diseño de marca actualizado.");
       setIsCustomizingBrand(false);
     },

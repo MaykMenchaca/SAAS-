@@ -9,6 +9,8 @@ import type { SaleListItem } from "../api/sales";
 import { printSaleTicket } from "../api/printing";
 import { cancelSale, getSale, listSales } from "../api/sales";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
+import { invalidateAfterSale } from "../api/invalidate";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -17,7 +19,7 @@ export function SalesHistoryPage() {
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
 
   const salesQuery = useQuery({
-    queryKey: ["sales-history", page],
+    queryKey: qk.salesHistory(page),
     queryFn: () => listSales(page, 20),
   });
 
@@ -134,15 +136,14 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
   const [showCancel, setShowCancel] = useState(false);
 
   const saleQuery = useQuery({
-    queryKey: ["sale-detail", saleId],
+    queryKey: qk.saleDetail(saleId),
     queryFn: () => getSale(saleId),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelSale(saleId, cancelReason),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["sales-history"] });
-      await queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
+      await invalidateAfterSale(queryClient);
       setShowCancel(false);
     },
   });

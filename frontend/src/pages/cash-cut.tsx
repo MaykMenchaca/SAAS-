@@ -23,6 +23,7 @@ import type { CashRegisterSession, SessionSummary } from "../api/sales";
 import { closeCashRegister, getSessionSummary, listSessions } from "../api/sales";
 import { usePosStore } from "../stores/pos-store";
 import { Badge, Button, Card, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
 
 // ── Denomination Config ──────────────────────────────────────────
 
@@ -56,7 +57,7 @@ export function CashCutPage() {
   const [page, setPage] = useState(1);
 
   const sessionsQuery = useQuery({
-    queryKey: ["cash-sessions"],
+    queryKey: qk.cashSessions(),
     queryFn: listSessions,
   });
 
@@ -328,15 +329,15 @@ function CashSessionDetailsView({
   const countedTotal = manualTotal === "" ? 0 : parseFloat(manualTotal) || 0;
 
   const summaryQuery = useQuery({
-    queryKey: ["session-summary", session.id],
+    queryKey: qk.sessionSummary(session.id),
     queryFn: () => getSessionSummary(session.id),
   });
 
   const closeMutation = useMutation({
     mutationFn: () => closeCashRegister(session.id, countedTotal.toFixed(2), closeNotes),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["cash-sessions"] });
-      await queryClient.invalidateQueries({ queryKey: ["session-summary", session.id] });
+      await queryClient.invalidateQueries({ queryKey: qk.cashSessions() });
+      await queryClient.invalidateQueries({ queryKey: qk.sessionSummary(session.id) });
       if (usePosStore.getState().sessionId === session.id) {
         usePosStore.getState().clearSession();
       }

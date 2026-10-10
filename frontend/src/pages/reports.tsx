@@ -19,6 +19,7 @@ import type { GrossMarginReport, InventoryValuation, SalesReport, TopProductsRep
 import { fetchGrossMargin, fetchInventoryValuation, fetchSalesReport, fetchTopProducts } from "../api/reports";
 import { Badge, Button, Card, ErrorState, Input, SkeletonKPI, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
+import { qk } from "../api/query-keys";
 
 // ── CSV Helper ───────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ export function ReportsPage() {
 
 function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
   const query = useQuery({
-    queryKey: ["report-sales", dateFrom, dateTo],
+    queryKey: qk.reportSales(dateFrom, dateTo),
     queryFn: () => fetchSalesReport(dateFrom, dateTo),
   });
 
@@ -307,7 +308,7 @@ function TopProductsTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string
   const [sortBy, setSortBy] = useState<"quantity" | "revenue">("revenue");
 
   const query = useQuery({
-    queryKey: ["report-top-products", dateFrom, dateTo, sortBy],
+    queryKey: qk.reportTopProducts(dateFrom, dateTo, sortBy),
     queryFn: () => fetchTopProducts({ from: dateFrom, to: dateTo, sort: sortBy, limit: 20 }),
   });
 
@@ -401,7 +402,7 @@ function TopProductsTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string
 
 function InventoryValuationTab() {
   const query = useQuery({
-    queryKey: ["report-inventory-valuation"],
+    queryKey: qk.reportInventoryValuation(),
     queryFn: fetchInventoryValuation,
   });
 
@@ -512,7 +513,7 @@ function InventoryValuationTab() {
 
 function GrossMarginTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
   const query = useQuery({
-    queryKey: ["report-gross-margin", dateFrom, dateTo],
+    queryKey: qk.reportGrossMargin(dateFrom, dateTo),
     queryFn: () => fetchGrossMargin(dateFrom, dateTo),
   });
 
