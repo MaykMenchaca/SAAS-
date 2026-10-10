@@ -38,6 +38,46 @@ class ProductService:
         return query.order_by(Product.name.asc())
 
     @staticmethod
+    def find_by_code(code):
+        """Producto activo cuyo código de barras o SKU coincide exactamente (sin distinguir mayúsculas)."""
+        code = (code or "").strip()
+        if not code:
+            return None
+        return (
+            Product.query.filter(
+                Product.is_active.is_(True),
+                or_(func.lower(Product.barcode) == code.lower(), func.lower(Product.sku) == code.lower()),
+            )
+            # El código de barras gana sobre el SKU si ambos coinciden con productos distintos
+            .order_by((func.lower(Product.barcode) == code.lower()).desc(), Product.id)
+            .first()
+        )
+
+    @staticmethod
+    def pos_catalog():
+        """Catálogo compacto de productos activos para la copia local del POS (OPS-02)."""
+        rows = (
+            db.session.query(Product, UnitOfMeasure)
+            .join(UnitOfMeasure, UnitOfMeasure.id == Product.unit_id)
+            .filter(Product.is_active.is_(True))
+            .order_by(Product.name)
+            .all()
+        )
+        return [
+            {
+                "id": product.id,
+                "sku": product.sku,
+                "barcode": product.barcode,
+                "name": product.name,
+                "sale_price": str(product.sale_price),
+                "tax_rate": str(product.tax_rate),
+                "category_id": product.category_id,
+                "unit": {"abbreviation": unit.abbreviation, "allows_fractions": unit.allows_fractions},
+            }
+            for product, unit in rows
+        ]
+
+    @staticmethod
     def list_units():
         return UnitOfMeasure.query.order_by(UnitOfMeasure.name.asc()).all()
 

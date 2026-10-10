@@ -9,6 +9,7 @@ from app.schemas.product import (
 from app.services.product_service import ProductService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
+from app.utils.timeutil import utc_now
 
 products_bp = Blueprint("products", __name__)
 
@@ -32,6 +33,26 @@ def list_products():
         category_id=category_id,
     )
     return jsonify(paginate(query, products_schema)), 200
+
+
+@products_bp.route("/by-code/<path:code>", methods=["GET"])
+@require_permission("productos:ver")
+def get_product_by_code(code):
+    """Búsqueda exacta para el lector de código de barras (OPS-14)."""
+    product = ProductService.find_by_code(code)
+    if not product:
+        return jsonify({"error": "Producto no registrado"}), 404
+    return jsonify(product_schema.dump(product)), 200
+
+
+@products_bp.route("/pos-catalog", methods=["GET"])
+@require_permission("productos:ver")
+def pos_catalog():
+    """Catálogo compacto para que el POS siga vendiendo con el servidor caído (OPS-02)."""
+    return jsonify({
+        "generated_at": utc_now().isoformat(),
+        "items": ProductService.pos_catalog(),
+    }), 200
 
 
 @products_bp.route("/units", methods=["GET"])

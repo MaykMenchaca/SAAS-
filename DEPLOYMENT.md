@@ -86,6 +86,7 @@ Decisión de la fase 4.3: **no se configura HTTPS local**. Por eso:
 
 - El navegador solo permite el service worker en `http://localhost`. En las cajas de la LAN (`http://<ip-servidor>:5000`) **no hay caché de la aplicación**: si se recarga la página sin servidor, no carga.
 - Mientras la página siga abierta, una caída de red o del servidor no detiene la venta: se guarda en el equipo con la marca **PENDIENTE DE SINCRONIZAR**, se envía sola cuando el servidor vuelve a responder (ping a `/api/health` cada 30 s, con reintentos crecientes) y no se duplica, porque cada venta lleva su `client_uuid`.
+- El POS guarda en el equipo una **copia del catálogo** (se refresca cada 10 minutos con servidor). Sin servidor, el lector de código y la búsqueda usan esa copia y avisan que los precios se confirman al sincronizar. La sesión de caja y el carrito no se pierden por una caída de red.
 - El header muestra **"N ventas pendientes"**. Si el servidor rechaza una venta (por ejemplo, la caja ya se cerró o no hay stock), pasa a **"Rechazadas"**: no bloquea a las demás y se revisa o descarta desde ese mismo panel.
 - Las ventas pendientes se guardan en el navegador de esa caja: **no borres los datos del navegador** mientras haya pendientes.
 - Para tener caché real en las cajas haría falta HTTPS local con un certificado confiable en cada equipo; queda fuera de esta fase.
