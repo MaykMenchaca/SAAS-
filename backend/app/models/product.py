@@ -49,7 +49,7 @@ class Product(db.Model):
         server_default="0",
     )
     avg_cost = db.Column(
-        db.Numeric(12, 2),
+        db.Numeric(12, 4),  # 4 decimales: el promedio ponderado no pierde precisión por recepción (H-31)
         nullable=False,
         default=Decimal("0.00"),
         server_default="0",

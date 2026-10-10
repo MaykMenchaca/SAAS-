@@ -416,7 +416,7 @@ class TestReceiveOrder:
         )
 
         product = db.session.get(Product, p1.id)
-        assert product.avg_cost == Decimal("81.67")
+        assert product.avg_cost == Decimal("81.6667")  # 4 decimales desde la fase 4.6 (H-31)
 
     def test_cannot_exceed_ordered_quantity(self, client, admin_token, sent_order):
         """Should fail if received_quantity exceeds remaining."""

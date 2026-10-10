@@ -155,7 +155,14 @@ class SaleService:
             if existing_sale:
                 return existing_sale
 
-        session = db.session.get(CashRegisterSession, session_id)
+        # Bloqueo de la sesión: si se está cerrando, esperamos y vemos su estado final (H-31)
+        session = (
+            db.session.query(CashRegisterSession)
+            .filter_by(id=session_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not session or session.status != "abierta":
             raise ValueError("La sesión de caja no está abierta")
 

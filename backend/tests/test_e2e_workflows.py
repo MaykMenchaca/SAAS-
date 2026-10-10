@@ -201,7 +201,7 @@ class TestPurchaseOrderWorkflow:
         # Old: 100*60 = 6000, New: 50*55 = 2750, Total: 8750/150 ≈ 58.33
         from app.models.product import Product
         product = db.session.get(Product, seed_product_for_sale.id)
-        assert product.avg_cost == Decimal("58.33")
+        assert product.avg_cost == Decimal("58.3333")  # 4 decimales desde la fase 4.6 (H-31)
 
 
 class TestInventoryCountWorkflow:

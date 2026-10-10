@@ -30,6 +30,15 @@ class CashRegister(db.Model):
 
 class CashRegisterSession(db.Model):
     __tablename__ = "cash_register_sessions"
+    __table_args__ = (
+        # Una sola sesión abierta por caja, garantizado por la BD aunque dos aperturas compitan (H-31)
+        db.Index(
+            "uq_cash_session_open",
+            "cash_register_id",
+            unique=True,
+            postgresql_where=db.text("status = 'abierta'"),
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     cash_register_id = db.Column(

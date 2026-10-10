@@ -4,6 +4,7 @@ from decimal import Decimal
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.sale import CashRegister, CashRegisterSession, Payment, Sale, SaleReturn
@@ -80,6 +81,10 @@ def update_register(register_id):
     return jsonify(_register_dict(register)), 200
 
 
+def _find_open_session(register_id: int) -> CashRegisterSession | None:
+    return CashRegisterSession.query.filter_by(cash_register_id=register_id, status="abierta").first()
+
+
 @cash_register_bp.route("/open", methods=["POST"])
 @require_permission("caja:abrir")
 def open_session():
@@ -90,11 +95,8 @@ def open_session():
     if not register:
         return jsonify({"error": "Caja registradora no encontrada"}), 404
 
-    # Check if the register already has an open session
-    existing = CashRegisterSession.query.filter_by(
-        cash_register_id=register.id, status="abierta"
-    ).first()
-    if existing:
+    # Verificación amable; el índice único uq_cash_session_open cubre la carrera entre dos aperturas
+    if _find_open_session(register.id):
         return jsonify({"error": "Esta caja ya tiene una sesión abierta"}), 400
 
     user_id = int(get_jwt_identity())
@@ -106,7 +108,11 @@ def open_session():
         status="abierta",
     )
     db.session.add(session)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Esta caja ya tiene una sesión abierta"}), 400
 
     from app.services.audit_service import log_action
     log_action(
@@ -132,7 +138,14 @@ def close_session(session_id):
     """Close an open cash register session."""
     data = close_schema.load(request.get_json(silent=True) or {})
 
-    session = db.session.get(CashRegisterSession, session_id)
+    # Bloqueo de la sesión: una venta concurrente espera al cierre y luego ve la caja cerrada (H-31)
+    session = (
+        db.session.query(CashRegisterSession)
+        .filter_by(id=session_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not session:
         return jsonify({"error": "Sesión no encontrada"}), 404
 

@@ -238,7 +238,14 @@ class PurchaseOrderService:
         Raises:
             ValueError: If order not receivable or quantities invalid.
         """
-        order = db.session.get(PurchaseOrder, order_id)
+        # Bloqueo de la orden: dos recepciones simultáneas no pueden superar lo pendiente (H-31)
+        order = (
+            db.session.query(PurchaseOrder)
+            .filter_by(id=order_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not order:
             raise ValueError("Orden de compra no encontrada")
         if order.status not in ("enviada", "parcial"):
@@ -247,7 +254,9 @@ class PurchaseOrderService:
             )
 
         for item_data in items:
-            order_item = db.session.get(PurchaseOrderItem, item_data["order_item_id"])
+            order_item = db.session.get(
+                PurchaseOrderItem, item_data["order_item_id"], populate_existing=True
+            )
             if not order_item or order_item.purchase_order_id != order_id:
                 raise ValueError(
                     f"Item {item_data['order_item_id']} no pertenece a esta orden"
@@ -286,7 +295,7 @@ class PurchaseOrderService:
                     new_avg = (
                         (old_stock * product.avg_cost + recv_qty * order_item.unit_cost)
                         / current_stock
-                    ).quantize(Decimal("0.01"))
+                    ).quantize(Decimal("0.0001"))
                     product.avg_cost = new_avg
 
         # Determine new status
