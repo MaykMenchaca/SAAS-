@@ -53,7 +53,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 4.1 Zona horaria `America/Mexico_City` (H-21, UI-04) · commit a7db395 · tests: `test_timezone.py` (7: `test_venta_19h_cuenta_en_dia_local`, `test_folio_usa_fecha_local`, `test_folio_orden_compra_usa_fecha_local`, `test_reporte_sin_fechas_usa_dia_local`, `test_ticket_muestra_hora_local`, `test_local_day_bounds_mexico`, `test_local_today_con_reloj_inyectado`), suite 283 passed, build OK · `APP_TIMEZONE` + `app/utils/timeutil.py`; reportes y dashboard con días locales en intervalo [inicio, fin) y `date_trunc` sobre `timezone(tz, created_at)`; folios V-/OC-, nombre/retención de respaldos y hora del ticket en hora local; `tzdata` añadido a requirements (Windows no trae base de zonas); frontend `src/lib/dates.ts` (`localISODate`) en dashboard y reportes
 - [x] 4.2 Impresora por caja, ESC/POS, cajón y reimpresión (H-22) ⚠️ hardware · commit 26e80b2 · tests: `test_printer_fase4.py` (18: `test_ticket_usa_config_empresa`, `test_encoding_acentos_mayusculas`, `test_corte_gs_v`, `test_venta_en_efectivo_abre_cajon`, `test_reimpresion_no_abre_cajon`, `test_reintento_idempotente_no_reabre_cajon`, `test_venta_sincronizada_offline_no_abre_cajon`, `test_escritura_con_timeout`, `test_admin_configura_impresora_de_caja`, …); `test_printer.py` ajustado (encabezado desde config y corte GS V) · `cash_registers.printer_path/printer_codepage` (migración `a4f2c1d0e9b8`, **sin aplicar a pos_db**), ESC t + transliteración, ESC d 4 + GS V, timeout 5 s, cajón automático en efectivo (best-effort), pestaña Configuración → Cajas y botón "Reimprimir ticket" · **PENDIENTE: prueba con impresora y cajón físicos**
 - [x] 4.3 Modo offline fiable (H-24) ⚠️ HTTPS sí/no · commit 0bbd149 · verificación: `npm run build` OK (sin framework de tests en frontend hasta 6.2); prueba en navegador con servidor caído pendiente para el gate F4 · timeout axios 15 s, refresh con error de red no cierra sesión, `auth-store.offline`, sincronizador único (mutex de módulo, backoff 5 s→5 min, ping `/api/health` 30 s, `open_drawer:false`), `rejectedSales` + bandeja con "Descartar" confirmado, indicador "N ventas pendientes", ticket offline con usuario real y "PENDIENTE DE SINCRONIZAR", F8 deshabilitado para id<0; alcance documentado en `DEPLOYMENT.md`
-- [ ] 4.4 Stock inicial, inactivos y búsqueda (H-26, H-43, H-38)
+- [x] 4.4 Stock inicial, inactivos y búsqueda (H-26, H-43, H-38) · commit 67b2b44 · tests: `test_catalog_fase4.py` (10: `test_producto_nuevo_aparece_en_stock_y_low_stock`, `test_avg_cost_del_cliente_se_ignora_al_crear`, `test_busqueda_tolera_errores_qa18` ×4, `test_busqueda_ordena_por_relevancia_y_sin_ruido`, `test_busqueda_por_sku_y_codigo_sigue_funcionando`, `test_reactivar_producto`, `test_reactivar_requiere_permiso`) · `Stock(0)` y `avg_cost=purchase_price` al crear; migración de datos `b5e3d2c1f0a9` (**sin aplicar a pos_db**, SQL validado en transacción revertida); `POST /products/<id>/reactivate`; `word_similarity > 0.4` (calibrado con QA-18; 0.3 del plan dejaba pasar "Tornillo" al buscar "martillo"); casilla "Mostrar inactivos" y botón "Reactivar"
 - [ ] 4.5 Email opcional + mensajes en español (H-28)
 - [ ] 4.6 Concurrencia: sesión única y bloqueos (H-31)
 - [ ] **Gate fase 4**
@@ -183,6 +183,11 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 ### `POST /api/sales/` — `open_drawer` (Subfase 4.2, H-22)
 - Campo opcional `open_drawer` (bool, default `true`). Con pago en efectivo y `open_drawer=true` el servidor abre el cajón de la caja de la sesión después del commit (best-effort). La cola offline debe enviar `open_drawer: false`. Un reintento idempotente (`client_uuid` ya existente) nunca abre el cajón.
 
+### `POST /api/products/<id>/reactivate` (Subfase 4.4, H-43)
+- **Autenticación:** permiso `productos:desactivar`. Auditado (`product`, `reactivar`).
+- **Response 200:** el producto serializado con `is_active: true`. 404 si no existe.
+- `GET /api/products/?include_inactive=true` lista también los inactivos.
+
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
 |---|---|---|
@@ -195,4 +200,4 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 _(Problemas encontrados durante la ejecución, fuera del alcance de la subfase. El orquestador decide en qué fase entran.)_
 - (4.1) Una fecha inválida en `from`/`to` de `/api/reports/*` sigue respondiendo 500 (`parse_local_date` lanza `ValueError` sin manejador 400). Corresponde a H-32 / subfase 6.5.
 - (4.1) El hook `.git/hooks/pre-commit` imprime `echo.: command not found` (sintaxis de cmd en script sh); no bloquea el commit. Candidato a 6.3 (hooks versionados).
-
+- (4.4) `GET /api/inventory/stock` y la valuación de inventario siguen excluyendo productos inactivos aunque tengan existencias (parte de H-43 no cubierta por el plan 4.4: solo pedía el filtro y reactivar en Productos). Candidato a 5.4 o 6.x.
