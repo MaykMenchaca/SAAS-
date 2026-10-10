@@ -108,11 +108,16 @@ def seed_permissions():
 
 
 def seed_roles(perm_map):
-    """Create roles and assign permissions."""
+    """Create roles and assign/sync permissions."""
     created = 0
     for role_name, config in ROLES.items():
         existing = Role.query.filter_by(name=role_name).first()
         if existing:
+            # Sincronizar permisos faltantes en roles existentes del sistema (H-51)
+            existing_perm_codes = {p.code for p in existing.permissions}
+            for code in config["permissions"]:
+                if code in perm_map and code not in existing_perm_codes:
+                    existing.permissions.append(perm_map[code])
             continue
         role = Role(name=role_name, description=config["description"])
         for code in config["permissions"]:
@@ -122,7 +127,7 @@ def seed_roles(perm_map):
         created += 1
 
     db.session.flush()
-    click.echo(f"  Roles: {created} creados, {len(ROLES) - created} existentes")
+    click.echo(f"  Roles: {created} creados, {len(ROLES) - created} existentes/sincronizados")
 
 
 def seed_admin_user():
