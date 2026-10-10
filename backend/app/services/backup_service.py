@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+import click
 from flask import current_app
+from flask.cli import with_appcontext
 
 
 def _get_backup_dir() -> Path:
@@ -55,6 +57,50 @@ def _parse_db_url() -> dict:
     }
 
 
+def _get_pg_dump_path() -> str:
+    """Return full path to pg_dump executable, autodetecting if needed."""
+    configured = current_app.config.get("PG_BIN_DIR") or os.getenv("PG_BIN_DIR")
+    if configured:
+        exe_path = Path(configured) / "pg_dump.exe"
+        if exe_path.exists():
+            return str(exe_path)
+        plain_path = Path(configured) / "pg_dump"
+        if plain_path.exists():
+            return str(plain_path)
+        return str(Path(configured) / "pg_dump")
+
+    program_files = os.getenv("PROGRAMFILES", r"C:\Program Files")
+    pg_dirs = sorted(Path(program_files).glob("PostgreSQL/*/bin"), reverse=True)
+    for p in pg_dirs:
+        exe = p / "pg_dump.exe"
+        if exe.exists():
+            return str(exe)
+
+    return "pg_dump"
+
+
+def _get_pg_restore_path() -> str:
+    """Return full path to pg_restore executable, autodetecting if needed."""
+    configured = current_app.config.get("PG_BIN_DIR") or os.getenv("PG_BIN_DIR")
+    if configured:
+        exe_path = Path(configured) / "pg_restore.exe"
+        if exe_path.exists():
+            return str(exe_path)
+        plain_path = Path(configured) / "pg_restore"
+        if plain_path.exists():
+            return str(plain_path)
+        return str(Path(configured) / "pg_restore")
+
+    program_files = os.getenv("PROGRAMFILES", r"C:\Program Files")
+    pg_dirs = sorted(Path(program_files).glob("PostgreSQL/*/bin"), reverse=True)
+    for p in pg_dirs:
+        exe = p / "pg_restore.exe"
+        if exe.exists():
+            return str(exe)
+
+    return "pg_restore"
+
+
 def create_backup() -> dict:
     """Create a database backup using pg_dump.
 
@@ -68,15 +114,16 @@ def create_backup() -> dict:
     db_info = _parse_db_url()
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"backup_{db_info['dbname']}_{timestamp}.sql"
+    filename = f"backup_{db_info['dbname']}_{timestamp}.dump"
     filepath = backup_dir / filename
 
     env = os.environ.copy()
     if db_info["password"]:
         env["PGPASSWORD"] = db_info["password"]
 
+    pg_dump_bin = _get_pg_dump_path()
     cmd = [
-        "pg_dump",
+        pg_dump_bin,
         "-h", db_info["host"],
         "-p", db_info["port"],
         "-U", db_info["user"],
@@ -94,17 +141,28 @@ def create_backup() -> dict:
             timeout=300,
         )
     except FileNotFoundError:
+        if filepath.exists():
+            filepath.unlink(missing_ok=True)
         raise RuntimeError(
             "pg_dump no encontrado. Asegurate de que PostgreSQL client tools esten instalados."
         )
     except subprocess.TimeoutExpired:
+        if filepath.exists():
+            filepath.unlink(missing_ok=True)
         raise RuntimeError("pg_dump tardo mas de 5 minutos y fue cancelado.")
 
     if result.returncode != 0:
+        if filepath.exists():
+            filepath.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump fallo: {result.stderr.strip()}")
 
     size = filepath.stat().st_size
-    usb_copy = copy_backup_to_usb(filepath)
+    usb_copy = None
+    usb_error = None
+    try:
+        usb_copy = copy_backup_to_usb(filepath)
+    except OSError as e:
+        usb_error = str(e)
 
     return {
         "filename": filename,
@@ -114,6 +172,7 @@ def create_backup() -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "usb_copied": usb_copy is not None,
         "usb_path": str(usb_copy) if usb_copy else None,
+        "usb_error": usb_error,
     }
 
 
@@ -125,16 +184,88 @@ def copy_backup_to_usb(filepath: str | os.PathLike) -> Path | None:
         return None
 
     destination = usb_dir / source.name
-    shutil.copy2(source, destination)
+    try:
+        shutil.copy2(source, destination)
+    except OSError:
+        return None
     return destination
+
+
+def apply_retention(daily_keep: int = 14, weekly_keep: int = 8) -> dict:
+    """Apply retention policy to backups: keep latest `daily_keep` days,
+    and 1 per week for up to `weekly_keep` weeks. Delete older ones.
+    """
+    backup_dir = _get_backup_dir()
+    dump_files = sorted(backup_dir.glob("backup_*.dump"), key=lambda f: f.name, reverse=True)
+    if not dump_files:
+        return {"kept": 0, "deleted": 0}
+
+    files_by_day = {}
+    fallback_files = []
+
+    for f in dump_files:
+        parts = f.stem.split("_")
+        date_str = None
+        for part in parts:
+            if len(part) == 8 and part.isdigit():
+                date_str = part
+                break
+
+        if date_str:
+            try:
+                d = datetime.strptime(date_str, "%Y%m%d").date()
+                files_by_day.setdefault(d, []).append(f)
+            except ValueError:
+                fallback_files.append(f)
+        else:
+            d = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).date()
+            files_by_day.setdefault(d, []).append(f)
+
+    sorted_days = sorted(files_by_day.keys(), reverse=True)
+
+    keep_files = set()
+    daily_days = sorted_days[:daily_keep]
+    for d in daily_days:
+        for f in files_by_day[d]:
+            keep_files.add(f)
+
+    older_days = sorted_days[daily_keep:]
+    weeks_kept = {}
+    for d in older_days:
+        iso_year, iso_week, _ = d.isocalendar()
+        week_key = (iso_year, iso_week)
+        if week_key not in weeks_kept and len(weeks_kept) < weekly_keep:
+            weeks_kept[week_key] = files_by_day[d][0]
+            keep_files.add(files_by_day[d][0])
+
+    deleted_count = 0
+    for f in dump_files:
+        if f not in keep_files and f not in fallback_files:
+            try:
+                f.unlink(missing_ok=True)
+                deleted_count += 1
+            except OSError:
+                pass
+
+    return {"kept": len(keep_files), "deleted": deleted_count}
 
 
 def list_backups() -> list:
     """List existing backup files sorted by date (newest first)."""
     backup_dir = _get_backup_dir()
     backups = []
+    seen_names = set()
 
-    for f in sorted(backup_dir.glob("backup_*.sql"), reverse=True):
+    all_files = []
+    for pattern in ("backup_*.dump", "backup_*.sql"):
+        all_files.extend(backup_dir.glob(pattern))
+
+    all_files = sorted(all_files, key=lambda f: f.name, reverse=True)
+
+    for f in all_files:
+        if f.name in seen_names:
+            continue
+        seen_names.add(f.name)
         stat = f.stat()
         backups.append({
             "filename": f.name,
@@ -165,7 +296,7 @@ def verify_backup(filename: str) -> dict:
     if not filepath.exists():
         raise FileNotFoundError("Backup no encontrado")
 
-    cmd = ["pg_restore", "--list", str(filepath)]
+    cmd = [_get_pg_restore_path(), "--list", str(filepath)]
 
     try:
         result = subprocess.run(
@@ -206,3 +337,26 @@ def _resolve_backup_path(filename: str) -> Path:
         raise ValueError("Nombre de archivo invalido")
 
     return filepath
+
+
+@click.command("backup")
+@click.option("--retention/--no-retention", default=True, help="Aplicar política de retención.")
+@with_appcontext
+def backup_command(retention):
+    """Crear un respaldo de la base de datos."""
+    click.echo("Iniciando respaldo de base de datos...")
+    try:
+        res = create_backup()
+        click.echo(f"Respaldo creado con éxito: {res['filename']} ({res['size_bytes']} bytes)")
+        if res.get("usb_copied"):
+            click.echo(f"Copia en USB creada: {res.get('usb_path')}")
+        elif res.get("usb_error"):
+            click.echo(f"Advertencia USB: {res.get('usb_error')}", err=True)
+
+        if retention:
+            ret = apply_retention()
+            click.echo(f"Retención aplicada: {ret['kept']} conservados, {ret['deleted']} eliminados.")
+    except Exception as e:
+        click.echo(f"Error al crear el respaldo: {e}", err=True)
+        raise SystemExit(1)
+

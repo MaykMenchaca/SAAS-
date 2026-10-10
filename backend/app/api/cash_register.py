@@ -1,7 +1,7 @@
 """Cash Register API — open/close sessions, list, and cash cut summary."""
 from decimal import Decimal
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import func
 
@@ -149,16 +149,27 @@ def close_session(session_id):
 
     db.session.commit()
 
-    # Trigger automatic backup on session close (Fase 4)
-    try:
-        from app.services.backup_service import create_backup
-        create_backup()
-    except Exception as e:
-        # Do not block the session closure response if pg_dump is missing or fails
-        from flask import current_app
-        current_app.logger.error(f"[BACKUP ERROR] Error creating automated backup on session close: {e}")
+    # Trigger automatic backup in background thread (Subfase 3.1, H-12, H-42)
+    import threading
+    app_instance = current_app._get_current_object()
 
-    return jsonify(session_schema.dump(session)), 200
+    def _async_backup():
+        with app_instance.app_context():
+            try:
+                from app.services.backup_service import create_backup, apply_retention
+                create_backup()
+                apply_retention()
+            except Exception as exc:
+                app_instance.logger.error(
+                    f"[BACKUP ERROR] Error creating automated backup on session close: {exc}"
+                )
+
+    t = threading.Thread(target=_async_backup, daemon=True)
+    t.start()
+
+    res = session_schema.dump(session)
+    res["backup"] = {"status": "en_progreso"}
+    return jsonify(res), 200
 
 
 @cash_register_bp.route("/<int:session_id>/summary", methods=["GET"])

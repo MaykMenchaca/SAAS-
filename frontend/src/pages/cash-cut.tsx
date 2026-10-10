@@ -341,7 +341,7 @@ function CashSessionDetailsView({
         usePosStore.getState().clearSession();
       }
       setClosed(true);
-      toast.success("Caja cerrada correctamente. Turno finalizado.");
+      toast.success("Caja cerrada correctamente. Respaldo iniciado en segundo plano.");
     },
   });
 

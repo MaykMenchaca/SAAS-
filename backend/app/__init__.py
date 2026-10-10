@@ -30,6 +30,9 @@ def create_app(config_class=Config):
     from app.seed import seed_command
     application.cli.add_command(seed_command)
 
+    from app.services.backup_service import backup_command
+    application.cli.add_command(backup_command)
+
     _register_frontend_routes(application)
 
     return application

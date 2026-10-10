@@ -28,4 +28,26 @@ def register_blueprints(app):
 
     @app.route("/api/health")
     def health():
-        return jsonify({"status": "ok"}), 200
+        from sqlalchemy import text
+        from app.extensions import db
+        from app.services.backup_service import list_backups
+
+        try:
+            db.session.execute(text("SELECT 1"))
+            db_status = "ok"
+        except Exception:
+            db_status = "error"
+
+        try:
+            backups = list_backups()
+            last_backup = backups[0]["created_at"] if backups else None
+        except Exception:
+            last_backup = None
+
+        overall_status = "ok" if db_status == "ok" else "error"
+        status_code = 200 if db_status == "ok" else 503
+        return jsonify({
+            "status": overall_status,
+            "db": db_status,
+            "last_backup_at": last_backup,
+        }), status_code
