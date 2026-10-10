@@ -43,7 +43,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] **Gate fase 2** · APROBADO (2026-10-08, 251 tests backend passed, frontend build OK, gate.ps1 en verde, commit 601044a)
 
 ## Fase 3: Continuidad · carril C, puede ir en paralelo a F2
-- [ ] 3.1 Respaldos: `PG_BIN_DIR`, asíncrono, programado, retención, offsite (H-12, H-42)
+- [x] 3.1 Respaldos: `PG_BIN_DIR`, asíncrono, programado, retención, offsite (H-12, H-42) · commit ea4315b · tests: `test_backup_fase3.py` (11 tests) · PG_BIN_DIR con autodetección, formato .dump, retención 14d/8w, captura OSError USB, backup en hilo al cerrar caja, CLI `flask backup` y `/api/health` con db y last_backup_at
 - [ ] 3.2 Restauración segura + test real (H-13)
 - [ ] 3.3 Servicio de Windows, instaladores, seed y `.env.example` (H-23, H-37, H-51) ⚠️ admin
 - [ ] 3.4 Logs, health y `error_id` (H-36)
