@@ -51,7 +51,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 
 ## Fase 4: Operación de tienda · rama `fix/fase-4` (desde `fix/fase-3`)
 - [x] 4.1 Zona horaria `America/Mexico_City` (H-21, UI-04) · commit a7db395 · tests: `test_timezone.py` (7: `test_venta_19h_cuenta_en_dia_local`, `test_folio_usa_fecha_local`, `test_folio_orden_compra_usa_fecha_local`, `test_reporte_sin_fechas_usa_dia_local`, `test_ticket_muestra_hora_local`, `test_local_day_bounds_mexico`, `test_local_today_con_reloj_inyectado`), suite 283 passed, build OK · `APP_TIMEZONE` + `app/utils/timeutil.py`; reportes y dashboard con días locales en intervalo [inicio, fin) y `date_trunc` sobre `timezone(tz, created_at)`; folios V-/OC-, nombre/retención de respaldos y hora del ticket en hora local; `tzdata` añadido a requirements (Windows no trae base de zonas); frontend `src/lib/dates.ts` (`localISODate`) en dashboard y reportes
-- [ ] 4.2 Impresora por caja, ESC/POS, cajón y reimpresión (H-22) ⚠️ hardware
+- [x] 4.2 Impresora por caja, ESC/POS, cajón y reimpresión (H-22) ⚠️ hardware · commit 26e80b2 · tests: `test_printer_fase4.py` (18: `test_ticket_usa_config_empresa`, `test_encoding_acentos_mayusculas`, `test_corte_gs_v`, `test_venta_en_efectivo_abre_cajon`, `test_reimpresion_no_abre_cajon`, `test_reintento_idempotente_no_reabre_cajon`, `test_venta_sincronizada_offline_no_abre_cajon`, `test_escritura_con_timeout`, `test_admin_configura_impresora_de_caja`, …); `test_printer.py` ajustado (encabezado desde config y corte GS V) · `cash_registers.printer_path/printer_codepage` (migración `a4f2c1d0e9b8`, **sin aplicar a pos_db**), ESC t + transliteración, ESC d 4 + GS V, timeout 5 s, cajón automático en efectivo (best-effort), pestaña Configuración → Cajas y botón "Reimprimir ticket" · **PENDIENTE: prueba con impresora y cajón físicos**
 - [ ] 4.3 Modo offline fiable (H-24) ⚠️ HTTPS sí/no
 - [ ] 4.4 Stock inicial, inactivos y búsqueda (H-26, H-43, H-38)
 - [ ] 4.5 Email opcional + mensajes en español (H-28)
@@ -174,6 +174,14 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
     "logo_url": ""
   }
   ```
+
+### `PATCH /api/cash-register/registers/<id>` — Impresora por caja (Subfase 4.2, H-22)
+- **Autenticación:** rol `admin`. Auditado (`cash_register`, `update`).
+- **Body (JSON, todos opcionales):** `printer_path` (ruta absoluta o `COMn`/`LPTn`; vacío o `null` la quita; UNC y relativas → 400), `printer_codepage` (`cp850` | `cp858` | `cp437` | `cp1252`; otra → 400), `name`.
+- **Response 200:** `{"id", "name", "is_active", "printer_path", "printer_codepage"}`. `GET /api/cash-register/` devuelve los mismos campos.
+
+### `POST /api/sales/` — `open_drawer` (Subfase 4.2, H-22)
+- Campo opcional `open_drawer` (bool, default `true`). Con pago en efectivo y `open_drawer=true` el servidor abre el cajón de la caja de la sesión después del commit (best-effort). La cola offline debe enviar `open_drawer: false`. Un reintento idempotente (`client_uuid` ya existente) nunca abre el cajón.
 
 ## Decisiones del usuario
 | Fecha | Tema | Decisión |
