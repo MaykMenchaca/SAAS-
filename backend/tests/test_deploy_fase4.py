@@ -41,3 +41,9 @@ def test_env_example_documenta_lo_que_usa_el_codigo():
 
 def test_deployment_usa_script_de_actualizacion():
     assert "update-production.ps1" in _read("DEPLOYMENT.md")
+
+
+def test_sqlalchemy_fijado_en_la_serie_2_0():
+    """Una instalación limpia no debe traer SQLAlchemy 2.1, que exige psycopg 3 (hallado en 6.4)."""
+    reqs = _read("backend/requirements.txt")
+    assert re.search(r"^SQLAlchemy==2\.0\.\d+$", reqs, re.M), "SQLAlchemy debe fijarse en 2.0.x"

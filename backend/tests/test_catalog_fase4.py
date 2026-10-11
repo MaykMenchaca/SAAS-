@@ -73,7 +73,7 @@ def test_producto_nuevo_aparece_en_stock_y_low_stock(client, admin_token, unidad
     assert [s["product_id"] for s in stock["items"]] == [product["id"]]
     assert Decimal(stock["items"][0]["quantity"]) == Decimal("0")
 
-    low = client.get("/api/inventory/low-stock", headers=headers).get_json()
+    low = client.get("/api/inventory/low-stock", headers=headers).get_json()["items"]  # paginado desde la 6.4
     assert product["id"] in [s["product_id"] for s in low]
 
 
