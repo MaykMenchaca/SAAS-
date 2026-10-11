@@ -2,7 +2,6 @@
 from flask import Blueprint, jsonify, request
 
 from app.services import config_service
-from app.services.audit_service import log_action
 from app.utils.decorators import require_role
 
 config_bp = Blueprint("config", __name__)
@@ -61,12 +60,6 @@ def update_config():
     if not data:
         return jsonify({"error": "No se proporcionaron valores"}), 400
 
+    # set_bulk audita dentro de su transacción (antes se auditaba después del commit y se perdía)
     result = config_service.set_bulk(data)
-
-    log_action(
-        action="update",
-        entity_type="config",
-        details={"updated_keys": list(data.keys())},
-    )
-
     return jsonify(result), 200

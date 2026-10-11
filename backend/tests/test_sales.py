@@ -32,7 +32,7 @@ def _seed_cash_register_session(db):
         status="abierta",
     )
     db.session.add(session)
-    db.session.flush()
+    db.session.commit()  # el servicio hace rollback ante errores (6.1): los datos sembrados deben estar confirmados
 
     return user, register, session
 
@@ -62,7 +62,7 @@ def _seed_product_for_sale(db, sku="SALE-001", name="Martillo", price="149.90"):
 
     stock = Stock(product_id=product.id, quantity=Decimal("100.000"))
     db.session.add(stock)
-    db.session.flush()
+    db.session.commit()
 
     return product
 

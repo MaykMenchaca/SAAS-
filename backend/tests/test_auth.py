@@ -295,6 +295,7 @@ class TestTokenRevocationAndBlocklist:
         assert res_ok.status_code == 200
 
         # Se desactiva al usuario
+        user = db.session.get(User, user.id)  # el cliente aislado (6.1) cierra la sesión del test: se relee el objeto antes de modificarlo
         UserService.deactivate_user(user)
 
         # El token anterior debe ser rechazado inmediatamente con 401
@@ -363,6 +364,7 @@ class TestTokenRevocationAndBlocklist:
         old_token = login_res.get_json()["access_token"]
 
         # Cambiar rol a admin
+        user = db.session.get(User, user.id)  # el cliente aislado (6.1) cierra la sesión del test: se relee el objeto antes de modificarlo
         UserService.update_user(user, {"role_id": seed_roles["admin"].id})
 
         # Token anterior revocado

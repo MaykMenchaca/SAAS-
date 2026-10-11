@@ -44,9 +44,20 @@ def set_value(key: str, value: str) -> SystemConfig:
 
 
 def set_bulk(updates: dict) -> dict:
-    """Set multiple config values at once. Returns all config."""
+    """Set multiple config values at once, auditado en la misma transacción. Returns all config."""
+    from app.services.audit_service import log_action
+
+    previous = {key: get(key) for key in updates}
     for key, value in updates.items():
         set_value(key, str(value))
+    # Antes del commit: el registro de auditoría se guarda junto con el cambio (H-09)
+    log_action(
+        action="update",
+        entity_type="config",
+        details={"updated_keys": list(updates.keys())},
+        previous_value=previous,
+        new_value={key: str(value) for key, value in updates.items()},
+    )
     db.session.commit()
     return get_all()
 

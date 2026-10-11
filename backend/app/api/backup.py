@@ -28,6 +28,7 @@ def create_backup():
         action="create",
         entity_type="backup",
         details={"filename": result["filename"]},
+        commit=True,  # acción sobre archivos, sin transacción de BD que la confirme
     )
 
     return jsonify(result), 201
@@ -49,6 +50,7 @@ def delete_backup(filename):
         action="delete",
         entity_type="backup",
         details={"filename": filename},
+        commit=True,  # acción sobre archivos, sin transacción de BD que la confirme
     )
 
     return jsonify({"message": "Backup eliminado"}), 200
@@ -71,6 +73,7 @@ def verify_backup(filename):
         action="verify",
         entity_type="backup",
         details={"filename": filename},
+        commit=True,  # acción sobre archivos, sin transacción de BD que la confirme
     )
 
     return jsonify(result), 200

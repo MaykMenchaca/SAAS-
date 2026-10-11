@@ -281,7 +281,7 @@ def test_cannot_delete_unit_in_use(client, admin_token, db):
 
 def test_update_product_requires_editar_precio_permission(client, db, seed_roles):
     """H-19: Cambiar el precio de venta requiere el permiso productos:editar_precio."""
-    from app.models.user import User, Permission
+    from app.models.user import Permission, Role, User
     from app.models.product import Product, UnitOfMeasure
 
     # Usuario con permiso productos:editar pero sin productos:editar_precio
@@ -334,6 +334,7 @@ def test_update_product_requires_editar_precio_permission(client, db, seed_roles
 
     # 3. Otorgar productos:editar_precio y reintentar -> 200 OK
     perm_price = Permission.query.filter_by(code="productos:editar_precio").first()
+    role_editor = db.session.get(Role, role_editor.id)  # el cliente aislado (6.1) cierra la sesión del test: se relee el objeto antes de modificarlo
     role_editor.permissions.append(perm_price)
     db.session.commit()
 
