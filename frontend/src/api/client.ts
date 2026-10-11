@@ -75,6 +75,12 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
+    // Contraseña temporal: el backend exige cambiarla antes de cualquier otra acción (FE-101)
+    if (error.response?.status === 403 && error.response.data?.code === "password_change_required") {
+      window.dispatchEvent(new Event("auth:password-change-required"));
+      return Promise.reject(error);
+    }
+
     // flask-jwt-extended responde 422 {"msg": ...} ante un token mal formado o con firma inválida;
     // no confundir con el 422 de validación ({"error": "Datos inválidos", "details": ...})
     if (error.response?.status === 422 && typeof error.response.data?.msg === "string" && !error.response.data?.error) {

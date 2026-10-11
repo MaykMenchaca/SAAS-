@@ -16,6 +16,9 @@ import { applyTheme, useThemeStore } from "./stores/theme-store";
 const CashCutPage = lazy(() => import("./pages/cash-cut").then((m) => ({ default: m.CashCutPage })));
 const DashboardPage = lazy(() => import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })));
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
+const ChangePasswordPage = lazy(() =>
+  import("./pages/change-password").then((m) => ({ default: m.ChangePasswordPage })),
+);
 const InventoryPage = lazy(() => import("./pages/inventory").then((m) => ({ default: m.InventoryPage })));
 const InventoryCountPage = lazy(() => import("./pages/inventory-count").then((m) => ({ default: m.InventoryCountPage })));
 const NotFoundPage = lazy(() => import("./pages/not-found").then((m) => ({ default: m.NotFoundPage })));
@@ -61,6 +64,7 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<LoginPage />} path="/login" />
+              <Route element={<ChangePasswordRoute />} path="/cambiar-contrasena" />
               <Route
                 element={
                   <ProtectedRoute>
@@ -108,6 +112,15 @@ function ThemeEvents() {
   return null;
 }
 
+/** Solo con sesión iniciada; si ya no hace falta cambiarla, vuelve al inicio. */
+function ChangePasswordRoute() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const mustChange = useAuthStore((state) => Boolean(state.user?.must_change_password));
+  if (!isAuthenticated) return <Navigate replace to="/login" />;
+  if (!mustChange) return <Navigate replace to="/" />;
+  return <ChangePasswordPage />;
+}
+
 function AuthEvents() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const loadCurrentUser = useAuthStore((state) => state.loadCurrentUser);
@@ -119,8 +132,16 @@ function AuthEvents() {
       clearSession();
     }
 
+    function handlePasswordChangeRequired() {
+      useAuthStore.getState().requirePasswordChange();
+    }
+
     window.addEventListener("auth:expired", handleExpiredSession);
-    return () => window.removeEventListener("auth:expired", handleExpiredSession);
+    window.addEventListener("auth:password-change-required", handlePasswordChangeRequired);
+    return () => {
+      window.removeEventListener("auth:expired", handleExpiredSession);
+      window.removeEventListener("auth:password-change-required", handlePasswordChangeRequired);
+    };
   }, [clearSession, loadCurrentUser]);
 
   return null;
