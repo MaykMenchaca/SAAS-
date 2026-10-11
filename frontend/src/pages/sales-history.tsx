@@ -6,7 +6,7 @@ import { Ban, Eye, FileText, Printer, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 
 import type { SaleListItem } from "../api/sales";
-import { printSaleTicket } from "../api/printing";
+import { printResultMessage, printSaleTicket } from "../api/printing";
 import { cancelSale, getSale, listSales } from "../api/sales";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 
@@ -149,7 +149,11 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
 
   const reprintMutation = useMutation({
     mutationFn: () => printSaleTicket(saleId),
-    onSuccess: () => toast.success("Ticket enviado a la impresora."),
+    onSuccess: (result) => {
+      const message = printResultMessage(result);
+      if (message.tone === "warning") toast.warning(message.text);
+      else toast.success(message.text);
+    },
     onError: (error) => {
       const message =
         error instanceof AxiosError ? error.response?.data?.error ?? "No se pudo imprimir." : "No se pudo imprimir.";

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import type { Product } from "../api/products";
 import { fetchPosCatalog, getProductByCode, listCategories, listProducts } from "../api/products";
-import { previewSaleTicket, printSaleTicket } from "../api/printing";
+import { previewSaleTicket, printResultMessage, printSaleTicket } from "../api/printing";
 import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
 import { createSale, getSession, listCashRegisters, listSessions, openCashRegister, quoteSale } from "../api/sales";
@@ -1285,9 +1285,21 @@ function TicketPreviewModal({ saleId, onClose }: { saleId: number; onClose: () =
         )}
 
         {printMutation.data?.sent ? (
-          <div className="rounded border border-success/30 bg-success/10 px-3 py-2 text-xs font-semibold text-success">
-            Ticket enviado a impresora.
-          </div>
+          (() => {
+            const message = printResultMessage(printMutation.data);
+            return (
+              <div
+                className={
+                  message.tone === "warning"
+                    ? "rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning"
+                    : "rounded border border-success/30 bg-success/10 px-3 py-2 text-xs font-semibold text-success"
+                }
+                role="status"
+              >
+                {message.text}
+              </div>
+            );
+          })()
         ) : null}
 
         {printError ? (

@@ -270,6 +270,29 @@ function CashRegistersTab() {
   );
 }
 
+/** Copia al portapapeles; en http://<ip> no existe navigator.clipboard, así que se usa un respaldo (OPS-22). */
+async function copyText(text: string) {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      if (!ok) throw new Error("copy");
+    }
+    toast.success("Clave copiada.");
+  } catch {
+    toast.error("No se pudo copiar. Selecciona la clave y cópiala manualmente.");
+  }
+}
+
 function agentStatus(register: CashRegisterInfo): { label: string; tone: "success" | "warning" | "neutral" } {
   if (!register.agent_configured) return { label: "Sin clave generada", tone: "neutral" };
   if (!register.agent_last_seen_at) return { label: "Nunca se ha conectado", tone: "warning" };
@@ -405,9 +428,7 @@ function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
           footer={
             <>
               <Button
-                onClick={() => {
-                  void navigator.clipboard?.writeText(agentKey).then(() => toast.success("Clave copiada."));
-                }}
+                onClick={() => void copyText(agentKey)}
                 variant="secondary"
               >
                 Copiar clave
@@ -422,10 +443,10 @@ function CashRegisterPrinterForm({ register }: { register: CashRegisterInfo }) {
         >
           <div className="grid gap-3 text-sm">
             <p className="font-semibold text-warning">Cópiala ahora: no se volverá a mostrar.</p>
-            <code className="break-all rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-sm">{agentKey}</code>
-            <p className="text-neutral-text-secondary">En la caja, en PowerShell como administrador:</p>
+            <code className="select-all break-all rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-sm">{agentKey}</code>
+            <p className="text-neutral-text-secondary">En la caja, en PowerShell como administrador (el script pedirá la clave sin mostrarla):</p>
             <code className="break-all rounded-md border border-neutral-border bg-neutral-bg p-3 font-mono text-xs">
-              {`.\\install-agent.ps1 -ServerUrl ${serverUrl} -AgentKey "<clave>" -PrinterName "<nombre de la impresora>"`}
+              {`.\\install-agent.ps1 -ServerUrl ${serverUrl} -PrinterName "<nombre de la impresora>"`}
             </code>
           </div>
         </Modal>

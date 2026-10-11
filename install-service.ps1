@@ -89,20 +89,36 @@ Write-Host "Directorio:   $backendDir"
 $pgService = Get-Service -Name "postgresql*", "postgresql-x64-18" -ErrorAction SilentlyContinue | Select-Object -First 1
 $pgServiceName = if ($pgService) { $pgService.Name } else { "postgresql-x64-18" }
 
-# 5. Instalar y configurar servicio con NSSM
+# 5. Instalar o reconfigurar el servicio con NSSM (idempotente, OPS-19)
 # Waitress (servidor de producción) escuchando en la LAN para que las cajas lleguen al servidor (OPS-06).
 # Nunca run.py: es el servidor de desarrollo de Flask y escucha solo en 127.0.0.1.
-& $nssmExe install $ServiceName $pythonExe "-m waitress --listen=0.0.0.0:$Port --threads=8 run:app"
-& $nssmExe set $ServiceName AppDirectory $backendDir
-& $nssmExe set $ServiceName AppEnvironmentExtra "SERVE_FRONTEND=true" "FRONTEND_DIST=$frontendDist"
-& $nssmExe set $ServiceName DisplayName $DisplayName
-& $nssmExe set $ServiceName Description "Servicio en segundo plano de POS Retail VRNTAS"
-& $nssmExe set $ServiceName Start SERVICE_AUTO_START
-& $nssmExe set $ServiceName AppRestartDelay 5000
+function Invoke-Nssm {
+    & $nssmExe @args
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] nssm $($args -join ' ') falló (código $LASTEXITCODE)." -ForegroundColor Red
+        exit 1
+    }
+}
+
+$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existing) {
+    Write-Host "El servicio ya existe: se reconfigura (por ejemplo, de run.py a waitress)." -ForegroundColor Yellow
+    if ($existing.Status -ne "Stopped") { Stop-Service -Name $ServiceName -Force }
+} else {
+    Invoke-Nssm install $ServiceName $pythonExe "-m waitress --listen=0.0.0.0:$Port --threads=8 run:app"
+}
+Invoke-Nssm set $ServiceName Application $pythonExe
+Invoke-Nssm set $ServiceName AppParameters "-m waitress --listen=0.0.0.0:$Port --threads=8 run:app"
+Invoke-Nssm set $ServiceName AppDirectory $backendDir
+Invoke-Nssm set $ServiceName AppEnvironmentExtra "SERVE_FRONTEND=true" "FRONTEND_DIST=$frontendDist"
+Invoke-Nssm set $ServiceName DisplayName $DisplayName
+Invoke-Nssm set $ServiceName Description "Servicio en segundo plano de POS Retail VRNTAS"
+Invoke-Nssm set $ServiceName Start SERVICE_AUTO_START
+Invoke-Nssm set $ServiceName AppRestartDelay 5000
 
 if ($pgServiceName) {
     Write-Host "Configurando dependencia del servicio de PostgreSQL: $pgServiceName" -ForegroundColor Yellow
-    & $nssmExe set $ServiceName DependOnService $pgServiceName
+    Invoke-Nssm set $ServiceName DependOnService $pgServiceName
 }
 
 # Redirección de logs estándar a archivo
@@ -110,8 +126,8 @@ $logDir = Join-Path $projectRoot "logs"
 if (-not (Test-Path -LiteralPath $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
-& $nssmExe set $ServiceName AppStdout (Join-Path $logDir "service-stdout.log")
-& $nssmExe set $ServiceName AppStderr (Join-Path $logDir "service-stderr.log")
+Invoke-Nssm set $ServiceName AppStdout (Join-Path $logDir "service-stdout.log")
+Invoke-Nssm set $ServiceName AppStderr (Join-Path $logDir "service-stderr.log")
 
 Write-Host "[OK] Servicio '$ServiceName' configurado exitosamente." -ForegroundColor Green
 
@@ -134,7 +150,18 @@ if (-not $SkipFirewall) {
     }
 }
 
-Write-Host "`nPara iniciar el servicio:" -ForegroundColor White
-Write-Host "  Start-Service -Name $ServiceName" -ForegroundColor Cyan
-Write-Host "Para verificar el estado:" -ForegroundColor White
-Write-Host "  Get-Service -Name $ServiceName" -ForegroundColor Cyan
+# 7. Arrancar (o reiniciar con la configuración nueva) y verificar que responda
+Restart-Service -Name $ServiceName
+$healthy = $false
+for ($i = 0; $i -lt 20; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/health" -UseBasicParsing -TimeoutSec 3
+        if ($resp.StatusCode -eq 200) { $healthy = $true; break }
+    } catch { }
+}
+if (-not $healthy) {
+    Write-Host "[ERROR] El servicio no respondió en /api/health. Revisa $logDir\service-stderr.log" -ForegroundColor Red
+    exit 1
+}
+Write-Host "[OK] Servicio en ejecución y respondiendo en el puerto $Port (accesible desde la LAN)." -ForegroundColor Green

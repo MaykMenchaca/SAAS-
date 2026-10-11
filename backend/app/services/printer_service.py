@@ -265,11 +265,19 @@ class PrinterService:
         if register is not None:
             from app.services import print_queue_service
 
-            cp = PrinterService.validate_codepage(codepage)
-            print_queue_service.enqueue(
-                register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
-            )
-            return True
+            try:
+                cp = PrinterService.validate_codepage(codepage)
+                print_queue_service.enqueue(
+                    register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001 - la venta ya está confirmada; el cajón es best-effort
+                from app.extensions import db
+
+                db.session.rollback()
+                if has_app_context():
+                    current_app.logger.warning("No se pudo encolar el cajón de la venta %s: %s", sale.folio, exc)
+                return False
         if not path:
             return False
         try:
