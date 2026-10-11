@@ -10,6 +10,7 @@ from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem, SaleRe
 from app.models.user import User
 from app.services import config_service
 from app.services.inventory_service import InventoryService
+from app.utils.decorators import with_rollback
 from app.utils.timeutil import local_today
 
 
@@ -117,6 +118,7 @@ class SaleService:
         }
 
     @staticmethod
+    @with_rollback
     def create_sale(
         user_id: int,
         session_id: int,
@@ -298,6 +300,7 @@ class SaleService:
         return sale
 
     @staticmethod
+    @with_rollback
     def cancel_sale(sale_id: int, user_id: int, reason: str) -> Sale:
         """Cancel a sale and return inventory.
 
@@ -354,6 +357,7 @@ class SaleService:
         return sale
 
     @staticmethod
+    @with_rollback
     def return_sale(
         sale_id: int,
         user_id: int,

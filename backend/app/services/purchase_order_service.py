@@ -9,6 +9,7 @@ from app.models.inventory import Stock
 from app.models.product import Product
 from app.models.purchase import PurchaseOrder, PurchaseOrderItem, Supplier
 from app.services.inventory_service import InventoryService
+from app.utils.decorators import with_rollback
 from app.utils.timeutil import local_today
 
 
@@ -16,6 +17,7 @@ class PurchaseOrderService:
     """Handles purchase order lifecycle: draft → sent → (partial →) received."""
 
     @staticmethod
+    @with_rollback
     def create_order(
         user_id: int,
         supplier_id: int | None,
@@ -143,6 +145,7 @@ class PurchaseOrderService:
         return order
 
     @staticmethod
+    @with_rollback
     def send_order(order_id: int) -> PurchaseOrder:
         """Mark a draft order as sent to the supplier.
 
@@ -178,6 +181,7 @@ class PurchaseOrderService:
         return order
 
     @staticmethod
+    @with_rollback
     def cancel_order(order_id: int) -> PurchaseOrder:
         """Cancel a purchase order.
 
@@ -218,6 +222,7 @@ class PurchaseOrderService:
         return order
 
     @staticmethod
+    @with_rollback
     def receive_order(order_id: int, user_id: int, items: list) -> PurchaseOrder:
         """Receive items for a purchase order.
 

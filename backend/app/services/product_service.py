@@ -4,6 +4,7 @@ from sqlalchemy import or_, func
 from app.extensions import db
 from app.models.inventory import Stock
 from app.models.product import Category, Product, UnitOfMeasure
+from app.utils.decorators import with_rollback
 
 # Umbral de word_similarity calibrado con QA-18: "martilo", "tornilo", "pintrua" y "foko led"
 # quedan >= 0.5, y el ruido ("martillo" contra "Tornillo") queda en 0.36.
@@ -86,6 +87,7 @@ class ProductService:
         return UnitOfMeasure.query.filter_by(id=unit_id).first()
 
     @staticmethod
+    @with_rollback
     def create_unit(data):
         ProductService._validate_unique_unit(data.get("name"), data.get("abbreviation"))
         unit = UnitOfMeasure(**data)
@@ -105,6 +107,7 @@ class ProductService:
         return unit
 
     @staticmethod
+    @with_rollback
     def update_unit(unit, data):
         if "name" in data or "abbreviation" in data:
             ProductService._validate_unique_unit(
@@ -132,6 +135,7 @@ class ProductService:
         return unit
 
     @staticmethod
+    @with_rollback
     def delete_unit(unit):
         associated_products = Product.query.filter_by(unit_id=unit.id).first()
         if associated_products:
@@ -180,6 +184,7 @@ class ProductService:
         return query.first()
 
     @staticmethod
+    @with_rollback
     def create_product(data):
         data = ProductService._clean_optional_fields(data)
         ProductService._validate_references(data)
@@ -216,6 +221,7 @@ class ProductService:
         return product
 
     @staticmethod
+    @with_rollback
     def update_product(product, data):
         data = ProductService._clean_optional_fields(data)
         data.pop("avg_cost", None)
@@ -251,6 +257,7 @@ class ProductService:
         return product
 
     @staticmethod
+    @with_rollback
     def deactivate_product(product):
         prev_active = product.is_active
         product.is_active = False
@@ -269,6 +276,7 @@ class ProductService:
         return product
 
     @staticmethod
+    @with_rollback
     def reactivate_product(product):
         prev_active = product.is_active
         product.is_active = True
@@ -352,6 +360,7 @@ class CategoryService:
         return query.first()
 
     @staticmethod
+    @with_rollback
     def create_category(data):
         data = {**data, "name": data["name"].strip()}
         CategoryService._validate_unique_category(data["name"])
@@ -372,6 +381,7 @@ class CategoryService:
         return category
 
     @staticmethod
+    @with_rollback
     def update_category(category, data):
         if "name" in data:
             data = {**data, "name": data["name"].strip()}
@@ -396,6 +406,7 @@ class CategoryService:
         return category
 
     @staticmethod
+    @with_rollback
     def deactivate_category(category):
         prev_active = category.is_active
         category.is_active = False

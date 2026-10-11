@@ -6,12 +6,14 @@ from app.extensions import db
 from app.models.inventory import InventoryCount, InventoryCountItem, Stock
 from app.models.product import Product
 from app.services.inventory_service import InventoryService
+from app.utils.decorators import with_rollback
 
 
 class InventoryCountService:
     """Handles physical inventory count lifecycle: create → capture → close."""
 
     @staticmethod
+    @with_rollback
     def create_count(user_id: int, notes: str | None = None) -> InventoryCount:
         """Create a new inventory count, pre-populated with all active products.
 
@@ -74,6 +76,7 @@ class InventoryCountService:
         return count
 
     @staticmethod
+    @with_rollback
     def capture_item(
         count_id: int,
         product_id: int,
@@ -122,6 +125,7 @@ class InventoryCountService:
         return item
 
     @staticmethod
+    @with_rollback
     def close_count(count_id: int, user_id: int) -> InventoryCount:
         """Close the count and auto-adjust stock for items with differences.
 
@@ -178,6 +182,7 @@ class InventoryCountService:
         return count
 
     @staticmethod
+    @with_rollback
     def cancel_count(count_id: int, user_id: int) -> InventoryCount:
         """Cancel a count without applying any adjustments.
 

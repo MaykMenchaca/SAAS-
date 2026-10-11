@@ -88,9 +88,28 @@ def app(flask_app):
     return flask_app
 
 
+from flask.testing import FlaskClient
+
+
 @pytest.fixture
 def client(flask_app):
-    return flask_app.test_client()
+    class IsolatedClient(FlaskClient):
+        def open(self, *args, **kwargs):
+            # Limpiar y aislar sesión entre requests de test (H-34)
+            _db.session.commit()
+            _db.session.remove()
+            try:
+                return super().open(*args, **kwargs)
+            finally:
+                _db.session.remove()
+
+    orig_client_class = flask_app.test_client_class
+    flask_app.test_client_class = IsolatedClient
+    client_instance = flask_app.test_client()
+    try:
+        yield client_instance
+    finally:
+        flask_app.test_client_class = orig_client_class
 
 
 @pytest.fixture
@@ -106,7 +125,7 @@ def seed_permissions(db):
         permission = Permission(code=code, module=module, description=description)
         db.session.add(permission)
         permissions[code] = permission
-    db.session.flush()
+    db.session.commit()
     return permissions
 
 
@@ -126,7 +145,7 @@ def seed_roles(db, seed_permissions):
                  "productos:ver", "inventario:ver"):
         cajero_role.permissions.append(seed_permissions[code])
     db.session.add_all([admin_role, gerente_role, cajero_role])
-    db.session.flush()
+    db.session.commit()
     return {"admin": admin_role, "gerente": gerente_role, "cajero": cajero_role}
 
 
@@ -140,7 +159,7 @@ def seed_admin(db, seed_roles):
     )
     user.set_password("admin123")
     db.session.add(user)
-    db.session.flush()
+    db.session.commit()
     return user
 
 
@@ -154,7 +173,7 @@ def seed_cajero(db, seed_roles):
     )
     user.set_password("cajero123")
     db.session.add(user)
-    db.session.flush()
+    db.session.commit()
     return user
 
 
@@ -190,7 +209,7 @@ def seed_cash_register(db):
     from app.models.sale import CashRegister
     register = CashRegister(name="Caja 1")
     db.session.add(register)
-    db.session.flush()
+    db.session.commit()
     return register
 
 
@@ -205,7 +224,7 @@ def seed_open_session(db, seed_admin, seed_cash_register):
         status="abierta",
     )
     db.session.add(session)
-    db.session.flush()
+    db.session.commit()
     return session
 
 
@@ -232,5 +251,5 @@ def seed_product_for_sale(db):
 
     stock = Stock(product_id=product.id, quantity=Decimal("100.000"))
     db.session.add(stock)
-    db.session.flush()
+    db.session.commit()
     return product

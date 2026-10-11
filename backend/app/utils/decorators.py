@@ -91,3 +91,17 @@ def audit_action(action, entity_type=None):
         return wrapper
     return decorator
 
+
+def with_rollback(fn):
+    """Wraps a service method to guarantee db.session.rollback() on any uncaught exception (H-34)."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            from app.extensions import db
+            db.session.rollback()
+            raise
+    return wrapper
+
+

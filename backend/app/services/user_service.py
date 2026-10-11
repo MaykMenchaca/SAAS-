@@ -3,6 +3,7 @@ from sqlalchemy import or_
 
 from app.extensions import db
 from app.models.user import Role, User
+from app.utils.decorators import with_rollback
 
 
 class UserService:
@@ -37,6 +38,7 @@ class UserService:
         return query.first()
 
     @staticmethod
+    @with_rollback
     def create_user(data):
         UserService._validate_role(data["role_id"])
         UserService._validate_unique_user(
@@ -73,6 +75,7 @@ class UserService:
         return user
 
     @staticmethod
+    @with_rollback
     def update_user(user, data, current_user_id=None):
         if "role_id" in data:
             UserService._validate_role(data["role_id"])
@@ -140,6 +143,7 @@ class UserService:
         return user
 
     @staticmethod
+    @with_rollback
     def deactivate_user(user, current_user_id=None):
         admin_role = Role.query.filter_by(name="admin").first()
         if admin_role and user.role_id == admin_role.id and user.is_active:

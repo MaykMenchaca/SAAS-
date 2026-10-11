@@ -3,12 +3,14 @@ from decimal import Decimal
 
 from app.extensions import db
 from app.models.inventory import Stock, StockMovement
+from app.utils.decorators import with_rollback
 
 
 class InventoryService:
     """Handles all stock mutations with SELECT FOR UPDATE to prevent races."""
 
     @staticmethod
+    @with_rollback
     def move_stock(
         product_id: int,
         quantity,

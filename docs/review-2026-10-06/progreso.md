@@ -75,7 +75,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] **Gate fase 5** · APROBADO (2026-10-11, 375 tests backend passed, frontend build OK, gate.ps1 en verde)
 
 ## Fase 6: Calidad continua · la 6.3 se adelanta después del gate F0
-- [ ] 6.1 Tests sin app context compartido + rollbacks (H-34)
+- [x] 6.1 Tests sin app context compartido + rollbacks (H-34) · tests: `test_h34_isolation.py` (3 tests) · decorador `@with_rollback` aplicado en todos los servicios mutadores (`SaleService`, `PurchaseOrderService`, `InventoryCountService`, `UserService`, `ProductService`, `InventoryService`), `expire_on_commit=False` en SQLAlchemy, `IsolatedClient` en tests con limpieza de sesión `_db.session.remove()` antes y después de cada llamada, y fixtures persistidas con commit en BD real
 - [ ] 6.2 Vitest + Playwright
 - [ ] 6.3 CI, hooks versionados, `tools/` y README (H-50)
 - [ ] 6.4 Dependencias, CORS y paginación (H-35, H-45)
