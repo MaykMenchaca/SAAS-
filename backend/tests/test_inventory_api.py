@@ -136,7 +136,7 @@ def test_admin_can_get_low_stock(client, admin_token, db):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.get_json()["items"]  # paginado desde la 6.4
     # MULTI-002 (5 < 20) and MULTI-003 (0 < 15) should appear
     assert len(data) == 2
     names = [item["product_name"] for item in data]

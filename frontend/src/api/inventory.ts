@@ -51,8 +51,11 @@ export async function listStock({ page = 1, perPage = 20, search = "" }: ListSto
   return response.data;
 }
 
-export async function getLowStock() {
-  const response = await apiClient.get<StockItem[]>("/inventory/low-stock");
+/** Stock bajo paginado (H-45). Por defecto la primera página de 100, los más escasos primero. */
+export async function getLowStock(params: { page?: number; perPage?: number } = {}) {
+  const response = await apiClient.get<PaginatedResponse<StockItem>>("/inventory/low-stock", {
+    params: { page: params.page ?? 1, per_page: params.perPage ?? 100 },
+  });
   return response.data;
 }
 

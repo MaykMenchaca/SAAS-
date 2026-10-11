@@ -16,6 +16,7 @@ from app.schemas.sale import (
 )
 from app.services.printer_service import PrinterService
 from app.utils.decorators import require_permission, require_role
+from app.utils.pagination import paginate
 
 cash_register_bp = Blueprint("cash_register", __name__)
 
@@ -340,13 +341,12 @@ def session_summary(session_id):
 @cash_register_bp.route("/sessions", methods=["GET"])
 @require_permission("caja:ver")
 def list_sessions():
-    """List all cash register sessions."""
-    sessions = (
-        CashRegisterSession.query
-        .order_by(CashRegisterSession.opened_at.desc())
-        .all()
-    )
-    return jsonify(sessions_schema.dump(sessions)), 200
+    """Sesiones de caja paginadas (las más recientes primero); filtro opcional ?status=abierta (H-45)."""
+    query = CashRegisterSession.query.order_by(CashRegisterSession.opened_at.desc())
+    status = request.args.get("status")
+    if status:
+        query = query.filter(CashRegisterSession.status == status)
+    return jsonify(paginate(query, sessions_schema)), 200
 
 
 @cash_register_bp.route("/active", methods=["GET"])

@@ -59,14 +59,9 @@ def create_supplier():
 @purchases_bp.route("/suppliers", methods=["GET"])
 @require_permission("compras:ver")
 def list_suppliers():
-    """List all active suppliers."""
-    suppliers = (
-        Supplier.query
-        .filter_by(is_active=True)
-        .order_by(Supplier.name)
-        .all()
-    )
-    return jsonify(suppliers_schema.dump(suppliers)), 200
+    """Proveedores activos paginados (H-45)."""
+    query = Supplier.query.filter_by(is_active=True).order_by(Supplier.name)
+    return jsonify(paginate(query, suppliers_schema)), 200
 
 
 @purchases_bp.route("/suppliers/<int:supplier_id>", methods=["GET"])

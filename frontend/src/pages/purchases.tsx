@@ -464,7 +464,7 @@ type OrderLineItem = {
 let lineIdCounter = 0;
 
 function CreateOrderModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const suppliersQuery = useQuery({ queryKey: qk.suppliers(), queryFn: listSuppliers });
+  const suppliersQuery = useQuery({ queryKey: qk.suppliers(), queryFn: () => listSuppliers() });
   const [supplierId, setSupplierId] = useState<number | "">("");
   const [lines, setLines] = useState<OrderLineItem[]>([]);
   const [notes, setNotes] = useState("");
@@ -555,7 +555,7 @@ function CreateOrderModal({ onClose, onSuccess }: { onClose: () => void; onSucce
       : "No se pudo crear la orden."
     : "";
 
-  const suppliers = suppliersQuery.data?.filter((s) => s.is_active) ?? [];
+  const suppliers = suppliersQuery.data?.items.filter((s) => s.is_active) ?? [];
   const searchResults = productsQuery.data?.items ?? [];
 
   return (
@@ -857,7 +857,7 @@ function SuppliersTab() {
 
   const suppliersQuery = useQuery({
     queryKey: qk.suppliers(),
-    queryFn: listSuppliers,
+    queryFn: () => listSuppliers(),
   });
 
   const createMutation = useMutation({
@@ -884,7 +884,7 @@ function SuppliersTab() {
     },
   });
 
-  const suppliers: Supplier[] = suppliersQuery.data ?? [];
+  const suppliers: Supplier[] = suppliersQuery.data?.items ?? [];
 
   return (
     <div className="grid gap-3">

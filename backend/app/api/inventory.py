@@ -73,8 +73,8 @@ def get_stock(product_id):
 @inventory_bp.route("/low-stock", methods=["GET"])
 @require_permission("inventario:ver")
 def low_stock():
-    """List products whose stock is below their min_stock threshold."""
-    results = (
+    """Productos bajo su mínimo, paginados (los más escasos primero) (H-45)."""
+    query = (
         Stock.query
         .join(Product)
         .filter(
@@ -82,10 +82,9 @@ def low_stock():
             Product.min_stock > 0,
             Stock.quantity < Product.min_stock,
         )
-        .order_by(Stock.quantity.asc())
-        .all()
+        .order_by(Stock.quantity.asc(), Product.name)
     )
-    return jsonify(stocks_schema.dump(results)), 200
+    return jsonify(paginate(query, stocks_schema)), 200
 
 
 @inventory_bp.route("/adjust", methods=["POST"])

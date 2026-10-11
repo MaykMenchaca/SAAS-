@@ -90,8 +90,11 @@ export type ReceiveItemInput = {
 
 // ── Supplier API ──────────────────────────────────────────────────
 
-export async function listSuppliers() {
-  const response = await apiClient.get<Supplier[]>("/purchases/suppliers");
+/** Proveedores activos paginados (H-45). Por defecto hasta 100, suficiente para los selectores. */
+export async function listSuppliers(params: { page?: number; perPage?: number } = {}) {
+  const response = await apiClient.get<PaginatedResponse<Supplier>>("/purchases/suppliers", {
+    params: { page: params.page ?? 1, per_page: params.perPage ?? 100 },
+  });
   return response.data;
 }
 

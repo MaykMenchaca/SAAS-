@@ -89,8 +89,9 @@ function SessionSelector() {
   const [error, setError] = useState("");
 
   const sessionsQuery = useQuery({
-    queryKey: qk.cashSessions(),
-    queryFn: listSessions,
+    queryKey: qk.cashSessions("abierta"),
+    // Solo las abiertas: la paginación no debe esconder la sesión del cajero
+    queryFn: () => listSessions({ status: "abierta" }),
   });
 
   const registersQuery = useQuery({
@@ -99,7 +100,7 @@ function SessionSelector() {
   });
 
   const canSupervise = user?.role === "admin" || user?.permissions?.includes("caja:supervisar");
-  const openSessions = (sessionsQuery.data ?? []).filter((s) => {
+  const openSessions = (sessionsQuery.data?.items ?? []).filter((s) => {
     if (s.status !== "abierta") return false;
     if (canSupervise) return true;
     return s.user_id === user?.id;

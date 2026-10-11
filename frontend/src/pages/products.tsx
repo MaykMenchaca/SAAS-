@@ -121,7 +121,7 @@ export function ProductsPage() {
 
   const lowStockQuery = useQuery({
     queryKey: qk.lowStock(),
-    queryFn: getLowStock,
+    queryFn: () => getLowStock(),
   });
 
   const createMutation = useMutation({
@@ -164,7 +164,7 @@ export function ProductsPage() {
   const products = productsQuery.data?.items ?? [];
   const totalPages = productsQuery.data?.pages ?? 1;
   const lowStockByProductId = useMemo(
-    () => new Map((lowStockQuery.data ?? []).map((item) => [item.product_id, item])),
+    () => new Map((lowStockQuery.data?.items ?? []).map((item) => [item.product_id, item])),
     [lowStockQuery.data],
   );
 

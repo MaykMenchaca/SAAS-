@@ -23,8 +23,8 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
 
   const canInventory = can("inventario:ver");
   const lowStockQuery = useQuery({
-    queryKey: qk.lowStock(),
-    queryFn: getLowStock,
+    queryKey: qk.lowStock("top5"),
+    queryFn: () => getLowStock({ perPage: 5 }),
     enabled: open && canInventory,
     staleTime: 30_000,
   });
@@ -50,7 +50,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
     };
   }, [open]);
 
-  const lowStockItems = (lowStockQuery.data ?? []).slice(0, 5);
+  const lowStockItems = (lowStockQuery.data?.items ?? []).slice(0, 5);
 
   return (
     <div className="relative" ref={containerRef}>

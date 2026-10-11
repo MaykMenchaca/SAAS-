@@ -26,6 +26,9 @@ class Config:
     FRONTEND_DIST = os.getenv("FRONTEND_DIST")
     JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 días
     APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Mexico_City")
+    # Orígenes de otros hosts autorizados a llamar la API desde el navegador (separados por coma).
+    # Vacío = sin CORS: el frontend se sirve desde el mismo origen (SERVE_FRONTEND o proxy de Vite) (H-35)
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 
 
 class TestConfig(Config):

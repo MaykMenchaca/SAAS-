@@ -150,8 +150,11 @@ export async function closeCashRegister(sessionId: number, closingAmount: string
   return response.data;
 }
 
-export async function listSessions() {
-  const response = await apiClient.get<CashRegisterSession[]>("/cash-register/sessions");
+/** Sesiones de caja paginadas, las más recientes primero; filtro opcional por estado (H-45). */
+export async function listSessions(params: { status?: "abierta" | "cerrada"; page?: number; perPage?: number } = {}) {
+  const response = await apiClient.get<PaginatedResponse<CashRegisterSession>>("/cash-register/sessions", {
+    params: { status: params.status, page: params.page ?? 1, per_page: params.perPage ?? 100 },
+  });
   return response.data;
 }
 

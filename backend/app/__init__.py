@@ -17,7 +17,7 @@ def create_app(config_class=Config):
     jwt.init_app(application)
     _setup_jwt(jwt)
     migrate.init_app(application, db)
-    cors.init_app(application)
+    _setup_cors(application)
 
 
     with application.app_context():
@@ -145,3 +145,10 @@ def _register_frontend_routes(application):
             return send_from_directory(frontend_dist, path)
 
         return send_from_directory(frontend_dist, "index.html")
+
+
+def _setup_cors(application):
+    """CORS solo para los orígenes de CORS_ORIGINS; sin la variable, nadie de otro origen (H-35)."""
+    origins = [o.strip() for o in (application.config.get("CORS_ORIGINS") or "").split(",") if o.strip()]
+    if origins:
+        cors.init_app(application, resources={r"/api/*": {"origins": origins}})

@@ -61,11 +61,12 @@ export function CashCutPage() {
 
   const sessionsQuery = useQuery({
     queryKey: qk.cashSessions(),
-    queryFn: listSessions,
+    // Las 100 sesiones más recientes (las abiertas siempre están entre ellas)
+    queryFn: () => listSessions({ perPage: 100 }),
   });
 
-  const openSessions = (sessionsQuery.data ?? []).filter((s) => s.status === "abierta");
-  const closedSessions = (sessionsQuery.data ?? []).filter((s) => s.status === "cerrada");
+  const openSessions = (sessionsQuery.data?.items ?? []).filter((s) => s.status === "abierta");
+  const closedSessions = (sessionsQuery.data?.items ?? []).filter((s) => s.status === "cerrada");
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(closedSessions.length / itemsPerPage);

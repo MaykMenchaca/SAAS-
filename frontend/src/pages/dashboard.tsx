@@ -51,7 +51,7 @@ export function DashboardPage() {
 
   const lowStockQuery = useQuery({
     queryKey: qk.lowStock(),
-    queryFn: getLowStock,
+    queryFn: () => getLowStock(),
     refetchInterval: 60_000,
   });
 
@@ -68,7 +68,7 @@ export function DashboardPage() {
   });
 
   const data = dashboardQuery.data;
-  const lowStockItems = lowStockQuery.data ?? [];
+  const lowStockItems = lowStockQuery.data?.items ?? [];
   const recentSales = salesQuery.data?.items ?? [];
 
   // Generate last 7 days list

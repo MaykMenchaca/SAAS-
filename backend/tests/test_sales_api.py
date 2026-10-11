@@ -64,7 +64,7 @@ def test_admin_can_list_sessions(client, admin_token, seed_open_session):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.get_json()["items"]  # paginado desde la 6.4
     assert len(data) >= 1
     assert data[0]["status"] == "abierta"
 
