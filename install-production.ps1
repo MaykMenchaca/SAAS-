@@ -44,10 +44,12 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 4. Migraciones de base de datos
+# 4. Migraciones de base de datos (desde backend\: ahí está run.py, OPS-26)
 Write-Host "`n--- Aplicando migraciones ---" -ForegroundColor Yellow
+Push-Location $backendDir
 & "$backendDir\venv\Scripts\python.exe" -m flask --app run db upgrade
 if ($LASTEXITCODE -ne 0) {
+    Pop-Location
     Write-Host "[ERROR] Fallo la aplicacion de migraciones (flask db upgrade)." -ForegroundColor Red
     exit 1
 }
@@ -56,9 +58,11 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`n--- Sembrando datos iniciales ---" -ForegroundColor Yellow
 & "$backendDir\venv\Scripts\python.exe" -m flask --app run seed
 if ($LASTEXITCODE -ne 0) {
+    Pop-Location
     Write-Host "[ERROR] Fallo el sembrado de datos iniciales (flask seed)." -ForegroundColor Red
     exit 1
 }
+Pop-Location
 
 Write-Host "`n[OK] Instalacion lista y verificada." -ForegroundColor Green
 Write-Host "Arranque produccion: .\start-production.ps1" -ForegroundColor Cyan

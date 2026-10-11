@@ -21,9 +21,11 @@ if (-not (Test-Path -LiteralPath $BackupFile -PathType Leaf)) {
 }
 
 # 1. Cargar variables de entorno desde .env si no están presentes
+# Cada Join-Path entre paréntesis: sin ellos, PowerShell pasa la coma como argumento de -ChildPath
+# y el script abortaba siempre aquí (OPS-25)
 $envFilePaths = @(
-    Join-Path $PSScriptRoot "backend\.env",
-    Join-Path $PSScriptRoot ".env"
+    (Join-Path $PSScriptRoot "backend\.env"),
+    (Join-Path $PSScriptRoot ".env")
 )
 
 foreach ($envPath in $envFilePaths) {

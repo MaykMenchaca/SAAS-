@@ -43,8 +43,8 @@ function Find-Nssm([string]$customPath) {
         return $inPath.Source
     }
     $candidates = @(
-        Join-Path $projectRoot "tools\nssm.exe",
-        Join-Path $projectRoot "tools\nssm-win64\nssm.exe",
+        (Join-Path $projectRoot "tools\nssm.exe"),
+        (Join-Path $projectRoot "tools\nssm-win64\nssm.exe"),
         "C:\ProgramData\chocolatey\bin\nssm.exe",
         "C:\nssm\nssm.exe"
     )

@@ -20,13 +20,15 @@ try {
 $backendDir = Join-Path $PSScriptRoot "backend"
 $frontendDir = Join-Path $PSScriptRoot "frontend"
 
-# Run migrations and seed
+# Run migrations and seed (desde backend\: ahí está run.py, OPS-26)
 Write-Host "`n--- Aplicando migraciones ---" -ForegroundColor Yellow
+Push-Location $backendDir
 & "$backendDir\venv\Scripts\python.exe" -m flask --app run db upgrade 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Migraciones aplicadas" -ForegroundColor Green
 } else {
     Write-Host "[!] Error en migraciones: no se arranca con un esquema incompleto." -ForegroundColor Red
+    Pop-Location
     exit 1
 }
 
@@ -35,6 +37,7 @@ Write-Host "`n--- Sembrando datos iniciales ---" -ForegroundColor Yellow
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Datos sembrados" -ForegroundColor Green
 }
+Pop-Location
 
 # Start backend in background
 Write-Host "`n--- Iniciando Backend (Flask :5000) ---" -ForegroundColor Yellow
