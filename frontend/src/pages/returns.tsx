@@ -6,7 +6,7 @@ import { CornerDownLeft, Search, Undo2 } from "lucide-react";
 
 import type { ReturnItemInput, SaleItem } from "../api/sales";
 import type { RefundMethod } from "../api/sales";
-import { getActiveSession, getSale, listSales, returnSale } from "../api/sales";
+import { findSaleByFolio, getActiveSession, getSale, listSales, returnSale } from "../api/sales";
 import { Badge, Button, Card, ErrorState, Input, Modal, PageHeader, Select, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterSale } from "../api/invalidate";
@@ -18,24 +18,37 @@ export function ReturnsPage() {
   const [searchFolio, setSearchFolio] = useState("");
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
 
-  // Search for recent completed sales to show as quick picks
+  const [searchError, setSearchError] = useState("");
+  const [searching, setSearching] = useState(false);
+
+  // Ventas recientes que todavía admiten devolución (completadas o con devolución parcial)
   const recentQuery = useQuery({
-    queryKey: qk.salesHistory(1),
-    queryFn: () => listSales(1, 20),
+    queryKey: qk.salesHistory("devolvibles"),
+    queryFn: () => listSales(1, 20, { status: "completada,devolucion_parcial" }),
   });
 
-  const recentCompleted = (recentQuery.data?.items ?? []).filter(
-    (s) => s.status === "completada",
-  );
+  const recentCompleted = recentQuery.data?.items ?? [];
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
+  /** Busca el folio en todo el historial del servidor, no solo en las últimas 20 (FE-102). */
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Find by folio among recent sales
-    const found = recentQuery.data?.items.find(
-      (s) => s.folio.toLowerCase() === searchFolio.trim().toLowerCase(),
-    );
-    if (found) {
-      setSelectedSaleId(found.id);
+    const folio = searchFolio.trim();
+    if (!folio) return;
+    setSearchError("");
+    setSearching(true);
+    try {
+      const found = await findSaleByFolio(folio);
+      if (!found) {
+        setSearchError(`No se encontró ninguna venta con el folio ${folio}.`);
+      } else if (found.status === "cancelada" || found.status === "devolucion_total") {
+        setSearchError(`La venta ${found.folio} ya no admite devoluciones (${found.status === "cancelada" ? "cancelada" : "devuelta por completo"}).`);
+      } else {
+        setSelectedSaleId(found.id);
+      }
+    } catch {
+      setSearchError("No se pudo buscar la venta. Revisa la conexión e intenta de nuevo.");
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -59,17 +72,22 @@ export function ReturnsPage() {
             />
           </div>
           <div className="flex items-end">
-            <Button icon={<Search aria-hidden="true" size={17} />} type="submit">
-              Buscar
+            <Button disabled={searching} icon={<Search aria-hidden="true" size={17} />} type="submit">
+              {searching ? "Buscando..." : "Buscar"}
             </Button>
           </div>
         </form>
+        {searchError ? (
+          <p className="mt-2 text-sm font-medium text-danger" role="alert">
+            {searchError}
+          </p>
+        ) : null}
       </Card>
 
       {/* Recent completed sales for quick selection */}
       <section className="grid gap-3">
         <h2 className="text-sm font-semibold uppercase text-neutral-text-secondary">
-          Ventas recientes completadas
+          Ventas recientes que admiten devolución
         </h2>
         {recentQuery.isLoading ? (
           <SkeletonTable rows={6} cols={4} />

@@ -234,11 +234,17 @@ export async function cancelSale(saleId: number, reason: string) {
   return response.data;
 }
 
-export async function listSales(page = 1, perPage = 20) {
+export async function listSales(page = 1, perPage = 20, filters: { folio?: string; status?: string } = {}) {
   const response = await apiClient.get<PaginatedResponse<SaleListItem>>("/sales/", {
-    params: { page, per_page: perPage },
+    params: { page, per_page: perPage, folio: filters.folio || undefined, status: filters.status || undefined },
   });
   return response.data;
+}
+
+/** Busca una venta por folio exacto en todo el historial (FE-102). */
+export async function findSaleByFolio(folio: string) {
+  const data = await listSales(1, 1, { folio });
+  return data.items[0] ?? null;
 }
 
 export async function getSale(saleId: number) {

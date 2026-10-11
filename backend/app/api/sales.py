@@ -1,5 +1,6 @@
 """Sales API — create, cancel, list, and detail sales."""
 from flask import Blueprint, jsonify, request
+from sqlalchemy import func
 from flask_jwt_extended import get_jwt_identity
 
 from app.schemas.sale import (
@@ -125,8 +126,15 @@ def return_sale(sale_id):
 @sales_bp.route("/", methods=["GET"])
 @require_permission("ventas:ver")
 def list_sales():
-    """List sales with pagination."""
+    """Ventas paginadas. Filtros opcionales: ?folio= (exacto, sin distinguir mayúsculas) y
+    ?status=completada,devolucion_parcial (FE-102: Devoluciones busca cualquier venta, no las últimas 20)."""
     query = Sale.query.order_by(Sale.created_at.desc())
+    folio = (request.args.get("folio") or "").strip()
+    if folio:
+        query = query.filter(func.upper(Sale.folio) == folio.upper())
+    status = request.args.get("status")
+    if status:
+        query = query.filter(Sale.status.in_([s.strip() for s in status.split(",") if s.strip()]))
     return jsonify(paginate(query, sale_list_schema)), 200
 
 

@@ -145,3 +145,25 @@ def test_devolucion_con_tarjeta_no_exige_caja(client, admin_token, db, seed_open
                     json={"reason": "x", "refund_method": "tarjeta",
                           "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
     assert r.status_code in (200, 201), r.get_json()
+
+
+# ── FE-102: buscar cualquier venta por folio, no solo las últimas 20 ───────
+
+def test_buscar_venta_por_folio_fuera_de_las_ultimas_20(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    primera = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    for _ in range(21):
+        _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    data = client.get("/api/sales/", query_string={"folio": primera["folio"].lower()}, headers=headers).get_json()
+    assert [s["id"] for s in data["items"]] == [primera["id"]]
+
+
+def test_filtrar_ventas_devolvibles_por_estado(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    otra = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    data = client.get("/api/sales/", query_string={"status": "completada,devolucion_parcial"}, headers=headers).get_json()
+    assert [s["id"] for s in data["items"]] == [otra["id"]]
