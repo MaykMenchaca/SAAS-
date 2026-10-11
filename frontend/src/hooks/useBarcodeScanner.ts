@@ -6,6 +6,11 @@ import { useEffect, useRef } from "react";
  * allowing cashiers to scan barcodes from any page state without focusing the search box.
  */
 export function useBarcodeScanner(onScan: (barcode: string) => void) {
+  const onScanRef = useRef(onScan);
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
   const bufferRef = useRef<string>("");
   const lastKeyTimeRef = useRef<number>(0);
 
@@ -39,7 +44,7 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
         const barcode = bufferRef.current.trim();
         if (barcode.length >= 3) {
           e.preventDefault();
-          onScan(barcode);
+          onScanRef.current(barcode);
         }
         bufferRef.current = "";
       } else if (isBackspace) {
@@ -58,5 +63,6 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onScan]);
+  }, []);
 }
+
