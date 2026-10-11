@@ -86,7 +86,7 @@ export function PurchasesPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "ordenes"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("ordenes")}
@@ -99,7 +99,7 @@ export function PurchasesPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "proveedores"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("proveedores")}
@@ -204,7 +204,7 @@ function OrdersTab() {
                 {orders.map((order: PurchaseOrderListItem) => (
                   <tr className={tableRowClass} key={order.id}>
                     <td className={tableCellClass}>
-                      <span className="font-mono text-sm font-semibold text-primary">{order.folio}</span>
+                      <span className="font-mono text-sm font-semibold text-primary-text">{order.folio}</span>
                     </td>
                     <td className={tableCellClass}>
                       <div className="flex items-center gap-2">

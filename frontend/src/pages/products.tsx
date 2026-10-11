@@ -210,7 +210,7 @@ export function ProductsPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "productos"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("productos")}
@@ -223,7 +223,7 @@ export function ProductsPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "categorias"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("categorias")}
@@ -236,7 +236,7 @@ export function ProductsPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "unidades"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("unidades")}
@@ -1198,7 +1198,7 @@ function UnitsTab() {
                 type="checkbox"
                 checked={unitAllowsFractions}
                 onChange={(e) => setUnitAllowsFractions(e.target.checked)}
-                className="rounded border-neutral-border bg-neutral-surface text-primary focus:ring-primary/20 h-4 w-4"
+                className="rounded border-neutral-border bg-neutral-surface text-primary-text focus:ring-primary/20 h-4 w-4"
               />
               <span>Permite cantidades fraccionadas (Ej. 1.5 kg)</span>
             </label>

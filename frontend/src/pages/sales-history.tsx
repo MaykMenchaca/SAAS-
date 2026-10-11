@@ -72,7 +72,7 @@ export function SalesHistoryPage() {
                   {sales.map((sale: SaleListItem) => (
                     <tr className={tableRowClass} key={sale.id}>
                       <td className={tableCellClass}>
-                        <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
+                        <span className="font-mono text-sm font-semibold text-primary-text">{sale.folio}</span>
                       </td>
                       <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
                         {new Date(sale.created_at).toLocaleString("es-MX", {
@@ -207,7 +207,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
             </div>
             <div>
               <span className="text-neutral-text-secondary">Folio: </span>
-              <span className="font-mono font-semibold text-primary">{sale.folio}</span>
+              <span className="font-mono font-semibold text-primary-text">{sale.folio}</span>
             </div>
           </div>
 

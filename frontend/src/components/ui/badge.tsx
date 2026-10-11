@@ -11,10 +11,10 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 
 const tones: Record<BadgeTone, string> = {
   neutral: "bg-neutral-bg text-neutral-text-secondary border-neutral-border",
-  success: "bg-success/10 text-success border-success/30",
-  warning: "bg-warning/10 text-warning border-warning/30",
-  danger: "bg-danger/10 text-danger border-danger/30",
-  info: "bg-info/10 text-info border-info/30",
+  success: "bg-success/10 text-success-text border-success/30",
+  warning: "bg-warning/10 text-warning-text border-warning/30",
+  danger: "bg-danger/10 text-danger-text border-danger/30",
+  info: "bg-info/10 text-info-text border-info/30",
 };
 
 export function Badge({ children, className, dot, tone = "neutral", ...rest }: BadgeProps) {

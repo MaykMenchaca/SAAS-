@@ -93,7 +93,7 @@ export function ReturnsPage() {
                 {recentCompleted.map((sale) => (
                   <tr className={tableRowClass} key={sale.id}>
                     <td className={tableCellClass}>
-                      <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
+                      <span className="font-mono text-sm font-semibold text-primary-text">{sale.folio}</span>
                     </td>
                     <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
                       {new Date(sale.created_at).toLocaleString("es-MX", {

@@ -132,7 +132,7 @@ function SessionSelector() {
   return (
     <div className="mx-auto grid max-w-lg gap-6 py-12">
       <div className="text-center">
-        <ShoppingCart aria-hidden="true" className="mx-auto mb-3 text-primary" size={48} />
+        <ShoppingCart aria-hidden="true" className="mx-auto mb-3 text-primary-text" size={48} />
         <h1 className="text-2xl font-bold text-neutral-text-primary">Punto de Venta</h1>
         <p className="text-sm text-neutral-text-secondary">Selecciona o abre una sesión de caja para comenzar</p>
       </div>
@@ -166,7 +166,7 @@ function SessionSelector() {
       <Card className="p-4">
         <h2 className="mb-3 font-semibold text-neutral-text-primary">Abrir nueva sesión</h2>
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary-text">
             {user?.full_name?.charAt(0)?.toUpperCase() ?? "?"}
           </div>
           <div>
@@ -398,7 +398,7 @@ function PosTerminal() {
               </div>
               <div className="flex justify-between border-t border-neutral-border-strong pt-2 text-xl font-bold text-neutral-text-primary">
                 <span>Total</span>
-                <span className="font-mono text-2xl text-primary">${totals.total.toFixed(2)}</span>
+                <span className="font-mono text-2xl text-primary-text">${totals.total.toFixed(2)}</span>
               </div>
             </div>
 
@@ -411,7 +411,7 @@ function PosTerminal() {
                   type="button"
                   className={`py-2 rounded-md text-xs font-bold border transition-colors outline-none text-center ${
                     paymentMethod === method
-                      ? "bg-primary/10 border-primary text-primary"
+                      ? "bg-primary/10 border-primary text-primary-text"
                       : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary/50"
                   }`}
                 >
@@ -538,7 +538,7 @@ function ProductSearch({
             type="text"
             value={search}
           />
-          <span className="absolute right-3 text-[10px] font-bold text-primary cursor-pointer hover:underline flex items-center gap-1 select-none" onClick={() => inputRef.current?.focus()}>
+          <span className="absolute right-3 text-[10px] font-bold text-primary-text cursor-pointer hover:underline flex items-center gap-1 select-none" onClick={() => inputRef.current?.focus()}>
             <Barcode size={14} /> Escanear
           </span>
         </div>
@@ -551,8 +551,8 @@ function ProductSearch({
           type="button"
           className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors outline-none whitespace-nowrap ${
             selectedCategoryId === undefined
-              ? "bg-primary text-white border-transparent"
-              : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary"
+              ? "bg-primary text-on-primary border-transparent"
+              : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary-text"
           }`}
         >
           Todos
@@ -564,8 +564,8 @@ function ProductSearch({
             type="button"
             className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors outline-none whitespace-nowrap ${
               selectedCategoryId === category.id
-                ? "bg-primary text-white border-transparent"
-                : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary"
+                ? "bg-primary text-on-primary border-transparent"
+                : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary-text"
             }`}
           >
             {category.name}
@@ -606,7 +606,7 @@ function ProductSearch({
                     isOut && "opacity-50 cursor-not-allowed"
                   }`}
                 >
-                  <div className="w-full aspect-square bg-neutral-bg rounded-lg flex items-center justify-center mb-2.5 text-neutral-text-muted group-hover:text-primary transition-colors">
+                  <div className="w-full aspect-square bg-neutral-bg rounded-lg flex items-center justify-center mb-2.5 text-neutral-text-muted group-hover:text-primary-text transition-colors">
                     <CategoryIcon size={28} strokeWidth={1.5} />
                   </div>
                   <div className="text-xs font-bold text-neutral-text-primary mb-0.5 line-clamp-2 leading-tight">
@@ -1046,7 +1046,7 @@ function PaymentModal({
             <div className="text-[10px] font-bold text-neutral-text-secondary uppercase tracking-widest mb-1">
               Total a Pagar
             </div>
-            <div className="font-mono text-3xl font-extrabold text-primary">
+            <div className="font-mono text-3xl font-extrabold text-primary-text">
               ${total.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
             </div>
           </div>
@@ -1148,7 +1148,7 @@ function PaymentModal({
             <button
               type="button"
               onClick={addPayment}
-              className="text-xs font-bold text-primary hover:text-primary-hover flex items-center gap-1 outline-none"
+              className="text-xs font-bold text-primary-text hover:text-primary-hover flex items-center gap-1 outline-none"
             >
               <Plus size={14} /> Registrar otro pago (Dividir cuenta)
             </button>
@@ -1174,7 +1174,7 @@ function PaymentModal({
                   onClick={() => updatePayment(activePayment.id, { method: method.value, reference: "" })}
                   className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border text-xs font-bold transition-[border-color,background-color,color,box-shadow] duration-150 ease-[var(--ease-out-strong)] ${
                     isActive
-                      ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/15 font-semibold"
+                      ? "border-primary bg-primary/10 text-primary-text ring-2 ring-primary/15 font-semibold"
                       : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary/50 hover:text-neutral-text-primary"
                   }`}
                 >

@@ -105,7 +105,7 @@ export function ReportsPage() {
               className={[
                 "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
                 activeTab === tab.id
-                  ? "bg-neutral-surface text-primary shadow-sm"
+                  ? "bg-neutral-surface text-primary-text shadow-sm"
                   : "text-neutral-text-secondary hover:text-neutral-text-primary",
               ].join(" ")}
               key={tab.id}
@@ -207,7 +207,7 @@ function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
                     <p className="text-sm font-semibold text-neutral-text-secondary">{kpi.label}</p>
                     <p className="mt-2 font-mono text-2xl font-bold text-neutral-text-primary">{kpi.value}</p>
                   </div>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-md bg-neutral-bg text-primary">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-md bg-neutral-bg text-primary-text">
                     <Icon aria-hidden="true" size={21} />
                   </div>
                 </div>
@@ -390,7 +390,7 @@ function TopProductsTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string
               {data!.items.map((item, index) => (
                 <tr className={tableRowClass} key={item.product_id}>
                   <td className={tableCellClass}>
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary-text">
                       {index + 1}
                     </span>
                   </td>

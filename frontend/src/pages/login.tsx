@@ -62,7 +62,7 @@ export function LoginPage() {
       <section className="relative z-10 grid place-items-center p-6 sm:p-10">
         <div className="w-full max-w-sm rounded-xl border border-neutral-border bg-neutral-surface p-8 shadow-xl">
           <div className="mb-8">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-inner shadow-primary/20">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary-text shadow-inner shadow-primary/20">
               <UserRound aria-hidden="true" size={24} />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-neutral-text-primary">
@@ -118,15 +118,15 @@ export function LoginPage() {
       <section className="relative hidden border-l border-neutral-border bg-neutral-surface-raised p-12 lg:grid lg:content-center overflow-hidden">
         <div className="relative z-10 max-w-xl space-y-8">
           <div>
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-surface border border-neutral-border text-primary shadow-md">
+            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-surface border border-neutral-border text-primary-text shadow-md">
               <KeyRound aria-hidden="true" size={30} />
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary-text">
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
               Acceso a Caja Local
             </span>
             <h2 className="mt-4 text-5xl font-extrabold tracking-tight text-neutral-text-primary">
-              Sistema POS <span className="text-primary">VRNTAS</span>
+              Sistema POS <span className="text-primary-text">VRNTAS</span>
             </h2>
             <p className="mt-3 text-sm text-neutral-text-secondary leading-relaxed max-w-md">
               Gestión de ventas, inventario y compras en una sola herramienta. Opera en red local sin depender de internet.

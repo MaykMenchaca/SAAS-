@@ -355,7 +355,7 @@ export function CommandPalette() {
                           role="option"
                           type="button"
                         >
-                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-primary" : "text-neutral-text-secondary")} size={16} />
+                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-primary-text" : "text-neutral-text-secondary")} size={16} />
                           <span className="flex-1 truncate font-medium">{cmd.label}</span>
                           {cmd.hint ? (
                             <span className="shrink-0 font-mono text-[10px] text-neutral-text-muted">{cmd.hint}</span>

@@ -21,7 +21,7 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
                 {item.label}
               </span>
             ) : (
-              <Link className="text-neutral-text-secondary transition-colors hover:text-primary" to={item.href}>
+              <Link className="text-neutral-text-secondary transition-colors hover:text-primary-text" to={item.href}>
                 {item.label}
               </Link>
             )}

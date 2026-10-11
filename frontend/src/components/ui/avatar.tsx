@@ -7,12 +7,12 @@ type AvatarProps = {
 };
 
 const palette = [
-  "bg-primary/15 text-primary",
-  "bg-success/15 text-success",
-  "bg-warning/15 text-warning",
-  "bg-danger/15 text-danger",
-  "bg-info/15 text-info",
-  "bg-brand-violet/15 text-brand-violet",
+  "bg-primary/15 text-neutral-text-primary",
+  "bg-success/15 text-success-text",
+  "bg-warning/15 text-warning-text",
+  "bg-danger/15 text-danger-text",
+  "bg-info/15 text-info-text",
+  "bg-brand-violet/15 text-neutral-text-primary",
 ];
 
 function initials(name: string): string {

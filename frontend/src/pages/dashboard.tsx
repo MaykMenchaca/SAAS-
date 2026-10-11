@@ -27,7 +27,7 @@ function rankingClass(index: number): string {
   if (index === 0) return "bg-warning/15 text-warning border-warning/20";
   if (index === 1) return "bg-neutral-border/60 text-neutral-text-secondary border-neutral-border";
   if (index === 2) return "bg-warning/10 text-warning/70 border-warning/10";
-  return "bg-primary/10 text-primary border-primary/20";
+  return "bg-primary/10 text-primary-text border-primary/20";
 }
 
 /** Variación contra el periodo anterior; null si no hay base de comparación (H-27). */
@@ -138,31 +138,31 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Link
           to="/pos"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg bg-primary font-bold text-xs text-white hover:bg-primary-hover shadow-sm transition-colors duration-150 ease-[var(--ease-out-strong)]"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg bg-primary font-bold text-xs text-on-primary hover:bg-primary-hover shadow-sm transition-colors duration-150 ease-[var(--ease-out-strong)]"
         >
           <ShoppingCart size={15} /> Nueva Venta
         </Link>
         <Link
           to="/compras"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
         >
           <Truck size={15} /> Nueva Compra
         </Link>
         <Link
           to="/devoluciones"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
         >
           <CornerDownLeft size={15} /> Devolución
         </Link>
         <Link
           to="/reportes"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)]"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
         >
           <BarChart3 size={15} /> Ver Reportes
         </Link>
         <Link
           to="/corte-caja"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary transition-colors duration-150 ease-[var(--ease-out-strong)] col-span-2 sm:col-span-1"
+          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)] col-span-2 sm:col-span-1"
         >
           <Calculator size={15} /> Corte de Caja
         </Link>
@@ -184,7 +184,7 @@ export function DashboardPage() {
             const Icon = kpi.icon;
             const toneClasses = {
               success: "bg-success/10 text-success border-success/30",
-              neutral: "bg-primary/10 text-primary border-primary/20",
+              neutral: "bg-primary/10 text-primary-text border-primary/20",
               warning: "bg-warning/10 text-warning border-warning/30",
             }[kpi.tone];
 
@@ -278,7 +278,7 @@ export function DashboardPage() {
               <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Stock Crítico</h2>
               <p className="text-[10px] text-neutral-text-muted mt-0.5">Productos bajo el mínimo</p>
             </div>
-            <Link className="text-[10px] font-bold text-primary hover:underline" to="/inventario">Ver todo</Link>
+            <Link className="text-[10px] font-bold text-primary-text hover:underline" to="/inventario">Ver todo</Link>
           </div>
 
           {lowStockItems.length === 0 ? (
@@ -319,7 +319,7 @@ export function DashboardPage() {
               <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Últimas Ventas</h2>
               <p className="text-[10px] text-neutral-text-muted mt-0.5">Historial de tickets recientes</p>
             </div>
-            <Link className="text-[10px] font-bold text-primary hover:underline" to="/ventas">Historial completo</Link>
+            <Link className="text-[10px] font-bold text-primary-text hover:underline" to="/ventas">Historial completo</Link>
           </div>
 
           {salesQuery.isLoading ? (
@@ -340,7 +340,7 @@ export function DashboardPage() {
                 <tbody className="divide-y divide-neutral-border">
                   {recentSales.slice(0, 5).map((sale) => (
                     <tr className="hover:bg-neutral-surface-raised/50" key={sale.id}>
-                      <td className="py-2 px-3 font-mono font-bold text-primary">#{sale.folio}</td>
+                      <td className="py-2 px-3 font-mono font-bold text-primary-text">#{sale.folio}</td>
                       <td className="py-2 px-3 text-neutral-text-secondary">{sale.username}</td>
                       <td className="py-2 px-3">
                         <Badge tone={sale.status === "completada" ? "success" : "danger"}>

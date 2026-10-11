@@ -74,7 +74,7 @@ export function SettingsPage() {
               className={[
                 "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
                 activeTab === tab.id
-                  ? "bg-neutral-surface text-primary shadow-sm"
+                  ? "bg-neutral-surface text-primary-text shadow-sm"
                   : "text-neutral-text-secondary hover:text-neutral-text-primary",
               ].join(" ")}
               key={tab.id}

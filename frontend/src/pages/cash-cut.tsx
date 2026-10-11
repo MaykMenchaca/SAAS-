@@ -122,7 +122,7 @@ export function CashCutPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "corte"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("corte")}
@@ -135,7 +135,7 @@ export function CashCutPage() {
           className={[
             "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors",
             activeTab === "historial"
-              ? "bg-neutral-surface text-primary shadow-sm"
+              ? "bg-neutral-surface text-primary-text shadow-sm"
               : "text-neutral-text-secondary hover:text-neutral-text-primary",
           ].join(" ")}
           onClick={() => setActiveTab("historial")}
@@ -564,7 +564,7 @@ function CashSessionDetailsView({
                 <button
                   type="button"
                   onClick={() => setShowDenominations(!showDenominations)}
-                  className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover select-none outline-none"
+                  className="flex items-center gap-1.5 text-xs font-bold text-primary-text hover:text-primary-hover select-none outline-none"
                 >
                   <ChevronDown
                     size={16}

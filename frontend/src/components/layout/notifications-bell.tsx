@@ -68,7 +68,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
         {total > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-white text-[10px] font-bold leading-none border border-neutral-surface"
+            className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-on-danger text-[10px] font-bold leading-none border border-neutral-surface"
           >
             {total > 9 ? "9+" : total}
           </span>
@@ -103,7 +103,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
                     </ul>
                   ) : null}
                   {canInventory ? (
-                    <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary" onClick={() => setOpen(false)} to="/inventario">
+                    <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary-text" onClick={() => setOpen(false)} to="/inventario">
                       Ver inventario
                     </Link>
                   ) : null}
@@ -117,7 +117,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
                       ? "1 orden de compra pendiente"
                       : `${badges.pendingPurchases} órdenes de compra pendientes`}
                   </div>
-                  <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary" onClick={() => setOpen(false)} to="/compras">
+                  <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary-text" onClick={() => setOpen(false)} to="/compras">
                     Ver compras
                   </Link>
                 </li>

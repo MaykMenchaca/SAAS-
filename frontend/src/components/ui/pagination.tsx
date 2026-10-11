@@ -59,7 +59,7 @@ export function Pagination({ onPageChange, page, totalPages }: PaginationProps) 
             className={cn(
               btnBase,
               p === page
-                ? "border-primary bg-primary text-white"
+                ? "border-primary bg-primary text-on-primary"
                 : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:bg-neutral-surface-raised",
             )}
             key={p}

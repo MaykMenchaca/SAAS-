@@ -106,7 +106,7 @@ const LOGO_ICONS = {
 };
 
 const LOGO_COLORS = [
-  { id: "primary", bg: "bg-brand-cyan", text: "text-white", label: "Cian Primario" },
+  { id: "primary", bg: "bg-brand-cyan", text: "text-on-primary", label: "Cian Primario" },
   { id: "emerald", bg: "bg-brand-emerald", text: "text-white", label: "Esmeralda" },
   { id: "indigo", bg: "bg-brand-indigo", text: "text-white", label: "Índigo" },
   { id: "amber", bg: "bg-brand-amber", text: "text-white", label: "Ámbar" },
@@ -280,7 +280,7 @@ export function AppShell() {
     >
       {/* Skip-to-content — visible only on focus (keyboard navigation) */}
       <a
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-white focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-on-primary focus:shadow-lg"
         href="#main-content"
       >
         Ir al contenido principal
@@ -348,7 +348,7 @@ export function AppShell() {
               <p className="text-sm font-bold text-white leading-tight transition-colors truncate">
                 {brandingQuery.data?.company_name || "Ferretería"}
               </p>
-              <p className="text-[10px] tracking-wider text-sidebar-text/50 uppercase truncate">
+              <p className="text-[10px] tracking-wider text-sidebar-text uppercase truncate">
                 {brandingQuery.data?.company_subtitle || "VRNTAS POS"}
               </p>
             </div>
@@ -388,7 +388,7 @@ export function AppShell() {
                     <NavLink
                       className={({ isActive }) =>
                         cn(
-                          "relative flex min-h-[38px] shrink-0 items-center rounded-md py-2 text-xs font-semibold outline-none transition-[background-color,padding-left,color] duration-150 ease-[var(--ease-out-strong)]",
+                          "relative flex min-h-[38px] shrink-0 items-center rounded-md py-2 text-xs font-semibold transition-[background-color,padding-left,color] duration-150 ease-[var(--ease-out-strong)]",
                           isCollapsed ? "justify-center px-0" : "gap-3 px-3",
                           isActive
                             ? "bg-primary/15 text-info"
@@ -423,14 +423,14 @@ export function AppShell() {
                 <span className="w-2.5 h-2.5 rounded-full bg-success" title={sessionName ?? "Turno activo"} />
               )}
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shrink-0 cursor-help"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary shrink-0 cursor-help"
                 title={`${user?.full_name ?? "Usuario"} (${user?.role ?? "rol"})`}
               >
                 {user?.full_name?.charAt(0)?.toUpperCase() ?? "?"}
               </div>
               <button
                 onClick={() => void logout()}
-                className="text-sidebar-text/50 hover:text-danger p-1 transition-colors outline-none focus:ring-1 focus:ring-danger rounded"
+                className="text-sidebar-text hover:text-danger p-1 transition-colors focus:ring-1 focus:ring-danger rounded"
                 title="Cerrar sesión"
               >
                 <LogOut size={15} />
@@ -445,16 +445,16 @@ export function AppShell() {
               )}
 
               <div className="flex items-center gap-2.5 rounded-lg bg-white/5 p-2 border border-white/5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shrink-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary shrink-0">
                   {user?.full_name?.charAt(0)?.toUpperCase() ?? "?"}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-white">{user?.full_name ?? "Usuario"}</p>
-                  <p className="truncate text-[10px] text-sidebar-text/50 capitalize">{user?.role ?? "rol"}</p>
+                  <p className="truncate text-[10px] text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
                 </div>
                 <button
                   onClick={() => void logout()}
-                  className="text-sidebar-text/50 hover:text-danger p-1 transition-colors outline-none focus:ring-1 focus:ring-danger rounded"
+                  className="text-sidebar-text hover:text-danger p-1 transition-colors focus:ring-1 focus:ring-danger rounded"
                   title="Cerrar sesión"
                 >
                   <LogOut size={15} />
@@ -473,7 +473,7 @@ export function AppShell() {
             {/* Sidebar toggle button */}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm outline-none shrink-0"
+              className="hidden lg:flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm shrink-0"
               title={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
             >
               {isCollapsed ? <Menu size={14} /> : <ChevronLeft size={14} />}
@@ -490,7 +490,7 @@ export function AppShell() {
             {/* Command palette trigger — reemplaza el search vacío */}
             <button
               aria-label="Abrir paleta de comandos"
-              className="hidden sm:flex items-center gap-2 h-9 bg-neutral-bg border border-neutral-border rounded-md px-3 text-xs text-neutral-text-secondary min-w-[220px] outline-none transition-colors duration-150 ease-[var(--ease-out-strong)] hover:border-primary/40 hover:text-neutral-text-primary focus:border-primary focus:ring-2 focus:ring-primary/30"
+              className="hidden sm:flex items-center gap-2 h-9 bg-neutral-bg border border-neutral-border rounded-md px-3 text-xs text-neutral-text-secondary min-w-[220px] transition-colors duration-150 ease-[var(--ease-out-strong)] hover:border-primary/40 hover:text-neutral-text-primary focus:border-primary focus:ring-2 focus:ring-primary/30"
               onClick={() => commandPalette.setOpen(true)}
               type="button"
             >
@@ -540,7 +540,7 @@ export function AppShell() {
             <button
               aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm outline-none"
+              className="flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm"
               type="button"
               title={theme === "dark" ? "Modo Claro" : "Modo Oscuro"}
             >
@@ -662,7 +662,7 @@ export function AppShell() {
                     className={cn(
                       "flex h-11 w-11 items-center justify-center rounded-lg border text-neutral-text-primary transition-colors duration-150 ease-[var(--ease-out-strong)] hover:bg-neutral-bg",
                       tempIcon === key
-                        ? "border-primary bg-primary/10 text-primary ring-1 ring-primary"
+                        ? "border-primary bg-primary/10 text-primary-text ring-1 ring-primary"
                         : "border-neutral-border bg-neutral-surface"
                     )}
                   >

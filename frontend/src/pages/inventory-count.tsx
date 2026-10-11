@@ -83,7 +83,7 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Link className="text-neutral-text-secondary hover:text-primary" to="/inventario">
+              <Link className="text-neutral-text-secondary hover:text-primary-text" to="/inventario">
                 <ArrowLeft size={20} />
               </Link>
               <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
@@ -102,7 +102,7 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Link className="text-neutral-text-secondary hover:text-primary" to="/inventario">
+            <Link className="text-neutral-text-secondary hover:text-primary-text" to="/inventario">
               <ArrowLeft size={20} />
             </Link>
             <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
@@ -303,7 +303,7 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
     return (
       <div className="grid gap-5">
         <div className="flex items-center gap-2">
-          <button className="text-neutral-text-secondary hover:text-primary" onClick={onBack} type="button">
+          <button className="text-neutral-text-secondary hover:text-primary-text" onClick={onBack} type="button">
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold text-neutral-text-primary">Conteo</h1>
@@ -349,7 +349,7 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
         <div>
           <div className="flex items-center gap-2">
             <button
-              className="text-neutral-text-secondary hover:text-primary"
+              className="text-neutral-text-secondary hover:text-primary-text"
               onClick={onBack}
               type="button"
             >
@@ -400,7 +400,7 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
       {/* Stats */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="flex items-center gap-3 p-4">
-          <div className="rounded-lg bg-primary/10 p-2 text-primary">
+          <div className="rounded-lg bg-primary/10 p-2 text-primary-text">
             <ClipboardList size={24} />
           </div>
           <div>

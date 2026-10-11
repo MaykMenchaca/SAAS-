@@ -8,6 +8,14 @@
   --color-warning: oklch(0.65 0.16 55);
   --color-danger: oklch(0.58 0.21 28);
   --color-info: oklch(0.76 0.13 230);
+  /* Texto accesible (UI-01, UI-06): medido con WCAG, >= 4.5:1 sobre su fondo */
+  --color-on-primary: oklch(0.21 0.04 260);
+  --color-on-danger: oklch(1 0 0);
+  --color-primary-text: oklch(0.52 0.15 235);
+  --color-success-text: oklch(0.45 0.11 165);
+  --color-warning-text: oklch(0.47 0.12 55);
+  --color-danger-text: oklch(0.5 0.19 28);
+  --color-info-text: oklch(0.48 0.12 235);
 
   --color-neutral-bg: oklch(0.98 0.005 250);
   --color-neutral-surface: oklch(1 0 0);
@@ -75,6 +83,14 @@ html.light {
   --color-warning: oklch(0.65 0.16 55);
   --color-danger: oklch(0.58 0.21 28);
   --color-info: oklch(0.76 0.13 230);
+  /* Texto accesible (UI-01, UI-06): medido con WCAG, >= 4.5:1 sobre su fondo */
+  --color-on-primary: oklch(0.21 0.04 260);
+  --color-on-danger: oklch(1 0 0);
+  --color-primary-text: oklch(0.52 0.15 235);
+  --color-success-text: oklch(0.45 0.11 165);
+  --color-warning-text: oklch(0.47 0.12 55);
+  --color-danger-text: oklch(0.5 0.19 28);
+  --color-info-text: oklch(0.48 0.12 235);
 
   --color-neutral-bg: oklch(0.98 0.005 250);
   --color-neutral-surface: oklch(1 0 0);
@@ -104,6 +120,13 @@ html.dark {
   --color-warning: oklch(0.83 0.18 80);
   --color-danger: oklch(0.64 0.22 30);
   --color-info: oklch(0.71 0.17 250);
+  --color-on-primary: oklch(0.14 0.005 280);
+  --color-on-danger: oklch(0.14 0.005 280);
+  --color-primary-text: oklch(0.78 0.13 290);
+  --color-success-text: oklch(0.77 0.16 165);
+  --color-warning-text: oklch(0.83 0.18 80);
+  --color-danger-text: oklch(0.72 0.18 30);
+  --color-info-text: oklch(0.71 0.17 250);
 
   --color-neutral-bg: oklch(0.14 0.005 280);
   --color-neutral-surface: oklch(0.18 0.005 280);
@@ -123,6 +146,16 @@ html.dark {
   --color-pos-cart: oklch(0.18 0.005 280);
   --color-pos-total-bg: oklch(0.21 0.005 280);
   --color-pos-total-text: oklch(0.98 0 0);
+}
+
+/* Foco visible con teclado en toda la app (UI-02): >= 3:1 contra el fondo */
+:focus-visible {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: 2px;
+}
+/* Sobre el sidebar oscuro, el primario base contrasta mejor (6:1) */
+aside :focus-visible {
+  outline-color: var(--color-primary);
 }
 
 body {

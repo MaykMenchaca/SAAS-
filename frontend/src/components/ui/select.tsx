@@ -34,7 +34,7 @@ export function Select({
       <span className="relative block">
         <select
           className={cn(
-            "min-h-11 w-full appearance-none rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 pr-9 text-sm text-neutral-text-primary outline-none transition-colors placeholder:text-neutral-text-muted focus:border-primary focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:bg-neutral-bg",
+            "min-h-11 w-full appearance-none rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 pr-9 text-sm text-neutral-text-primary outline-none transition-colors placeholder:text-neutral-text-muted focus:border-primary-text focus:ring-2 focus:ring-primary-text/60 disabled:cursor-not-allowed disabled:bg-neutral-bg",
             error && "border-danger focus:border-danger focus:ring-danger/20",
             className,
           )}
