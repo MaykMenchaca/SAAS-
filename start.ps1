@@ -26,7 +26,8 @@ Write-Host "`n--- Aplicando migraciones ---" -ForegroundColor Yellow
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Migraciones aplicadas" -ForegroundColor Green
 } else {
-    Write-Host "[!] Error en migraciones" -ForegroundColor Red
+    Write-Host "[!] Error en migraciones: no se arranca con un esquema incompleto." -ForegroundColor Red
+    exit 1
 }
 
 Write-Host "`n--- Sembrando datos iniciales ---" -ForegroundColor Yellow

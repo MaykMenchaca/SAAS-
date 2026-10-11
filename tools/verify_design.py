@@ -175,7 +175,8 @@ def check_frontend_codebase(src_dir):
 def main():
     print_header("POS Retail VRNTAS - Agente de Verificación Estática de Diseño")
     
-    script_root = os.path.dirname(os.path.abspath(__file__))
+    # Raíz del proyecto: el padre de tools/ (6.3)
+    script_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     css_path = os.path.join(script_root, "frontend", "src", "index.css")
     src_dir = os.path.join(script_root, "frontend", "src")
     
