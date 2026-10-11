@@ -39,3 +39,21 @@
 | OPS-14 | Bajo | El escáner puede rechazar un código existente cuando es subcadena de otro | Subfase 4.8 (búsqueda exacta por código) |
 
 Según el criterio del gate, los hallazgos Altos nuevos impiden aprobar la fase. Se abrieron las subfases 4.7 a 4.10 en `progreso.md`. OPS-03 queda pendiente de la decisión del usuario.
+
+
+## Segunda re-revisión (correcciones 4.7–4.11)
+
+Hecha por `revisor-operacion`, en modo solo lectura. **No queda ningún hallazgo Crítico ni Alto abierto.** OPS-01, OPS-02, OPS-03, OPS-04, OPS-05, OPS-06, OPS-08, OPS-11, OPS-13 y OPS-14 quedaron cerrados en el código. Sus pruebas pasan: 42 tests.
+
+| ID | Severidad | Título | Destino |
+|---|---|---|---|
+| OPS-15 | Medio | El catálogo offline comparte la cuota de `localStorage` con la cola de ventas: con un catálogo grande, una venta offline puede quedar solo en memoria | 4.13 |
+| OPS-16 | Medio | No se controla la antigüedad del catálogo offline, así que un precio viejo puede terminar en una venta rechazada | 4.13 (antigüedad visible y aviso). La política de precios offline queda con OPS-07 |
+| OPS-17 | Medio | La cola entrega cada trabajo como máximo una vez y no recupera los perdidos; el POS dice "Ticket enviado" aunque el trabajo solo se haya encolado | 4.12 |
+| OPS-18 | Medio | La cola de Windows anula la caducidad del cajón: con la impresora apagada, el cajón se abre cuando vuelve | 4.12 (revisar el estado de la impresora antes de escribir); verificación con hardware pendiente |
+| OPS-19 | Medio | Los instaladores NSSM no se pueden volver a ejecutar: no cambian el programa ni reinician el servicio, pero muestran OK | 4.12 |
+| OPS-20 | Medio | El agente corre como LocalSystem desde una carpeta que el usuario puede modificar, y la clave queda legible | 4.12 |
+| OPS-21 | Bajo | Cada sondeo del agente hace un UPDATE, un DELETE y un COMMIT por segundo | 4.12 |
+| OPS-22 | Bajo | Robustez menor: excepción del cajón en modo agente, `"²".isdigit()`, transiciones de estado, timeout del COM, copiar al portapapeles en HTTP, versión de Python | 4.12 |
+| OPS-23 | Bajo | Con el servidor colgado, el escáner y la búsqueda esperan el timeout antes de usar el catálogo local | 4.13 |
+| OPS-24 | Bajo | `update-production.ps1` respalda en la carpeta del programa y compila con el servicio en marcha | 4.12 |
