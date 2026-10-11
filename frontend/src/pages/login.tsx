@@ -35,6 +35,11 @@ export function LoginPage() {
 
     try {
       const trimmedUser = username.trim();
+      if (!trimmedUser || !password) {
+        setError("Ingresa tu usuario y contraseña para continuar.");
+        return;
+      }
+
       const lastUser = typeof window !== "undefined" ? localStorage.getItem("pos_last_auth_user") : null;
       const isSameUser = Boolean(lastUser && lastUser.toLowerCase() === trimmedUser.toLowerCase());
 
@@ -80,7 +85,7 @@ export function LoginPage() {
                 label="Usuario de Acceso"
                 name="username"
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin"
+                placeholder="Ingresa tu usuario"
                 value={username}
               />
             </div>
@@ -103,7 +108,7 @@ export function LoginPage() {
             ) : null}
 
             <Button
-              disabled={isLoading || !username.trim() || !password}
+              disabled={isLoading}
               icon={<LogIn aria-hidden="true" size={16} />}
               type="submit"
               variant="primary"
