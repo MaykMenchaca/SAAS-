@@ -5,8 +5,9 @@ import { AxiosError } from "axios";
 import { CornerDownLeft, Search, Undo2 } from "lucide-react";
 
 import type { ReturnItemInput, SaleItem } from "../api/sales";
-import { getSale, listSales, returnSale } from "../api/sales";
-import { Badge, Button, Card, ErrorState, Input, Modal, PageHeader, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
+import type { RefundMethod } from "../api/sales";
+import { getActiveSession, getSale, listSales, returnSale } from "../api/sales";
+import { Badge, Button, Card, ErrorState, Input, Modal, PageHeader, Select, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterSale } from "../api/invalidate";
 
@@ -161,6 +162,14 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
   const [reason, setReason] = useState("");
   const [selections, setSelections] = useState<ReturnSelection[]>([]);
   const [success, setSuccess] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<RefundMethod | null>(null);
+
+  // Caja abierta del usuario: el reembolso en efectivo sale de su cajón y debe descontarse en su corte
+  const activeSessionQuery = useQuery({
+    queryKey: qk.activePosSession("mia"),
+    queryFn: getActiveSession,
+  });
+  const activeSession = activeSessionQuery.data?.session ?? null;
 
   const saleQuery = useQuery({
     queryKey: qk.saleDetail(saleId),
@@ -169,6 +178,8 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
   });
 
   const sale = saleQuery.data;
+  const originalMethod = (sale?.payments?.[0]?.method ?? "efectivo") as RefundMethod;
+  const effectiveRefundMethod: RefundMethod = refundMethod ?? originalMethod;
 
   // Initialize or synchronize selections when sale data arrives or changes
   useEffect(() => {
@@ -192,7 +203,10 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
 
   const returnMutation = useMutation({
     mutationFn: (data: { reason: string; items: ReturnItemInput[] }) =>
-      returnSale(saleId, data.reason, data.items),
+      returnSale(saleId, data.reason, data.items, {
+        sessionId: activeSession?.id ?? null,
+        refundMethod: effectiveRefundMethod,
+      }),
     onSuccess: async () => {
       await invalidateAfterSale(queryClient);
       setSuccess(true);
@@ -391,6 +405,30 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
             </div>
           ) : null}
 
+          {/* Método de reembolso: por defecto, el método con el que se pagó (FE-100) */}
+          <Select
+            label="Método de reembolso"
+            name="refund_method"
+            onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
+            options={[
+              { value: "efectivo", label: "Efectivo (sale del cajón)" },
+              { value: "tarjeta", label: "Tarjeta" },
+              { value: "transferencia", label: "Transferencia" },
+            ]}
+            value={effectiveRefundMethod}
+          />
+          {effectiveRefundMethod === "efectivo" ? (
+            activeSession ? (
+              <p className="text-xs text-neutral-text-secondary">
+                El reembolso se descontará del corte de {activeSession.cash_register_name ?? "tu caja"}.
+              </p>
+            ) : (
+              <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm font-medium text-warning" role="alert">
+                No tienes una caja abierta. Para reembolsar en efectivo, abre tu caja o elige otro método.
+              </div>
+            )
+          ) : null}
+
           {/* Reason */}
           <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
             <span>Razón de la devolución</span>
@@ -413,7 +451,12 @@ function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void 
               Cancelar
             </Button>
             <Button
-              disabled={selectedItems.length === 0 || !reason.trim() || returnMutation.isPending}
+              disabled={
+                selectedItems.length === 0 ||
+                !reason.trim() ||
+                returnMutation.isPending ||
+                (effectiveRefundMethod === "efectivo" && !activeSession)
+              }
               icon={<Undo2 aria-hidden="true" size={17} />}
               type="submit"
               variant="danger"

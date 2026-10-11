@@ -271,7 +271,23 @@ export type SaleReturn = {
   returned_items: SaleReturnItem[];
 };
 
-export async function returnSale(saleId: number, reason: string, items: ReturnItemInput[]) {
-  const response = await apiClient.post<SaleReturn>(`/sales/${saleId}/return`, { reason, items });
+export type RefundMethod = "efectivo" | "tarjeta" | "transferencia";
+
+/**
+ * Devolución. El reembolso en efectivo debe ligarse a una caja abierta para que el corte lo descuente
+ * (FE-100, H-08); si no se envía session_id, el servidor usa la caja abierta del usuario.
+ */
+export async function returnSale(
+  saleId: number,
+  reason: string,
+  items: ReturnItemInput[],
+  options: { sessionId?: number | null; refundMethod?: RefundMethod } = {},
+) {
+  const response = await apiClient.post<SaleReturn>(`/sales/${saleId}/return`, {
+    reason,
+    items,
+    session_id: options.sessionId ?? undefined,
+    refund_method: options.refundMethod ?? "efectivo",
+  });
   return response.data;
 }

@@ -399,6 +399,22 @@ class SaleService:
         if refund_method not in ("efectivo", "tarjeta", "transferencia"):
             raise ValueError(f"Método de reembolso inválido: {refund_method}")
 
+        # Un reembolso en efectivo sale de un cajón: si no se indica la caja, se usa la sesión abierta
+        # del usuario, para que el corte lo descuente (BE-100/FE-100, H-08). Sin caja, no se puede.
+        if session_id is None:
+            open_session = (
+                CashRegisterSession.query.filter_by(user_id=user_id, status="abierta")
+                .order_by(CashRegisterSession.opened_at.desc())
+                .first()
+            )
+            if open_session is not None:
+                session_id = open_session.id
+            elif refund_method == "efectivo":
+                raise ValueError(
+                    "Para reembolsar en efectivo necesitas una caja abierta. Abre tu caja o elige "
+                    "tarjeta o transferencia como método de reembolso."
+                )
+
         if session_id is not None:
             # Mismo orden de bloqueo que create_sale: sesión y luego venta. Una devolución que
             # coincide con el cierre espera y ve la caja cerrada (OPS-08)

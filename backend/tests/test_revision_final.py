@@ -87,3 +87,61 @@ def test_flask_se_ejecuta_desde_backend(name):
     assert all(push < pos < pop for pos in llamadas), (
         f"{name}: flask --app run debe correr dentro de Push-Location $backendDir ... Pop-Location"
     )
+
+
+# ── FE-100 / BE-100: devolución desde la UI (sin session_id) cuadra el corte ─
+
+def _venta_efectivo(client, token, session_id, product_id):
+    r = client.post("/api/sales/", headers={"Authorization": f"Bearer {token}"},
+                    json={"session_id": session_id, "items": [{"product_id": product_id, "quantity": 1}],
+                          "payments": [{"method": "efectivo", "amount": "116.00"}]})
+    assert r.status_code == 201, r.get_json()
+    return r.get_json()
+
+
+def test_devolucion_en_efectivo_sin_sesion_usa_la_caja_abierta_del_usuario(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    # Payload que manda la pantalla de Devoluciones antes de la corrección: sin session_id
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "No funciona", "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code in (200, 201), r.get_json()
+    assert r.get_json()["session_id"] == seed_open_session.id
+
+    corte = client.post(f"/api/cash-register/{seed_open_session.id}/close", headers=headers,
+                        json={"closing_amount": "1000.00"}).get_json()
+    # 1000 de apertura + 116 cobrados − 116 reembolsados = 1000: sin faltante falso
+    assert Decimal(corte["expected_cash"]) == Decimal("1000.00")
+    assert Decimal(corte["difference"]) == Decimal("0.00")
+
+
+def test_devolucion_en_efectivo_sin_caja_abierta_se_rechaza(
+    client, admin_token, db, seed_open_session, seed_product_for_sale
+):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    db.session.get(CashRegisterSession, seed_open_session.id).status = "cerrada"
+    db.session.commit()
+
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "x", "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code == 400
+    assert "caja abierta" in r.get_json()["error"]
+
+
+def test_devolucion_con_tarjeta_no_exige_caja(client, admin_token, db, seed_open_session, seed_product_for_sale):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    db.session.get(CashRegisterSession, seed_open_session.id).status = "cerrada"
+    db.session.commit()
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "x", "refund_method": "tarjeta",
+                          "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code in (200, 201), r.get_json()
