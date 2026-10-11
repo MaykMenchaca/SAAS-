@@ -10,6 +10,22 @@ class InventoryService:
     """Handles all stock mutations with SELECT FOR UPDATE to prevent races."""
 
     @staticmethod
+    def lock_stock(product_ids) -> None:
+        """Bloquea las filas de stock en orden de product_id antes de moverlas.
+
+        Dos operaciones con los mismos productos en distinto orden ([A,B] y [B,A]) toman los
+        bloqueos en el mismo orden y no hacen deadlock (OPS-09).
+        """
+        ids = sorted({int(pid) for pid in product_ids})
+        if ids:
+            (
+                Stock.query.filter(Stock.product_id.in_(ids))
+                .order_by(Stock.product_id)
+                .with_for_update()
+                .all()
+            )
+
+    @staticmethod
     @with_rollback
     def move_stock(
         product_id: int,

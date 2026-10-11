@@ -357,7 +357,8 @@ def inventory_valuation():
             (Stock.quantity * Product.avg_cost).label("valuation"),
         )
         .join(Stock, Stock.product_id == Product.id)
-        .filter(Product.is_active.is_(True))
+        # Los inactivos con existencias también valen dinero en el almacén (H-43)
+        .filter(db.or_(Product.is_active.is_(True), Stock.quantity != 0))
         .order_by(Product.name)
         .all()
     )

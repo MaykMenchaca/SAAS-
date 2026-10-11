@@ -149,6 +149,11 @@ class InventoryCountService:
             raise ValueError("El conteo ya está cerrado o cancelado")
 
         # Apply stock adjustments for counted items with differences
+        # (bloqueo del stock en orden de producto antes de ajustar, OPS-09)
+        InventoryService.lock_stock(
+            item.product_id for item in count.items
+            if item.counted_quantity is not None and item.difference != Decimal("0")
+        )
         for item in count.items:
             if item.counted_quantity is None:
                 continue  # skip uncounted items

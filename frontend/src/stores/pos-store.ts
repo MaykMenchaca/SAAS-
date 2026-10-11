@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { CreateSalePayload } from "../api/sales";
 
@@ -19,12 +19,34 @@ export type QueuedOfflineSale = {
   sale: CreateSalePayload;
   queuedAt?: string;
   total?: string;
+  /** Copia del carrito al cobrar, para poder recapturar la venta si el servidor la rechaza (OPS-07). */
+  cart?: CartItem[];
 };
 
 /** Venta offline que el servidor rechazó (4xx). No bloquea la cola; espera revisión del usuario. */
 export type RejectedOfflineSale = QueuedOfflineSale & {
   error: string;
   rejectedAt: string;
+};
+
+/** Evento que se emite si el navegador no pudo guardar el estado del POS (cuota llena, OPS-15). */
+export const POS_STORAGE_ERROR_EVENT = "pos:storage-error";
+
+/**
+ * localStorage que no falla en silencio: si setItem lanza (cuota llena, almacenamiento
+ * bloqueado), se avisa con un evento para que la UI lo muestre. Sin esto, una venta offline podía
+ * quedar solo en memoria y perderse al recargar (OPS-15).
+ */
+const safeLocalStorage = {
+  getItem: (name: string) => window.localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent(POS_STORAGE_ERROR_EVENT, { detail: String(error) }));
+    }
+  },
+  removeItem: (name: string) => window.localStorage.removeItem(name),
 };
 
 /** Id estable de una venta encolada: su client_uuid (fase 1.4). */
@@ -45,7 +67,9 @@ type PosState = {
   updateDiscount: (productId: number, discount: string) => void;
   removeFromCart: (productId: number) => void;
   clearCart: () => void;
-  addOfflineSale: (sale: CreateSalePayload, userId?: number, total?: string) => void;
+  addOfflineSale: (sale: CreateSalePayload, userId?: number, total?: string, cart?: CartItem[]) => void;
+  /** Reemplaza el carrito con el de una venta rechazada y la quita de la bandeja (OPS-07). */
+  loadRejectedIntoCart: (clientUuid: string) => boolean;
   removeOfflineSaleByUuid: (clientUuid: string) => void;
   rejectOfflineSale: (clientUuid: string, error: string) => void;
   discardRejectedSale: (clientUuid: string) => void;
@@ -175,13 +199,14 @@ export const usePosStore = create<PosState>()(
 
       clearCart: () => set({ cart: [] }),
 
-      addOfflineSale: (sale, userId = 0, total) =>
+      addOfflineSale: (sale, userId = 0, total, cart) =>
         set((state) => {
           const queued: QueuedOfflineSale = {
             userId,
             sale: { ...sale, client_uuid: sale.client_uuid ?? crypto.randomUUID(), open_drawer: false },
             queuedAt: new Date().toISOString(),
             total,
+            cart: cart?.map((item) => ({ ...item })),
           };
           // Un mismo client_uuid nunca se encola dos veces
           if (state.offlineSalesQueue.some((q) => queuedSaleId(q) === queuedSaleId(queued))) {
@@ -205,6 +230,16 @@ export const usePosStore = create<PosState>()(
           };
         }),
 
+      loadRejectedIntoCart: (clientUuid) => {
+        const rejected = get().rejectedSales.find((r) => queuedSaleId(r) === clientUuid);
+        if (!rejected?.cart?.length) return false;
+        set((state) => ({
+          cart: rejected.cart!.map((item) => ({ ...item })),
+          rejectedSales: state.rejectedSales.filter((r) => queuedSaleId(r) !== clientUuid),
+        }));
+        return true;
+      },
+
       discardRejectedSale: (clientUuid) =>
         set((state) => ({
           rejectedSales: state.rejectedSales.filter((r) => queuedSaleId(r) !== clientUuid),
@@ -212,6 +247,7 @@ export const usePosStore = create<PosState>()(
     }),
     {
       name: "pos-storage",
+      storage: createJSONStorage(() => safeLocalStorage),
       version: 1,
       // v0 -> v1: ventas encoladas sin client_uuid reciben uno para poder sincronizarse y eliminarse por id
       migrate: (persisted, version) => {

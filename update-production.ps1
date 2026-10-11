@@ -4,8 +4,8 @@ param(
     [switch]$SkipBuild
 )
 
-# Actualización segura del POS (OPS-13):
-# 1) compila, 2) detiene el servicio, 3) respalda la BD, 4) migra, 5) seed, 6) arranca.
+# Actualización segura del POS (OPS-13, OPS-24):
+# 1) detiene el servicio, 2) respalda la BD, 3) compila, 4) migra, 5) seed, 6) arranca.
 # Si algo falla, se detiene y deja el servicio apagado con instrucciones para restaurar.
 
 $ErrorActionPreference = "Stop"
@@ -18,8 +18,9 @@ function Fail([string]$message) {
     exit 1
 }
 
-# Lee DATABASE_URL y PG_BIN_DIR de backend\.env sin mostrarlos
+# Lee DATABASE_URL, PG_BIN_DIR y BACKUP_DIR de backend\.env sin mostrarlos
 $databaseUrl = $env:DATABASE_URL
+$backupDir = $env:BACKUP_DIR
 $envFile = Join-Path $backendDir ".env"
 if (Test-Path -LiteralPath $envFile) {
     Get-Content $envFile | ForEach-Object {
@@ -28,6 +29,7 @@ if (Test-Path -LiteralPath $envFile) {
             $kv = $line.Split("=", 2)
             if ($kv[0].Trim() -eq "DATABASE_URL" -and -not $databaseUrl) { $databaseUrl = $kv[1].Trim() }
             if ($kv[0].Trim() -eq "PG_BIN_DIR" -and -not $PgBinDir) { $PgBinDir = $kv[1].Trim() }
+            if ($kv[0].Trim() -eq "BACKUP_DIR" -and -not $backupDir) { $backupDir = $kv[1].Trim() }
         }
     }
 }
@@ -49,27 +51,38 @@ function Get-PgDump {
 
 Write-Host "=== Actualización del POS ===" -ForegroundColor Cyan
 
-# 1. Compilar backend y frontend con el código nuevo
-if (-not $SkipBuild) {
-    & (Join-Path $root "build-production.ps1")
-    if ($LASTEXITCODE -ne 0) { Fail "Falló build-production.ps1. El sistema sigue funcionando con la versión anterior." }
-}
-
-# 2. Detener el servicio para que nadie venda durante la migración
+# 1. Detener el servicio antes de tocar el venv o frontend\dist (OPS-24)
 $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($service -and $service.Status -eq "Running") {
     Write-Host "Deteniendo el servicio $ServiceName..." -ForegroundColor Yellow
     Stop-Service -Name $ServiceName
 }
 
-# 3. Respaldo previo con pg_dump
-$backupDir = Join-Path $backendDir "backups"
+# 2. Respaldo previo con pg_dump en BACKUP_DIR (misma carpeta y retención que los respaldos diarios)
+if (-not $backupDir) { $backupDir = Join-Path $env:ProgramData "pos-vrntas\backups" }
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$backupFile = Join-Path $backupDir "pre-update_$stamp.dump"
+$backupFile = Join-Path $backupDir "backup_pre-update_$stamp.dump"
+$uri = [System.Uri]$databaseUrl
+$userInfo = $uri.UserInfo.Split(":", 2)
+$dbName = $uri.AbsolutePath.TrimStart("/")
+$pgPort = if ($uri.Port -gt 0) { $uri.Port } else { 5432 }
 Write-Host "Respaldando la base de datos en $backupFile..." -ForegroundColor Yellow
-& (Get-PgDump) -Fc -f $backupFile $databaseUrl
-if ($LASTEXITCODE -ne 0) { Fail "Falló pg_dump. No se migró nada; inicia el servicio con: Start-Service $ServiceName" }
+# La contraseña viaja por PGPASSWORD, no en la línea de comandos (visible en la lista de procesos)
+$env:PGPASSWORD = if ($userInfo.Length -gt 1) { [System.Uri]::UnescapeDataString($userInfo[1]) } else { "" }
+& (Get-PgDump) -Fc -f $backupFile -h $uri.Host -p $pgPort -U ([System.Uri]::UnescapeDataString($userInfo[0])) $dbName
+$dumpExit = $LASTEXITCODE
+Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+if ($dumpExit -ne 0) { Fail "Falló pg_dump. No se cambió nada; inicia el servicio con: Start-Service $ServiceName" }
+
+# 3. Compilar backend y frontend con el código nuevo
+if (-not $SkipBuild) {
+    & (Join-Path $root "build-production.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        Fail ("Falló build-production.ps1. El servicio queda detenido; corrige el error y vuelve a ejecutar, " +
+            "o arranca la versión anterior con: Start-Service $ServiceName")
+    }
+}
 
 # 4. Migraciones (transaccionales: si fallan, el esquema queda como estaba)
 Push-Location $backendDir

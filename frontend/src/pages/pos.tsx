@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import type { Product } from "../api/products";
 import { fetchPosCatalog, getProductByCode, listCategories, listProducts } from "../api/products";
-import { previewSaleTicket, printSaleTicket } from "../api/printing";
+import { previewSaleTicket, printResultMessage, printSaleTicket } from "../api/printing";
 import type { Sale } from "../api/sales";
 import type { CreateSalePayload, PaymentInput, SaleItemInput } from "../api/sales";
 import { createSale, getSession, listCashRegisters, listSessions, openCashRegister, quoteSale } from "../api/sales";
@@ -19,7 +19,10 @@ import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
 import { qk } from "../api/query-keys";
 import { useCommandPalette } from "../components/layout/command-palette-context";
 import { invalidateAfterSale } from "../api/invalidate";
-import { findByCodeOffline, saveCatalog, searchOffline } from "../lib/offline-catalog";
+import { catalogInfo, findByCodeOffline, loadCatalog, saveCatalog, searchOffline } from "../lib/offline-catalog";
+import { useConnectionStore } from "../stores/connection-store";
+import type { LucideProps } from "lucide-react";
+import { formatCurrency } from "../lib/formatters";
 
 // ── Main POS Page ──────────────────────────────────────────────────
 
@@ -232,7 +235,7 @@ function getCategoryIcon(categoryName: string) {
 }
 
 // Simple fallback icon wrapper
-function PackageIcon(props: any) {
+function PackageIcon(props: LucideProps) {
   return <ShoppingCart {...props} />;
 }
 
@@ -268,7 +271,10 @@ function PosTerminal() {
     refetchOnWindowFocus: false,
   });
   useEffect(() => {
-    if (catalogQuery.data) saveCatalog(catalogQuery.data.generated_at, catalogQuery.data.items);
+    void loadCatalog();
+  }, []);
+  useEffect(() => {
+    if (catalogQuery.data) void saveCatalog(catalogQuery.data.generated_at, catalogQuery.data.items);
   }, [catalogQuery.data]);
 
   // Lector de código de barras global: búsqueda exacta; sin servidor, en el catálogo local
@@ -276,6 +282,8 @@ function PosTerminal() {
     let product: Product | null = null;
     let offline = false;
     try {
+      // Sin servidor (según el ping a /api/health), directo a la copia local, sin esperar timeout (OPS-23)
+      if (!useConnectionStore.getState().serverReachable) throw new Error("sin servidor");
       product = await getProductByCode(barcode);
     } catch (err) {
       if (err instanceof AxiosError && err.response) {
@@ -439,7 +447,7 @@ function PosTerminal() {
             setLastSale(sale);
             setShowPayment(false);
             toast.success("Venta completada", {
-              description: `Folio: ${sale.folio} — Total: $${sale.total}`,
+              description: `Folio: ${sale.folio} — Total: ${formatCurrency(sale.total)}`,
             });
           }}
           sessionId={sessionId}
@@ -504,6 +512,12 @@ function ProductSearch({
     queryFn: listCategories,
   });
 
+  const serverReachable = useConnectionStore((s) => s.serverReachable);
+  // Redibuja cuando la copia local termina de cargarse desde IndexedDB
+  const [, setCatalogLoaded] = useState(0);
+  useEffect(() => {
+    void loadCatalog().then(() => setCatalogLoaded((n) => n + 1));
+  }, []);
   const productsQuery = useQuery({
     queryKey: qk.posProducts(debouncedSearch, selectedCategoryId),
     queryFn: () =>
@@ -513,11 +527,16 @@ function ProductSearch({
         search: debouncedSearch,
         category_id: selectedCategoryId,
       }),
+    // Sin reintento ni consulta si ya se sabe que no hay servidor (OPS-23)
+    retry: 0,
+    enabled: serverReachable,
   });
 
-  // Sin servidor (error de red, no un 4xx/5xx), se busca en la copia local del catálogo (OPS-02)
+  // Sin servidor (ping fallido o error de red, no un 4xx/5xx), se busca en la copia local (OPS-02)
   const serverDown =
-    productsQuery.isError && productsQuery.error instanceof AxiosError && !productsQuery.error.response;
+    !serverReachable ||
+    (productsQuery.isError && productsQuery.error instanceof AxiosError && !productsQuery.error.response);
+  const catalog = catalogInfo();
   const categories = categoriesQuery.data ?? [];
   const products = serverDown
     ? searchOffline(debouncedSearch, selectedCategoryId)
@@ -577,10 +596,15 @@ function ProductSearch({
       <div className="flex-1 overflow-y-auto p-4">
         {serverDown ? (
           <div className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning" role="status">
-            Sin conexión con el servidor: mostrando el catálogo guardado en este equipo. Precios sujetos a confirmación al sincronizar.
+            {catalog
+              ? `Sin conexión con el servidor: mostrando el catálogo guardado el ${catalog.generatedAt.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}.`
+              : "Sin conexión con el servidor y sin catálogo guardado en este equipo."}{" "}
+            {catalog?.stale
+              ? "Tiene más de 24 horas: los precios pueden haber cambiado; confírmalos antes de cobrar con tarjeta o transferencia."
+              : "Precios sujetos a confirmación al sincronizar."}
           </div>
         ) : null}
-        {productsQuery.isLoading ? (
+        {productsQuery.isLoading && !serverDown ? (
           <div className="py-12 text-center text-xs text-neutral-text-secondary">Cargando catálogo...</div>
         ) : products.length === 0 ? (
           <div className="py-12 text-center text-xs text-neutral-text-secondary">Sin productos disponibles</div>
@@ -794,7 +818,7 @@ function PaymentModal({
           session_id: sessionId,
           items: cart.map((c) => ({
             product_id: c.product_id,
-            quantity: c.quantity,
+            quantity: c.quantity.toFixed(3),
             discount_percent: c.discount_percent || "0",
           })),
         });
@@ -914,7 +938,7 @@ function PaymentModal({
     try {
       const items: SaleItemInput[] = cart.map((c) => ({
         product_id: c.product_id,
-        quantity: c.quantity,
+        quantity: c.quantity.toFixed(3),
         unit_price: c.unit_price,
         tax_rate: c.tax_rate,
         discount_percent: c.discount_percent,
@@ -996,7 +1020,7 @@ function PaymentModal({
     };
 
     // Guardar en cola asociada al usuario (H-18)
-    usePosStore.getState().addOfflineSale(payload, user?.id, mockSale.total);
+    usePosStore.getState().addOfflineSale(payload, user?.id, mockSale.total, cart);
 
       // Limpiar carrito y disparar éxito
       clearCart();
@@ -1029,7 +1053,7 @@ function PaymentModal({
             onClick={handlePay}
             className="h-10 px-6 font-bold"
           >
-            {saleMutation.isPending ? "Procesando..." : `Completar Cobro $${total.toFixed(2)}`}
+            {saleMutation.isPending ? "Procesando..." : `Completar cobro ${formatCurrency(total)}`}
           </Button>
         </>
       }
@@ -1080,7 +1104,7 @@ function PaymentModal({
                     onClick={() => updatePayment(activePayment.id, { amount: amount.toFixed(2) })}
                     className="h-10 text-xs font-mono font-bold rounded-lg border border-neutral-border bg-neutral-bg hover:border-primary hover:bg-primary/5 active:scale-[0.97] transition-[transform,border-color,background-color] duration-150 ease-[var(--ease-out-strong)] text-neutral-text-primary"
                   >
-                    {amount === total ? "Exacto" : `$${amount}`}
+                    {amount === total ? "Exacto" : formatCurrency(amount)}
                   </button>
                 ))}
               </div>
@@ -1322,9 +1346,21 @@ function TicketPreviewModal({ saleId, onClose }: { saleId: number; onClose: () =
         )}
 
         {printMutation.data?.sent ? (
-          <div className="rounded border border-success/30 bg-success/10 px-3 py-2 text-xs font-semibold text-success">
-            Ticket enviado a impresora.
-          </div>
+          (() => {
+            const message = printResultMessage(printMutation.data);
+            return (
+              <div
+                className={
+                  message.tone === "warning"
+                    ? "rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning"
+                    : "rounded border border-success/30 bg-success/10 px-3 py-2 text-xs font-semibold text-success"
+                }
+                role="status"
+              >
+                {message.text}
+              </div>
+            );
+          })()
         ) : null}
 
         {printError ? (

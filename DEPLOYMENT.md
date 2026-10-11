@@ -34,11 +34,11 @@ Después de traer cambios nuevos, en PowerShell como administrador:
 .\update-production.ps1
 ```
 
-El script compila, detiene el servicio `pos-backend`, respalda la base con `pg_dump` en `backend\backups\pre-update_<fecha>.dump`, aplica las migraciones, ejecuta el seed y vuelve a arrancar. Si un paso falla, se detiene, deja el servicio apagado e indica cómo restaurar con `restore-backup.ps1`. Una migración que falla no deja el esquema a medias (PostgreSQL las aplica en una transacción).
+El script detiene el servicio `pos-backend`, respalda la base con `pg_dump` en `BACKUP_DIR` (`backup_pre-update_<fecha>.dump`), compila, aplica las migraciones, ejecuta el seed y vuelve a arrancar. Si un paso falla, se detiene, deja el servicio apagado e indica cómo restaurar con `restore-backup.ps1`. Una migración que falla no deja el esquema a medias (PostgreSQL las aplica en una transacción).
 
 ## Servicio de Windows
 
-`install-service.ps1` (como administrador) registra el servicio `pos-backend` con NSSM. El servicio ejecuta **waitress** en `0.0.0.0:5000` y sirve el frontend compilado, de modo que las cajas de la LAN entran en `http://<ip-servidor>:5000`. También abre el puerto en el firewall de Windows.
+`install-service.ps1` (como administrador) registra el servicio `pos-backend` con NSSM; si ya existe (por ejemplo, instalado en una versión anterior con `run.py`), lo reconfigura, lo reinicia y verifica que responda en `/api/health`. El servicio ejecuta **waitress** en `0.0.0.0:5000` y sirve el frontend compilado, de modo que las cajas de la LAN entran en `http://<ip-servidor>:5000`. También abre el puerto en el firewall de Windows.
 
 ## Backups y USB
 
@@ -86,13 +86,13 @@ El cajón se abre automáticamente al completar una venta con pago en efectivo. 
 Si la impresora de tickets y el cajón están conectados por USB a una caja que **no** es el servidor:
 
 1. En el servidor: **Configuración → Cajas**, elegir "USB en esta caja (agente de impresión)", guardar y pulsar **Generar clave del agente**. Copiar la clave (se muestra una sola vez).
-2. En la caja: instalar Python 3.11+ y NSSM, copiar la carpeta `tools\print-agent` y, en PowerShell como administrador:
+2. En la caja: instalar Python 3.11+ y NSSM, copiar la carpeta `tools\print-agent` (a cualquier lugar; el script instala el agente en `C:\Program Files\POS Print Agent`, donde solo los administradores pueden escribir) y, en PowerShell como administrador:
 
 ```powershell
-.\install-agent.ps1 -ServerUrl http://<ip-servidor>:5000 -AgentKey "<clave>" -PrinterName "<nombre de la impresora en Windows>"
+.\install-agent.ps1 -ServerUrl http://<ip-servidor>:5000 -PrinterName "<nombre de la impresora en Windows>"
 ```
 
-El agente es un servicio de Windows (`pos-print-agent`) que cada segundo pide al servidor los tickets y pulsos de cajón de su caja y los envía en modo RAW a la impresora. No abre puertos en la caja. En Configuración → Cajas aparece "Agente conectado". Un pulso de cajón que no se entregó en 30 segundos se descarta (no abre el cajón tarde); un ticket caduca a los 10 minutos. Registro del agente: `tools\print-agent\logs\agent.log`.
+El agente es un servicio de Windows (`pos-print-agent`) que cada segundo pide al servidor los tickets y pulsos de cajón de su caja y los envía en modo RAW a la impresora. No abre puertos en la caja. En Configuración → Cajas aparece "Agente conectado". Un pulso de cajón que no se entregó en 30 segundos se descarta (no abre el cajón tarde); un ticket caduca a los 10 minutos. El script pide la clave sin mostrarla y la guarda en `C:\ProgramData\POS Print Agent\agent.key`, legible solo por Administradores y SYSTEM. Antes de imprimir, el agente revisa que la impresora esté lista (encendida, con papel, sin trabajos atascados); si no, reporta el error y no deja el trabajo en la cola de Windows. Volver a ejecutar el script reconfigura y reinicia el servicio (por ejemplo, tras generar una clave nueva). Registro del agente: `C:\ProgramData\POS Print Agent\logs\agent.log`.
 
 ## Modo offline: alcance
 

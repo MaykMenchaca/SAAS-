@@ -34,6 +34,10 @@ _RAW_DEVICE_RE = re.compile(r"^\\\\\.\\(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
 # Destinos de archivo permitidos (spooler "imprimir a archivo" y pruebas). Nunca otros archivos (OPS-04).
 PRINT_FILE_SUFFIXES = (".prn",)
 
+# Escrituras en curso por destino (impresora del servidor), para no apilar hilos colgados (OPS-12)
+_busy_writers: dict[str, threading.Thread] = {}
+_busy_lock = threading.Lock()
+
 # Sustituciones para caracteres que no existen en la página de códigos
 _TRANSLITERATIONS = {"€": "EUR", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "…": "..."}
 
@@ -201,7 +205,15 @@ class PrinterService:
 
     @staticmethod
     def _write(target: str, payload: bytes) -> None:
-        """Escribe en la impresora con timeout para no bloquear el request si está colgada."""
+        """Escribe en la impresora con timeout para no bloquear el request si está colgada.
+
+        Si una escritura anterior al mismo destino sigue colgada, no se lanza otra: así no se
+        acumulan pulsos de cajón que se abrirían todos juntos al liberarse el puerto (OPS-12).
+        """
+        with _busy_lock:
+            previous = _busy_writers.get(target)
+            if previous is not None and previous.is_alive():
+                raise RuntimeError("Impresora no disponible: la escritura anterior sigue sin terminar")
         error: list[BaseException] = []
 
         def worker():
@@ -211,6 +223,8 @@ class PrinterService:
                 error.append(exc)
 
         thread = threading.Thread(target=worker, daemon=True)
+        with _busy_lock:
+            _busy_writers[target] = thread
         thread.start()
         thread.join(PrinterService.WRITE_TIMEOUT)
         if thread.is_alive():
@@ -265,11 +279,19 @@ class PrinterService:
         if register is not None:
             from app.services import print_queue_service
 
-            cp = PrinterService.validate_codepage(codepage)
-            print_queue_service.enqueue(
-                register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
-            )
-            return True
+            try:
+                cp = PrinterService.validate_codepage(codepage)
+                print_queue_service.enqueue(
+                    register.id, "drawer", ESC_INIT + bytes([0x1B, 0x74, CODEPAGES[cp]]) + DRAWER_KICK
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001 - la venta ya está confirmada; el cajón es best-effort
+                from app.extensions import db
+
+                db.session.rollback()
+                if has_app_context():
+                    current_app.logger.warning("No se pudo encolar el cajón de la venta %s: %s", sale.folio, exc)
+                return False
         if not path:
             return False
         try:

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CloudOff, RefreshCw, Trash2 } from "lucide-react";
+import { CloudOff, RefreshCw, ShoppingCart, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { syncOfflineQueue } from "../../hooks/useSyncQueue";
@@ -71,7 +72,23 @@ function PendingSalesModal({
   onClose: () => void;
 }) {
   const discardRejectedSale = usePosStore((s) => s.discardRejectedSale);
+  const loadRejectedIntoCart = usePosStore((s) => s.loadRejectedIntoCart);
+  const cartLength = usePosStore((s) => s.cart.length);
+  const navigate = useNavigate();
   const [toDiscard, setToDiscard] = useState<RejectedOfflineSale | null>(null);
+  const [toReload, setToReload] = useState<RejectedOfflineSale | null>(null);
+
+  /** Recaptura: vuelve a poner los artículos en el carrito para cobrarla de nuevo (OPS-07). */
+  function reloadIntoCart(item: RejectedOfflineSale) {
+    if (!loadRejectedIntoCart(queuedSaleId(item))) {
+      toast.error("Esta venta no guardó sus artículos; vuelve a capturarla a mano.");
+      return;
+    }
+    setToReload(null);
+    onClose();
+    toast.success("Artículos cargados al carrito. Revisa precios y existencias y cobra de nuevo.");
+    navigate("/pos");
+  }
 
   async function handleRetry() {
     await syncOfflineQueue();
@@ -145,14 +162,26 @@ function PendingSalesModal({
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Badge tone="danger">{item.error}</Badge>
-                    <Button
-                      className="min-h-0 h-8 px-3 text-xs"
-                      icon={<Trash2 aria-hidden="true" size={14} />}
-                      onClick={() => setToDiscard(item)}
-                      variant="ghost"
-                    >
-                      Descartar
-                    </Button>
+                    <div className="flex gap-1">
+                      {item.cart?.length ? (
+                        <Button
+                          className="min-h-0 h-8 px-3 text-xs"
+                          icon={<ShoppingCart aria-hidden="true" size={14} />}
+                          onClick={() => (cartLength > 0 ? setToReload(item) : reloadIntoCart(item))}
+                          variant="secondary"
+                        >
+                          Cargar al carrito
+                        </Button>
+                      ) : null}
+                      <Button
+                        className="min-h-0 h-8 px-3 text-xs"
+                        icon={<Trash2 aria-hidden="true" size={14} />}
+                        onClick={() => setToDiscard(item)}
+                        variant="ghost"
+                      >
+                        Descartar
+                      </Button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -160,6 +189,26 @@ function PendingSalesModal({
           </section>
         ) : null}
       </div>
+
+      {toReload ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setToReload(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button onClick={() => reloadIntoCart(toReload)}>Reemplazar carrito</Button>
+            </>
+          }
+          onClose={() => setToReload(null)}
+          open
+          title="¿Reemplazar el carrito actual?"
+        >
+          <p className="text-sm text-neutral-text-secondary">
+            El carrito tiene {cartLength} artículo(s). Se reemplazarán por los de la venta rechazada.
+          </p>
+        </Modal>
+      ) : null}
 
       {toDiscard ? (
         <Modal

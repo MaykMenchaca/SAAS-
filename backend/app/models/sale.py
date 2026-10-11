@@ -145,8 +145,8 @@ class SaleItem(db.Model):
     tax_rate = db.Column(db.Numeric(5, 2), nullable=False)
     subtotal = db.Column(db.Numeric(12, 2), nullable=False)
     cost_at_sale = db.Column(
-        db.Numeric(12, 2), nullable=False, default=Decimal("0.00"), server_default="0"
-    )
+        db.Numeric(12, 4), nullable=False, default=Decimal("0.00"), server_default="0"
+    )  # misma precisión que products.avg_cost
 
     sale = db.relationship("Sale", back_populates="items")
     product = db.relationship("Product")

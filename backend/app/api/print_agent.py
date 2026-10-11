@@ -23,7 +23,13 @@ def get_jobs():
     jobs = print_queue_service.claim_jobs(register)
     return jsonify({
         "jobs": [
-            {"id": job.id, "kind": job.kind, "payload_b64": base64.b64encode(job.payload).decode()}
+            {
+                "id": job.id,
+                "kind": job.kind,
+                "payload_b64": base64.b64encode(job.payload).decode(),
+                # Segundos que le quedan al trabajo: el agente no imprime uno vencido (OPS-18)
+                "expires_in": print_queue_service.seconds_left(job),
+            }
             for job in jobs
         ]
     }), 200
@@ -35,9 +41,12 @@ def post_result(job_id):
     if not register:
         return jsonify({"error": "Clave de agente inválida"}), 401
     data = request.get_json(silent=True) or {}
-    job = print_queue_service.report_result(
-        register, job_id, bool(data.get("ok")), data.get("error")
-    )
+    try:
+        job = print_queue_service.report_result(
+            register, job_id, bool(data.get("ok")), data.get("error")
+        )
+    except print_queue_service.InvalidTransition as exc:
+        return jsonify({"error": f"El trabajo ya está en estado '{exc}'"}), 409
     if not job:
         return jsonify({"error": "Trabajo no encontrado"}), 404
     return jsonify({"id": job.id, "status": job.status}), 200

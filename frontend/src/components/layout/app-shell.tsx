@@ -39,6 +39,7 @@ import { useSyncQueue } from "../../hooks/useSyncQueue";
 import { useServerStatus } from "../../hooks/useServerStatus";
 import { NotificationsBell } from "./notifications-bell";
 import { PendingSalesIndicator } from "./pending-sales";
+import { POS_STORAGE_ERROR_EVENT } from "../../stores/pos-store";
 import { useCan } from "../auth/require-permission";
 import { cn } from "../../lib/cn";
 import { Badge, Button, Input, Modal } from "../ui";
@@ -150,6 +151,23 @@ function TopbarClock() {
 }
 
 
+/** Avisa (una vez por minuto) si el navegador no pudo guardar ventas o el carrito (OPS-15). */
+function useStorageErrorAlert() {
+  useEffect(() => {
+    let lastShown = 0;
+    function onError() {
+      if (Date.now() - lastShown < 60_000) return;
+      lastShown = Date.now();
+      toast.error(
+        "No se pudo guardar en este equipo (almacenamiento lleno o bloqueado). Las ventas sin conexión podrían perderse al recargar: no recargues la página y avisa a soporte.",
+        { duration: 30_000 },
+      );
+    }
+    window.addEventListener(POS_STORAGE_ERROR_EVENT, onError);
+    return () => window.removeEventListener(POS_STORAGE_ERROR_EVENT, onError);
+  }, []);
+}
+
 /** Badge interno reutilizable para el sidebar — compacta cuando isCollapsed. */
 function NavBadge({ count, tone, collapsed }: { count: number; tone: "warning" | "danger" | "info"; collapsed: boolean }) {
   if (count <= 0) return null;
@@ -183,6 +201,7 @@ function NavBadge({ count, tone, collapsed }: { count: number; tone: "warning" |
 
 export function AppShell() {
   useSyncQueue();
+  useStorageErrorAlert();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
   const theme = useThemeStore((state) => state.theme);

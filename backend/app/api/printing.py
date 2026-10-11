@@ -27,12 +27,18 @@ def print_sale_ticket(sale_id):
     content = PrinterService.format_sale_ticket(sale)
     sent = False
     queued = False
+    agent_online = None
 
     if send:
         # Impresora de la caja de la venta (directa o vía agente). El cajón se abre al cobrar, no al reimprimir.
         try:
             queued = PrinterService.dispatch_sale_ticket(sale, content) == "queued"
             sent = True
+            if queued:
+                from app.services import print_queue_service
+
+                # El POS avisa si la caja no tiene su agente conectado (OPS-17)
+                agent_online = print_queue_service.agent_online(sale.session.cash_register)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:
@@ -43,6 +49,7 @@ def print_sale_ticket(sale_id):
         "folio": sale.folio,
         "sent": sent,
         "queued": queued,
+        "agent_online": agent_online,
         "content": content,
     }), 200
 
