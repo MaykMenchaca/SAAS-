@@ -27,7 +27,8 @@ export function useSidebarBadges(): SidebarBadges {
 
   const purchases = useQuery({
     queryKey: qk.sidebarPendingPurchases(),
-    queryFn: () => listOrders({ status: "borrador", perPage: 1 }),
+    // Pendientes de recibir: borrador, enviada o parcial (H-44)
+    queryFn: () => listOrders({ status: "borrador,enviada,parcial", perPage: 1 }),
     enabled: canPurchases,
     refetchInterval: canPurchases ? 60_000 : false,
     staleTime: 30_000,

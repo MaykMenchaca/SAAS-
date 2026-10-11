@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  Bell,
   Boxes,
   Calculator,
   Check,
@@ -37,6 +36,7 @@ import { useSidebarBadges } from "../../hooks/use-sidebar-badges";
 import type { SidebarBadges } from "../../hooks/use-sidebar-badges";
 import { useSyncQueue } from "../../hooks/useSyncQueue";
 import { useServerStatus } from "../../hooks/useServerStatus";
+import { NotificationsBell } from "./notifications-bell";
 import { PendingSalesIndicator } from "./pending-sales";
 import { useCan } from "../auth/require-permission";
 import { cn } from "../../lib/cn";
@@ -196,7 +196,6 @@ export function AppShell() {
   const commandPalette = useCommandPalette();
   const isOnline = useServerStatus();
   const isPosRoute = location.pathname.startsWith("/pos");
-  const alertCount = badges.lowStock + badges.pendingPurchases;
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const cmdKey = isMac ? "⌘" : "Ctrl";
 
@@ -534,22 +533,8 @@ export function AppShell() {
               />
             </span>
 
-            {/* Notificaciones con badge numérico */}
-            <button
-              aria-label={alertCount > 0 ? `${alertCount} alertas pendientes` : "Sin alertas"}
-              className="relative flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm outline-none"
-              type="button"
-            >
-              <Bell size={16} />
-              {alertCount > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-white text-[9px] font-bold leading-none border border-neutral-surface"
-                >
-                  {alertCount > 9 ? "9+" : alertCount}
-                </span>
-              )}
-            </button>
+            {/* Notificaciones: stock bajo, compras pendientes y ventas sin sincronizar (H-44) */}
+            <NotificationsBell badges={badges} />
 
             {/* Tema toggle */}
             <button

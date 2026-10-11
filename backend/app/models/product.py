@@ -6,6 +6,10 @@ from app.extensions import db
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (
+        # Nombres únicos sin distinguir mayúsculas ni espacios (H-54)
+        db.Index("uq_categories_name_ci", db.text("lower(trim(name))"), unique=True),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)

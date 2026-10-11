@@ -19,6 +19,7 @@ import type { GrossMarginReport, InventoryValuation, SalesReport, TopProductsRep
 import { fetchGrossMargin, fetchInventoryValuation, fetchSalesReport, fetchTopProducts } from "../api/reports";
 import { Badge, Button, Card, ErrorState, Input, SkeletonKPI, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
+import { formatCurrency } from "../lib/formatters";
 import { qk } from "../api/query-keys";
 
 // ── CSV Helper ───────────────────────────────────────────────────
@@ -80,6 +81,12 @@ export function ReportsPage() {
     // Queries auto-refetch via queryKey deps
   }
 
+  // La fecha inicial no puede ser posterior a la final (H-49)
+  const rangeError =
+    activeTab !== "inventario" && dateFrom && dateTo && dateFrom > dateTo
+      ? "La fecha inicial debe ser anterior o igual a la final."
+      : "";
+
   return (
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -132,11 +139,17 @@ export function ReportsPage() {
         </form>
       ) : null}
 
+      {rangeError ? (
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
+          {rangeError}
+        </div>
+      ) : null}
+
       {/* Tab Content */}
-      {activeTab === "ventas" ? <SalesTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
-      {activeTab === "productos" ? <TopProductsTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
+      {activeTab === "ventas" && !rangeError ? <SalesTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
+      {activeTab === "productos" && !rangeError ? <TopProductsTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
       {activeTab === "inventario" ? <InventoryValuationTab /> : null}
-      {activeTab === "margen" ? <GrossMarginTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
+      {activeTab === "margen" && !rangeError ? <GrossMarginTab dateFrom={dateFrom} dateTo={dateTo} /> : null}
     </div>
   );
 }
@@ -266,7 +279,7 @@ function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
         ) : (
           <div className="grid gap-4">
             <div className="rounded-lg border border-neutral-border bg-neutral-bg/30 p-4">
-              <DailySalesChart data={data!.daily} />
+              <DailySalesChart data={fillMissingDays(data!.daily, dateFrom, dateTo)} />
             </div>
             <div className="max-h-72 overflow-auto">
               <Table>
@@ -686,7 +699,12 @@ function PaymentMethodsDonut({ data }: { data: { method: string; count: number; 
   return (
     <div className="flex flex-col items-center justify-center gap-4 sm:flex-row w-full">
       <div className="relative h-28 w-28 shrink-0">
-        <svg viewBox="0 0 42 42" className="h-full w-full -rotate-90">
+        <svg
+          aria-label={`Ingreso por método de pago: ${data.map((pm) => `${pm.method} ${formatCurrency(pm.net_amount)}`).join(", ")}`}
+          className="h-full w-full -rotate-90"
+          role="img"
+          viewBox="0 0 42 42"
+        >
           <circle
             cx="21"
             cy="21"
@@ -732,7 +750,34 @@ function PaymentMethodsDonut({ data }: { data: { method: string; count: number; 
   );
 }
 
-function DailySalesChart({ data }: { data: { date: string; count: number; revenue: string }[] }) {
+type DailyPoint = { date: string; count: number; revenue: string };
+
+/** "2026-10-06" como fecha local (sin desfase de zona horaria). */
+function parseLocalDate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatShortDate(iso: string) {
+  return parseLocalDate(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+}
+
+/** Rellena con 0 los días sin ventas para que la gráfica no salte días (H-49). Máximo 366 días. */
+function fillMissingDays(daily: DailyPoint[], from: string, to: string): DailyPoint[] {
+  if (!from || !to || from > to) return daily;
+  const byDate = new Map(daily.map((d) => [d.date, d]));
+  const out: DailyPoint[] = [];
+  let cursor = parseLocalDate(from);
+  const end = parseLocalDate(to);
+  while (cursor <= end && out.length < 366) {
+    const iso = localISODate(cursor);
+    out.push(byDate.get(iso) ?? { date: iso, count: 0, revenue: "0.00" });
+    cursor = addLocalDays(cursor, 1);
+  }
+  return out;
+}
+
+function DailySalesChart({ data }: { data: DailyPoint[] }) {
   if (data.length === 0) return null;
 
   const maxRevenue = Math.max(...data.map((d) => Number(d.revenue)), 1);
@@ -761,7 +806,13 @@ function DailySalesChart({ data }: { data: { date: string; count: number; revenu
   return (
     <div className="w-full">
       <div className="relative w-full h-[120px]">
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full" preserveAspectRatio="none">
+        <svg
+          aria-label={`Ventas por día del ${formatShortDate(data[0].date)} al ${formatShortDate(data[data.length - 1].date)}; máximo ${formatCurrency(maxRevenue)}`}
+          className="w-full h-full"
+          preserveAspectRatio="none"
+          role="img"
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        >
           <line
             x1={paddingX}
             y1={paddingY}
@@ -809,9 +860,9 @@ function DailySalesChart({ data }: { data: { date: string; count: number; revenu
         </svg>
       </div>
       <div className="flex justify-between px-2 text-[10px] text-neutral-text-secondary mt-1">
-        <span>{data[0].date}</span>
-        <span>{data[Math.floor(data.length / 2)]?.date}</span>
-        <span>{data[data.length - 1].date}</span>
+        <span>{formatShortDate(data[0].date)}</span>
+        {data.length > 2 ? <span>{formatShortDate(data[Math.floor(data.length / 2)].date)}</span> : null}
+        <span>{formatShortDate(data[data.length - 1].date)}</span>
       </div>
     </div>
   );

@@ -353,6 +353,7 @@ class CategoryService:
 
     @staticmethod
     def create_category(data):
+        data = {**data, "name": data["name"].strip()}
         CategoryService._validate_unique_category(data["name"])
         category = Category(**data)
         db.session.add(category)
@@ -373,6 +374,7 @@ class CategoryService:
     @staticmethod
     def update_category(category, data):
         if "name" in data:
+            data = {**data, "name": data["name"].strip()}
             CategoryService._validate_unique_category(data["name"], exclude_category_id=category.id)
 
         previous_value = {field: getattr(category, field) for field in data.keys()}
@@ -413,8 +415,10 @@ class CategoryService:
 
     @staticmethod
     def _validate_unique_category(name, exclude_category_id=None):
-        query = Category.query.filter_by(name=name)
+        # Sin distinguir mayúsculas ni espacios: "Herramientas manuales" == "HERRAMIENTAS MANUALES " (H-54)
+        normalized = (name or "").strip().lower()
+        query = Category.query.filter(func.lower(func.trim(Category.name)) == normalized)
         if exclude_category_id is not None:
             query = query.filter(Category.id != exclude_category_id)
         if query.first():
-            raise ValidationError({"name": ["Categoria ya existe"]})
+            raise ValidationError({"name": ["Ya existe una categoría con ese nombre"]})

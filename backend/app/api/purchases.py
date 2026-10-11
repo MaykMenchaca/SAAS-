@@ -167,7 +167,9 @@ def list_orders():
 
     status = request.args.get("status")
     if status:
-        query = query.filter(PurchaseOrder.status == status)
+        # Acepta varios estados separados por coma (p. ej. "borrador,enviada,parcial" para la campana)
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        query = query.filter(PurchaseOrder.status.in_(statuses))
 
     return jsonify(paginate(query, po_list_schema)), 200
 
