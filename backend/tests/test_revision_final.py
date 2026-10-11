@@ -236,3 +236,32 @@ def test_ticket_no_inyecta_comandos_escpos_desde_los_datos(db, seed_admin, seed_
     # Solo el ESC @ y el ESC t iniciales, y el ESC d del corte: ningún ESC p (pulso de cajón)
     assert b"\x1bp" not in payload
     assert payload.count(b"\x1b") == 3
+
+
+# ── BE-101: cancelar una venta de una caja ya cerrada no altera el corte histórico ─
+
+def test_no_se_cancela_una_venta_de_una_caja_cerrada(client, admin_token, db, seed_open_session, seed_product_for_sale):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    corte = client.post(f"/api/cash-register/{seed_open_session.id}/close", headers=headers,
+                        json={"closing_amount": "1116.00"}).get_json()
+    assert Decimal(corte["difference"]) == Decimal("0.00")
+
+    r = client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    assert r.status_code == 400
+    assert "Devoluciones" in r.get_json()["error"]
+
+    db.session.remove()
+    assert client.get(f"/api/sales/{sale['id']}", headers=headers).get_json()["status"] == "completada"
+    assert Decimal(db.session.get(CashRegisterSession, seed_open_session.id).expected_cash) == Decimal("1116.00")
+    assert _stock(db, seed_product_for_sale.id) == Decimal("99")
+
+
+def test_se_cancela_una_venta_de_la_caja_abierta(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    r = client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["status"] == "cancelada"

@@ -326,9 +326,25 @@ class SaleService:
         Raises:
             ValueError: If sale is already cancelled.
         """
-        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
+        sale = db.session.get(Sale, sale_id)
         if not sale:
             raise ValueError("Venta no encontrada")
+        # Orden de bloqueo sesión → venta. La cancelación devuelve el efectivo desde el cajón de la
+        # sesión de la venta; si ya se cerró, cambiaría un corte histórico y el dinero saldría de
+        # una caja que no lo registra (BE-101)
+        session = (
+            db.session.query(CashRegisterSession)
+            .filter_by(id=sale.session_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if not session or session.status != "abierta":
+            raise ValueError(
+                "La caja de esta venta ya se cerró. Para devolver el dinero usa Devoluciones "
+                "desde una caja abierta."
+            )
+        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().populate_existing().first()
         if sale.status == "cancelada":
             raise ValueError("La venta ya está cancelada")
         if sale.status in ("devolucion_parcial", "devolucion_total"):
