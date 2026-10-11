@@ -85,8 +85,11 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 6.4 Dependencias, CORS y paginación (H-35, H-45) · commits f038210, f7ee9a0 (rama `fix/fase-6-claude`, Claude) · tests: `test_cors_paginacion_fase6.py` (5), `test_sqlalchemy_fijado_en_la_serie_2_0`; suite 424 passed con venv limpio · CORS solo con `CORS_ORIGINS`; sesiones, stock bajo y proveedores paginados; pip-audit 0 (Flask 3.1.3, Flask-CORS 6.0.5, marshmallow 3.26.2, python-dotenv 1.2.4, Flask-JWT-Extended 4.7.4, pytest 9.0.3); npm audit 0; **SQLAlchemy fijado en 2.0.54** (2.1 rompía instalaciones nuevas al exigir psycopg 3) · el venv compartido de `pos-system` sigue con las versiones viejas hasta actualizar (`pip install -r requirements.txt`)
 - [x] 6.5 Constraints, índices, `parse_date`, folios (H-33, H-32, H-52) ⚠️ folios · commit 7e9bc02 (rama `fix/fase-6-claude`, Claude) · tests: `test_modelo_datos_fase6.py` (12), suite 418 passed · CHECK stock/pagos, 6 índices + trigram declarado, IntegrityError → 409 (fechas → 400 desde 4.14), migración `c9d0e1f2a3b4` (**sin aplicar a pos_db**; datos verificados: 0 violaciones), folios con huecos documentados
 - [x] 6.6 Limpieza del frontend (H-41, H-46, H-47, H-48, H-55) · commit 645d6f4 (rama `fix/fase-6-claude`, Claude) · Vitest 14 passed, build OK · sin `any`, SW solo en producción con versión y sin caché de /api, cantidades como texto, 422 de JWT cierra sesión, escáner configurable con preventDefault en ráfaga, `formatCurrency` en todos los montos
-- [ ] **Gate fase 6**
-- [ ] **Re-revisión completa** (`/revision-agentes`, los 6 revisores)
+- [x] **Gate fase 6** (automático) · 429 passed, build OK, Vitest en verde · CI **sin verificar en GitHub** (requiere push)
+- [~] **Re-revisión completa** · 4 de 6 revisores (backend, frontend, seguridad, operación) → `re-revision.md` · **qa-funcional y visual pendientes** (requieren sesión en el navegador)
+- [x] Correcciones de la re-revisión (Críticos y Altos) · commits 1a65567 (FE-103), ab5108f (OPS-25/26/27), 8a03021 (FE-100/BE-100), 7f8f45f (FE-102), bd31b61 (FE-101), c1d2d82 (BE-103/BE-102) · tests: `test_revision_final.py`, `protected-route.test.tsx`
+- [x] Medios baratos de la re-revisión · commits 59f5e1f (SEC-100), 3d9b88a (SEC-103, FE-104, FE-105) · tests: `test_ticket_no_inyecta_comandos_escpos_desde_los_datos`, `payments-cents.test.ts`, `useSyncQueue.test.ts` (5 nuevos) · suite 443 passed, Vitest 25 passed
+- [ ] Medios y Bajos restantes de la re-revisión (BE-101, FE-106, FE-107, OPS-28..32, SEC-101/102/104 y Bajos) · ver `re-revision.md`
 
 ## Contratos de API
 _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril B lo consuma.)_
@@ -228,3 +231,4 @@ _(Problemas encontrados durante la ejecución, fuera del alcance de la subfase. 
 - (4.14) Pruebas en paralelo: `pos_test_db` tiene esquemas `lane_a`…`lane_d` para que varios agentes corran pytest sin chocar (`TEST_DATABASE_URL=...pos_test_db?options=-csearch_path%3Dlane_c,public`). Documentarlo en el README (6.3).
 - (6.5) La opción de configuración `allow_negative_stock` no la usa ningún código (las ventas siempre exigen existencias) y ahora la BD prohíbe stock negativo: quitarla de la configuración o implementarla. Candidato a una subfase de UI/config.
 - (6.5) Migraciones pendientes de aplicar a `pos_db`: `a1b3c5d7e9f2` (4.14), `f2d5b8c9a0e1` (5.4), `b7c8d9e0f1a2` (unión) y `c9d0e1f2a3b4` (6.5). Aplicarlas al integrar con `update-production.ps1` (respaldo previo).
+- (re-revisión final) Medios y Bajos pendientes listados en `re-revision.md`. Los que importan antes de operar: respaldo programado (OPS-30), ACL de respaldos (SEC-101) y del servicio (OPS-29, SEC-102, SEC-104), prueba con hardware (OPS-28).
