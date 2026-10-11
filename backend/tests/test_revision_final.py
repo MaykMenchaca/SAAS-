@@ -167,3 +167,53 @@ def test_filtrar_ventas_devolvibles_por_estado(client, admin_token, seed_open_se
 
     data = client.get("/api/sales/", query_string={"status": "completada,devolucion_parcial"}, headers=headers).get_json()
     assert [s["id"] for s in data["items"]] == [otra["id"]]
+
+
+# ── BE-103 / BE-102: conteo físico ──────────────────────────────────────────
+
+def _stock(db, product_id):
+    from app.models.inventory import Stock
+
+    db.session.remove()
+    return Stock.query.filter_by(product_id=product_id).one().quantity
+
+
+def test_conteo_no_descuenta_dos_veces_una_venta_previa_a_la_captura(
+    db, seed_admin, seed_open_session, seed_product_for_sale
+):
+    from app.services.inventory_count_service import InventoryCountService
+    from app.services.sale_service import SaleService
+
+    admin_id, session_id, pid = seed_admin.id, seed_open_session.id, seed_product_for_sale.id
+    db.session.commit()
+    count = InventoryCountService.create_count(user_id=admin_id)  # esperado: 100
+    count_id = count.id
+
+    # Se venden 5 después de crear el conteo y ANTES de contar: quedan 95 en anaquel
+    SaleService.create_sale(user_id=admin_id, session_id=session_id,
+                            items=[{"product_id": pid, "quantity": 5}],
+                            payments=[{"method": "efectivo", "amount": "580.00"}])
+    InventoryCountService.capture_item(count_id, pid, Decimal("95"))
+
+    # Y otra venta después de contar: debe preservarse
+    SaleService.create_sale(user_id=admin_id, session_id=session_id,
+                            items=[{"product_id": pid, "quantity": 2}],
+                            payments=[{"method": "efectivo", "amount": "232.00"}])
+    InventoryCountService.close_count(count_id, admin_id)
+
+    # Contado 95 sin diferencia real, menos las 2 vendidas después de contar = 93 (antes daba 88)
+    assert _stock(db, pid) == Decimal("93")
+
+
+def test_cerrar_el_conteo_dos_veces_no_duplica_el_ajuste(db, seed_admin, seed_product_for_sale):
+    from app.services.inventory_count_service import InventoryCountService
+
+    admin_id, pid = seed_admin.id, seed_product_for_sale.id
+    db.session.commit()
+    count = InventoryCountService.create_count(user_id=admin_id)
+    count_id = count.id
+    InventoryCountService.capture_item(count_id, pid, Decimal("90"))
+    InventoryCountService.close_count(count_id, admin_id)
+    with pytest.raises(ValueError, match="cerrado"):
+        InventoryCountService.close_count(count_id, admin_id)
+    assert _stock(db, pid) == Decimal("90")

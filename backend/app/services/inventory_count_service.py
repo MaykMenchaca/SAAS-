@@ -97,7 +97,14 @@ class InventoryCountService:
         Raises:
             ValueError: If count is not active or item not found.
         """
-        count = db.session.get(InventoryCount, count_id)
+        # Bloqueo del conteo: dos cierres o capturas simultáneas no se aplican dos veces (BE-102)
+        count = (
+            db.session.query(InventoryCount)
+            .filter_by(id=count_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not count:
             raise ValueError("Conteo no encontrado")
         if count.status not in ("pendiente", "en_proceso"):
@@ -111,6 +118,17 @@ class InventoryCountService:
             raise ValueError(
                 f"Producto {product_id} no encontrado en este conteo"
             )
+
+        # El "esperado" es el stock en el momento de contar, no el de la creación del conteo: así el
+        # ajuste por diferencia no descuenta otra vez las ventas hechas entre ambos momentos (BE-103)
+        stock = (
+            Stock.query.filter_by(product_id=product_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if stock is not None:
+            item.expected_quantity = stock.quantity
 
         counted = Decimal(str(counted_quantity))
         item.counted_quantity = counted
@@ -142,7 +160,14 @@ class InventoryCountService:
         Raises:
             ValueError: If count not found or not active.
         """
-        count = db.session.get(InventoryCount, count_id)
+        # Bloqueo del conteo: dos cierres o capturas simultáneas no se aplican dos veces (BE-102)
+        count = (
+            db.session.query(InventoryCount)
+            .filter_by(id=count_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not count:
             raise ValueError("Conteo no encontrado")
         if count.status not in ("pendiente", "en_proceso"):
@@ -201,7 +226,14 @@ class InventoryCountService:
         Raises:
             ValueError: If count not found or already closed/cancelled.
         """
-        count = db.session.get(InventoryCount, count_id)
+        # Bloqueo del conteo: dos cierres o capturas simultáneas no se aplican dos veces (BE-102)
+        count = (
+            db.session.query(InventoryCount)
+            .filter_by(id=count_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not count:
             raise ValueError("Conteo no encontrado")
         if count.status not in ("pendiente", "en_proceso"):
