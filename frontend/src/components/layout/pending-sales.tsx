@@ -39,7 +39,7 @@ export function PendingSalesIndicator() {
     <>
       <Button
         aria-label={`${label}. Ver detalle`}
-        className="min-h-0 h-9 px-3 text-xs"
+        className="min-h-11 sm:min-h-0 sm:h-9 px-3 text-xs"
         icon={<CloudOff aria-hidden="true" size={14} />}
         onClick={() => setOpen(true)}
         variant={rejectedForUser.length > 0 ? "danger" : "secondary"}

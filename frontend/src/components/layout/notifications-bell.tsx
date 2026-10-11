@@ -59,7 +59,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={total > 0 ? `${total} alertas pendientes` : "Sin alertas"}
-        className="relative flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 shadow-sm"
+        className="relative flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 shadow-sm"
         onClick={() => setOpen((v) => !v)}
         ref={buttonRef}
         type="button"

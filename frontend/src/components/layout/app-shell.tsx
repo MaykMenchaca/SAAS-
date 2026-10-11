@@ -22,6 +22,7 @@ import {
   Truck,
   Users,
   Wrench,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -206,9 +207,15 @@ export function AppShell() {
     return saved === "true";
   });
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", String(isCollapsed));
   }, [isCollapsed]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Dynamic system branding query (accesible a todos los roles)
   const brandingQuery = useQuery({
@@ -286,10 +293,10 @@ export function AppShell() {
         Ir al contenido principal
       </a>
 
-      {/* ── Sidebar ────────────────────────────────────────────── */}
+      {/* ── Sidebar (desktop) ─────────────────────────────────── */}
       <aside
         className={cn(
-          "flex flex-col border-b border-neutral-border bg-sidebar-bg text-sidebar-text lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:overflow-x-hidden lg:border-b-0 lg:border-r transition-[width] duration-200 ease-[var(--ease-out-strong)] overflow-x-hidden",
+          "hidden lg:flex flex-col border-neutral-border bg-sidebar-bg text-sidebar-text lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:overflow-x-hidden lg:border-r transition-[width] duration-200 ease-[var(--ease-out-strong)] overflow-x-hidden",
           isCollapsed ? "lg:w-16" : "lg:w-60"
         )}
       >
@@ -388,7 +395,7 @@ export function AppShell() {
                     <NavLink
                       className={({ isActive }) =>
                         cn(
-                          "relative flex min-h-[38px] shrink-0 items-center rounded-md py-2 text-xs font-semibold transition-[background-color,padding-left,color] duration-150 ease-[var(--ease-out-strong)]",
+                          "relative flex min-h-11 lg:min-h-[38px] shrink-0 items-center rounded-md py-2 text-xs font-semibold transition-[background-color,padding-left,color] duration-150 ease-[var(--ease-out-strong)]",
                           isCollapsed ? "justify-center px-0" : "gap-3 px-3",
                           isActive
                             ? "bg-primary/15 text-info"
@@ -468,44 +475,65 @@ export function AppShell() {
       {/* ── Main area ──────────────────────────────────────────── */}
       <div className="min-w-0 flex flex-col">
         {/* Header — sidebar toggle, breadcrumb, search palette, quick actions */}
-        <header className="flex min-h-14 items-center justify-between border-b border-neutral-border bg-neutral-surface px-4 lg:px-6 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Sidebar toggle button */}
+        <header className="flex min-h-14 items-center justify-between border-b border-neutral-border bg-neutral-surface px-3 sm:px-4 lg:px-6 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile menu button (UI-03, UI-05) */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 cursor-pointer shadow-sm shrink-0"
+              aria-label="Abrir menú de navegación"
+            >
+              <Menu size={18} />
+            </button>
+
+            {/* Sidebar toggle button (desktop) */}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="hidden lg:flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm shrink-0"
               title={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
+              aria-label={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
             >
               {isCollapsed ? <Menu size={14} /> : <ChevronLeft size={14} />}
             </button>
 
+            {/* Responsive breadcrumb: on <md hide Home icon and Chevron to avoid wrapping (UI-08) */}
             <div className="flex items-center gap-1.5 text-xs text-neutral-text-secondary min-w-0">
-              <Home className="text-neutral-text-muted shrink-0" size={14} />
-              <ChevronRight className="text-neutral-text-muted shrink-0" size={12} />
+              <Home className="hidden md:inline-block text-neutral-text-muted shrink-0" size={14} />
+              <ChevronRight className="hidden md:inline-block text-neutral-text-muted shrink-0" size={12} />
               <span className="font-semibold text-neutral-text-primary truncate">{pageTitle}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Command palette trigger — reemplaza el search vacío */}
+          <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
+            {/* Command palette trigger */}
             <button
               aria-label="Abrir paleta de comandos"
-              className="hidden sm:flex items-center gap-2 h-9 bg-neutral-bg border border-neutral-border rounded-md px-3 text-xs text-neutral-text-secondary min-w-[220px] transition-colors duration-150 ease-[var(--ease-out-strong)] hover:border-primary/40 hover:text-neutral-text-primary focus:border-primary focus:ring-2 focus:ring-primary/30"
+              className="hidden sm:flex items-center gap-2 h-9 bg-neutral-bg border border-neutral-border rounded-md px-3 text-xs text-neutral-text-secondary min-w-[200px] lg:min-w-[220px] transition-colors duration-150 ease-[var(--ease-out-strong)] hover:border-primary/40 hover:text-neutral-text-primary focus:border-primary focus:ring-2 focus:ring-primary/30"
               onClick={() => commandPalette.setOpen(true)}
               type="button"
             >
               <Search className="text-neutral-text-muted shrink-0" size={14} />
-              <span className="flex-1 text-left">Buscar páginas, productos...</span>
+              <span className="flex-1 text-left truncate">Buscar páginas, productos...</span>
               <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
                 {cmdKey}K
               </kbd>
             </button>
 
-            {/* Quick action — Nueva venta (oculto si ya estás en /pos o sin permiso) */}
+            {/* Mobile search trigger icon */}
+            <button
+              aria-label="Buscar"
+              className="sm:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 cursor-pointer shadow-sm shrink-0"
+              onClick={() => commandPalette.setOpen(true)}
+              type="button"
+            >
+              <Search size={16} />
+            </button>
+
+            {/* Quick action — Nueva venta */}
             {!isPosRoute && can("ventas:crear") && (
               <Button
                 aria-label="Nueva venta"
-                className="hidden md:inline-flex min-h-0 h-9 px-3 text-xs"
+                className="hidden md:inline-flex min-h-0 h-9 px-3 text-xs shrink-0"
                 icon={<ShoppingCart aria-hidden="true" size={14} />}
                 onClick={() => navigate("/pos")}
                 variant="primary"
@@ -514,14 +542,16 @@ export function AppShell() {
               </Button>
             )}
 
-            <TopbarClock />
+            <span className="hidden sm:inline-block">
+              <TopbarClock />
+            </span>
 
             <PendingSalesIndicator />
 
             {/* Indicador conexión LAN */}
             <span
               aria-label={isOnline ? "Conexión LAN activa" : "Sin conexión al servidor"}
-              className="relative inline-flex items-center justify-center"
+              className="relative inline-flex items-center justify-center p-1 shrink-0"
               title={isOnline ? "Conexión LAN OK" : "Sin conexión al servidor"}
             >
               <span
@@ -536,25 +566,16 @@ export function AppShell() {
             {/* Notificaciones: stock bajo, compras pendientes y ventas sin sincronizar (H-44) */}
             <NotificationsBell badges={badges} />
 
-            {/* Tema toggle */}
+            {/* Tema toggle (UI-05: 44px on mobile) */}
             <button
               aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm"
+              className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm shrink-0"
               type="button"
               title={theme === "dark" ? "Modo Claro" : "Modo Oscuro"}
             >
               <ThemeIcon aria-hidden="true" size={16} />
             </button>
-            {/* Logout visible on mobile (sidebar footer hidden) */}
-            <Button
-              className="lg:hidden"
-              icon={<LogOut aria-hidden="true" size={16} />}
-              onClick={() => void logout()}
-              variant="secondary"
-            >
-              Salir
-            </Button>
           </div>
         </header>
 
@@ -565,6 +586,155 @@ export function AppShell() {
 
       {/* Command Palette overlay — montado a nivel raíz para z-index limpio */}
       <CommandPalette />
+
+      {/* ── Mobile Drawer (off-canvas UI-03, UI-05) ──────────────── */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menú de navegación principal"
+        >
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <div className="relative flex flex-col w-[280px] max-w-[85vw] bg-sidebar-bg text-sidebar-text h-full shadow-2xl z-10">
+            {/* Header / brand */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                {(() => {
+                  const configuredIconKey = brandingQuery.data?.company_logo_icon || "ShoppingCart";
+                  const LogoIconComponent = LOGO_ICONS[configuredIconKey as keyof typeof LOGO_ICONS] || ShoppingCart;
+                  const configuredColorKey = brandingQuery.data?.company_logo_color || "primary";
+                  const logoColorObj = LOGO_COLORS.find((c) => c.id === configuredColorKey);
+
+                  let bgStyle = {};
+                  let bgClass = "";
+                  let textClass = "text-white";
+
+                  if (logoColorObj) {
+                    bgClass = logoColorObj.bg;
+                    textClass = logoColorObj.text;
+                  } else {
+                    const hue = parseInt(configuredColorKey, 10);
+                    if (!isNaN(hue)) {
+                      bgStyle = { backgroundColor: `oklch(0.69 0.16 ${hue})` };
+                      textClass = hue >= 50 && hue <= 95 ? "text-neutral-text-primary" : "text-white";
+                    } else {
+                      bgClass = LOGO_COLORS[0].bg;
+                      textClass = LOGO_COLORS[0].text;
+                    }
+                  }
+
+                  return (
+                    <div 
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-lg shadow-md shrink-0",
+                        bgClass, 
+                        textClass
+                      )}
+                      style={bgStyle}
+                    >
+                      <LogoIconComponent size={18} />
+                    </div>
+                  );
+                })()}
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white leading-tight truncate">
+                    {brandingQuery.data?.company_name || "Ferretería"}
+                  </p>
+                  <p className="text-[10px] tracking-wider text-sidebar-text uppercase truncate">
+                    {brandingQuery.data?.company_subtitle || "VRNTAS POS"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-md text-sidebar-text hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                aria-label="Cerrar menú"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Navigation links (touch target 44px) */}
+            <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-6">
+              {visibleSections.map((section) => (
+                <div key={section.label} className="space-y-1">
+                  <div className="text-[10px] font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2">
+                    {section.label}
+                  </div>
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const count = item.badgeKey ? badges[item.badgeKey] : 0;
+                      return (
+                        <NavLink
+                          className={({ isActive }) =>
+                            cn(
+                              "relative flex min-h-11 shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-[background-color,color] duration-150 ease-[var(--ease-out-strong)]",
+                              isActive
+                                ? "bg-primary/15 text-info"
+                                : "text-sidebar-text hover:bg-white/5 hover:text-white",
+                            )
+                          }
+                          end={item.href === "/"}
+                          key={item.href}
+                          to={item.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          <Icon aria-hidden="true" size={18} className="shrink-0" />
+                          <span className="truncate flex-1">{item.label}</span>
+                          {item.badgeKey && item.badgeTone && (
+                            <NavBadge collapsed={false} count={count} tone={item.badgeTone} />
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </nav>
+
+            {/* Drawer footer */}
+            <div className="border-t border-white/10 p-4 shrink-0 space-y-3">
+              {sessionId && (
+                <Badge className="w-full justify-center border-success/30 bg-success/10 text-success text-[10px] py-1" dot tone="success">
+                  {sessionName ?? "Turno activo"}
+                </Badge>
+              )}
+              <div className="flex items-center gap-2.5 rounded-lg bg-white/5 p-2 border border-white/5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary shrink-0">
+                  {user?.full_name?.charAt(0)?.toUpperCase() ?? "?"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-white">{user?.full_name ?? "Usuario"}</p>
+                  <p className="truncate text-[10px] text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    void logout();
+                  }}
+                  className="flex h-11 w-11 items-center justify-center text-sidebar-text hover:text-danger p-1 transition-colors rounded"
+                  title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
+                >
+                  <LogOut size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Branding Customizer Modal ──────────────────────────── */}
       {isCustomizingBrand && (

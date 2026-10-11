@@ -23,7 +23,7 @@ export function Input({ className, error, icon, id, label, ...props }: InputProp
         ) : null}
         <input
           className={cn(
-            "min-h-11 w-full rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm text-neutral-text-primary outline-none transition-colors placeholder:text-neutral-text-muted focus:border-primary-text focus:ring-2 focus:ring-primary-text/60 disabled:cursor-not-allowed disabled:bg-neutral-bg",
+            "min-h-11 w-full rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-base lg:text-sm text-neutral-text-primary outline-none transition-colors placeholder:text-neutral-text-muted focus:border-primary-text focus:ring-2 focus:ring-primary-text/60 disabled:cursor-not-allowed disabled:bg-neutral-bg",
             hasIcon && "pl-10",
             error && "border-danger focus:border-danger focus:ring-danger/20",
             className,

@@ -219,9 +219,9 @@ export function DashboardPage() {
       ) : null}
 
       {/* Main split sections grid */}
-      <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <section className="grid gap-4 lg:grid-cols-[1fr_320px] min-w-0">
         {/* Weekly sales Bar Chart */}
-        <Card className="p-4 flex flex-col justify-between">
+        <Card className="p-4 flex flex-col justify-between min-w-0 overflow-hidden">
           <div>
             <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Rendimiento Semanal</h2>
             <p className="text-[11px] text-neutral-text-muted mt-0.5">Ventas diarias — Últimos 7 días</p>
@@ -232,11 +232,11 @@ export function DashboardPage() {
           ) : weeklySalesQuery.isError ? (
             <div className="h-32 flex items-center justify-center text-xs text-danger">Error al cargar datos</div>
           ) : (
-            <div className="flex items-end justify-between gap-4 h-32 pt-4 shrink-0 border-b border-neutral-border">
+            <div className="flex items-end justify-between gap-2 sm:gap-4 h-32 pt-4 shrink-0 border-b border-neutral-border min-w-0 overflow-hidden">
               {chartData.map((stat) => {
                 const pct = (stat.value / maxChartVal) * 100;
                 return (
-                  <div className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end" key={stat.date}>
+                  <div className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end min-w-0" key={stat.date}>
                     <div
                       className="w-full bg-primary/20 hover:bg-primary rounded-t transition-[height,background-color] duration-300 ease-[var(--ease-out-strong)] relative group cursor-default"
                       style={{ height: `${pct}%` }}
@@ -245,14 +245,14 @@ export function DashboardPage() {
                         ${stat.value.toFixed(2)}
                       </span>
                     </div>
-                    <span className="font-mono text-[9px] text-neutral-text-muted mb-1">{stat.label}</span>
+                    <span className="font-mono text-[9px] text-neutral-text-muted mb-1 truncate">{stat.label}</span>
                   </div>
                 );
               })}
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-3 text-xs">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-3 text-xs">
             <div className="flex items-center gap-4 text-[10px] text-neutral-text-secondary">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded bg-primary" />
@@ -262,7 +262,7 @@ export function DashboardPage() {
                 Promedio: ${(chartTotal / 7).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <span className="text-[10px] text-neutral-text-muted mr-1.5">Total semana:</span>
               <span className="font-mono font-bold text-neutral-text-primary">
                 ${chartTotal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

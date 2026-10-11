@@ -4,7 +4,7 @@ import { cn } from "../../lib/cn";
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="overflow-auto rounded-lg border border-neutral-border bg-neutral-surface">
+    <div className="relative overflow-x-auto rounded-lg border border-neutral-border bg-neutral-surface shadow-sm [background:linear-gradient(to_right,var(--color-surface),var(--color-surface)),linear-gradient(to_right,var(--color-surface),var(--color-surface)),linear-gradient(to_right,rgba(0,0,0,0.08),rgba(0,0,0,0)),linear-gradient(to_left,rgba(0,0,0,0.08),rgba(0,0,0,0))] [background-position:left_center,right_center,left_center,right_center] [background-repeat:no-repeat] [background-size:24px_100%,24px_100%,12px_100%,12px_100%] [background-attachment:local,local,scroll,scroll]">
       <table className={cn("w-full border-collapse text-left text-sm text-neutral-text-primary", className)} {...props} />
     </div>
   );

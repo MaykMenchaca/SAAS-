@@ -9,7 +9,7 @@ type ToggleProps = {
 
 export function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
   return (
-    <label className={cn("inline-flex cursor-pointer items-center gap-3", disabled && "cursor-not-allowed opacity-55")}>
+    <label className={cn("inline-flex min-h-11 cursor-pointer items-center gap-3", disabled && "cursor-not-allowed opacity-55")}>
       <button
         aria-checked={checked}
         className={cn(
