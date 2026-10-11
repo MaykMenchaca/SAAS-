@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { CreateSalePayload } from "../api/sales";
 
@@ -25,6 +25,26 @@ export type QueuedOfflineSale = {
 export type RejectedOfflineSale = QueuedOfflineSale & {
   error: string;
   rejectedAt: string;
+};
+
+/** Evento que se emite si el navegador no pudo guardar el estado del POS (cuota llena, OPS-15). */
+export const POS_STORAGE_ERROR_EVENT = "pos:storage-error";
+
+/**
+ * localStorage que no falla en silencio: si setItem lanza (cuota llena, almacenamiento
+ * bloqueado), se avisa con un evento para que la UI lo muestre. Sin esto, una venta offline podía
+ * quedar solo en memoria y perderse al recargar (OPS-15).
+ */
+const safeLocalStorage = {
+  getItem: (name: string) => window.localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent(POS_STORAGE_ERROR_EVENT, { detail: String(error) }));
+    }
+  },
+  removeItem: (name: string) => window.localStorage.removeItem(name),
 };
 
 /** Id estable de una venta encolada: su client_uuid (fase 1.4). */
@@ -212,6 +232,7 @@ export const usePosStore = create<PosState>()(
     }),
     {
       name: "pos-storage",
+      storage: createJSONStorage(() => safeLocalStorage),
       version: 1,
       // v0 -> v1: ventas encoladas sin client_uuid reciben uno para poder sincronizarse y eliminarse por id
       migrate: (persisted, version) => {

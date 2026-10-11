@@ -16,7 +16,8 @@ import { useAuthStore } from "../stores/auth-store";
 import type { CartItem } from "../stores/pos-store";
 import { calcLineTotal, getCartTotals, usePosStore } from "../stores/pos-store";
 import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
-import { findByCodeOffline, saveCatalog, searchOffline } from "../lib/offline-catalog";
+import { catalogInfo, findByCodeOffline, loadCatalog, saveCatalog, searchOffline } from "../lib/offline-catalog";
+import { useConnectionStore } from "../stores/connection-store";
 
 // ── Main POS Page ──────────────────────────────────────────────────
 
@@ -256,7 +257,10 @@ function PosTerminal() {
     refetchOnWindowFocus: false,
   });
   useEffect(() => {
-    if (catalogQuery.data) saveCatalog(catalogQuery.data.generated_at, catalogQuery.data.items);
+    void loadCatalog();
+  }, []);
+  useEffect(() => {
+    if (catalogQuery.data) void saveCatalog(catalogQuery.data.generated_at, catalogQuery.data.items);
   }, [catalogQuery.data]);
 
   // Lector de código de barras global: búsqueda exacta; sin servidor, en el catálogo local
@@ -264,6 +268,8 @@ function PosTerminal() {
     let product: Product | null = null;
     let offline = false;
     try {
+      // Sin servidor (según el ping a /api/health), directo a la copia local, sin esperar timeout (OPS-23)
+      if (!useConnectionStore.getState().serverReachable) throw new Error("sin servidor");
       product = await getProductByCode(barcode);
     } catch (err) {
       if (err instanceof AxiosError && err.response) {
@@ -467,6 +473,12 @@ function ProductSearch({
     queryFn: listCategories,
   });
 
+  const serverReachable = useConnectionStore((s) => s.serverReachable);
+  // Redibuja cuando la copia local termina de cargarse desde IndexedDB
+  const [, setCatalogLoaded] = useState(0);
+  useEffect(() => {
+    void loadCatalog().then(() => setCatalogLoaded((n) => n + 1));
+  }, []);
   const productsQuery = useQuery({
     queryKey: ["pos-products", debouncedSearch, selectedCategoryId],
     queryFn: () =>
@@ -476,11 +488,16 @@ function ProductSearch({
         search: debouncedSearch,
         category_id: selectedCategoryId,
       }),
+    // Sin reintento ni consulta si ya se sabe que no hay servidor (OPS-23)
+    retry: 0,
+    enabled: serverReachable,
   });
 
-  // Sin servidor (error de red, no un 4xx/5xx), se busca en la copia local del catálogo (OPS-02)
+  // Sin servidor (ping fallido o error de red, no un 4xx/5xx), se busca en la copia local (OPS-02)
   const serverDown =
-    productsQuery.isError && productsQuery.error instanceof AxiosError && !productsQuery.error.response;
+    !serverReachable ||
+    (productsQuery.isError && productsQuery.error instanceof AxiosError && !productsQuery.error.response);
+  const catalog = catalogInfo();
   const categories = categoriesQuery.data ?? [];
   const products = serverDown
     ? searchOffline(debouncedSearch, selectedCategoryId)
@@ -540,10 +557,15 @@ function ProductSearch({
       <div className="flex-1 overflow-y-auto p-4">
         {serverDown ? (
           <div className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning" role="status">
-            Sin conexión con el servidor: mostrando el catálogo guardado en este equipo. Precios sujetos a confirmación al sincronizar.
+            {catalog
+              ? `Sin conexión con el servidor: mostrando el catálogo guardado el ${catalog.generatedAt.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}.`
+              : "Sin conexión con el servidor y sin catálogo guardado en este equipo."}{" "}
+            {catalog?.stale
+              ? "Tiene más de 24 horas: los precios pueden haber cambiado; confírmalos antes de cobrar con tarjeta o transferencia."
+              : "Precios sujetos a confirmación al sincronizar."}
           </div>
         ) : null}
-        {productsQuery.isLoading ? (
+        {productsQuery.isLoading && !serverDown ? (
           <div className="py-12 text-center text-xs text-neutral-text-secondary">Cargando catálogo...</div>
         ) : products.length === 0 ? (
           <div className="py-12 text-center text-xs text-neutral-text-secondary">Sin productos disponibles</div>

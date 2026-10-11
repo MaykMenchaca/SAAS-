@@ -105,7 +105,8 @@ export type PosCatalogItem = {
 
 /** Búsqueda exacta por código de barras o SKU (lector de código, OPS-14). */
 export async function getProductByCode(code: string) {
-  const response = await apiClient.get<Product>(`/products/by-code/${encodeURIComponent(code)}`);
+  // Timeout corto: si el servidor está colgado, el escáner cae pronto al catálogo local (OPS-23)
+  const response = await apiClient.get<Product>(`/products/by-code/${encodeURIComponent(code)}`, { timeout: 3000 });
   return response.data;
 }
 
