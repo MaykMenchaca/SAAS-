@@ -5,13 +5,14 @@ import { apiClient } from "../api/client";
 import { getLowStock } from "../api/inventory";
 import type { OpenSessionSummary } from "../api/reports";
 import { fetchDashboardSummary } from "../api/reports";
-import { listSales } from "../api/sales";
+import { listSales, saleStatusMeta } from "../api/sales";
 import { Badge, Button, Card, ErrorState, PageHeader, SkeletonKPI, SkeletonTable } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency, formatStock } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
 import { qk } from "../api/query-keys";
 import type { SalesReport } from "../api/reports";
+import { useCan } from "../components/auth/require-permission";
 
 async function fetchWeeklySales() {
   const now = new Date();
@@ -41,6 +42,7 @@ function formatDelta(current: number, previous: number, kind: "percent" | "count
 }
 
 export function DashboardPage() {
+  const can = useCan();
   const user = useAuthStore((s) => s.user);
 
   const dashboardQuery = useQuery({
@@ -52,6 +54,8 @@ export function DashboardPage() {
   const lowStockQuery = useQuery({
     queryKey: qk.lowStock(),
     queryFn: () => getLowStock(),
+    // Con roles a medida sin inventario:ver, la consulta daría 403 cada minuto (FE-107)
+    enabled: can("inventario:ver"),
     refetchInterval: 60_000,
   });
 
@@ -341,8 +345,8 @@ export function DashboardPage() {
                       <td className="py-2 px-3 font-mono font-bold text-primary-text">#{sale.folio}</td>
                       <td className="py-2 px-3 text-neutral-text-secondary">{sale.username}</td>
                       <td className="py-2 px-3">
-                        <Badge tone={sale.status === "completada" ? "success" : "danger"}>
-                          {sale.status === "completada" ? "Completada" : "Cancelada"}
+                        <Badge tone={saleStatusMeta(sale.status).tone}>
+                          {saleStatusMeta(sale.status).label}
                         </Badge>
                       </td>
                       <td className="py-2 px-3 font-mono font-bold text-neutral-text-primary text-right">${Number(sale.total).toFixed(2)}</td>

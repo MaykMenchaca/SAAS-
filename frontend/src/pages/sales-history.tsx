@@ -7,10 +7,11 @@ import { toast } from "sonner";
 
 import type { SaleListItem } from "../api/sales";
 import { printResultMessage, printSaleTicket } from "../api/printing";
-import { cancelSale, getSale, listSales } from "../api/sales";
+import { cancelSale, getSale, listSales, saleStatusMeta } from "../api/sales";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, PageHeader, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterSale } from "../api/invalidate";
+import { useCan } from "../components/auth/require-permission";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
@@ -25,12 +26,6 @@ export function SalesHistoryPage() {
 
   const sales = salesQuery.data?.items ?? [];
   const totalPages = salesQuery.data?.pages ?? 1;
-
-  function statusTone(status: string): "success" | "danger" | "neutral" {
-    if (status === "completada") return "success";
-    if (status === "cancelada") return "danger";
-    return "neutral";
-  }
 
   return (
     <div className="grid gap-5">
@@ -89,8 +84,8 @@ export function SalesHistoryPage() {
                       </td>
                       <td className={`${tableCellClass} text-right font-mono font-semibold`}>${sale.total}</td>
                       <td className={tableCellClass}>
-                        <Badge dot tone={statusTone(sale.status)}>
-                          {sale.status === "completada" ? "Completada" : "Cancelada"}
+                        <Badge dot tone={saleStatusMeta(sale.status).tone}>
+                          {saleStatusMeta(sale.status).label}
                         </Badge>
                       </td>
                       <td className={tableCellClass}>
@@ -129,6 +124,7 @@ export function SalesHistoryPage() {
 // ── Sale Detail Modal ─────────────────────────────────────────────
 
 function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [cancelReason, setCancelReason] = useState("");
   const [showCancel, setShowCancel] = useState(false);
@@ -191,8 +187,8 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
             </div>
             <div>
               <span className="text-neutral-text-secondary">Estado: </span>
-              <Badge tone={sale.status === "completada" ? "success" : "danger"}>
-                {sale.status === "completada" ? "Completada" : "Cancelada"}
+              <Badge tone={saleStatusMeta(sale.status).tone}>
+                {saleStatusMeta(sale.status).label}
               </Badge>
             </div>
             <div>
@@ -300,7 +296,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           </Button>
 
           {/* Cancel action */}
-          {sale.status === "completada" && !showCancel ? (
+          {sale.status === "completada" && can("ventas:cancelar") && !showCancel ? (
             <Button
               className="w-full"
               icon={<Ban aria-hidden="true" size={17} />}

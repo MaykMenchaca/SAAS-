@@ -11,10 +11,12 @@ import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Input, Modal, 
 import { formatStock, formatStockLimits } from "../lib/formatters";
 import { qk } from "../api/query-keys";
 import { invalidateInventory } from "../api/invalidate";
+import { useCan } from "../components/auth/require-permission";
 
 // ── Main Page ──────────────────────────────────────────────────────
 
 export function InventoryPage() {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -52,11 +54,13 @@ export function InventoryPage() {
         title="Inventario"
         subtitle="Stock actual y movimientos"
         actions={
-          <Link to="/inventario/conteo">
-            <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
-              Conteo físico
-            </Button>
-          </Link>
+          can("inventario:ajustar") ? (
+            <Link to="/inventario/conteo">
+              <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
+                Conteo físico
+              </Button>
+            </Link>
+          ) : undefined
         }
       />
 
@@ -138,16 +142,18 @@ export function InventoryPage() {
                               <ArrowDownUp aria-hidden="true" size={17} />
                             </Button>
                           </Tooltip>
-                          <Tooltip content="Ajustar stock">
-                            <Button
-                              aria-label={`Ajustar stock de ${item.product_name}`}
-                              className="h-11 w-11 px-0"
-                              onClick={() => setAdjustProduct(item)}
-                              variant="secondary"
-                            >
-                              <Package aria-hidden="true" size={17} />
-                            </Button>
-                          </Tooltip>
+                          {can("inventario:ajustar") ? (
+                            <Tooltip content="Ajustar stock">
+                              <Button
+                                aria-label={`Ajustar stock de ${item.product_name}`}
+                                className="h-11 w-11 px-0"
+                                onClick={() => setAdjustProduct(item)}
+                                variant="secondary"
+                              >
+                                <Package aria-hidden="true" size={17} />
+                              </Button>
+                            </Tooltip>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

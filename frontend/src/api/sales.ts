@@ -3,6 +3,20 @@ import type { PaginatedResponse } from "./products";
 
 // ── Types ──────────────────────────────────────────────────────────
 
+export type SaleStatus = "completada" | "cancelada" | "devolucion_parcial" | "devolucion_total";
+
+/** Etiqueta y tono de cada estado de venta: una venta con devolución no es una cancelación (FE-106). */
+export const SALE_STATUS: Record<SaleStatus, { label: string; tone: "success" | "danger" | "warning" | "neutral" }> = {
+  completada: { label: "Completada", tone: "success" },
+  cancelada: { label: "Cancelada", tone: "danger" },
+  devolucion_parcial: { label: "Devolución parcial", tone: "warning" },
+  devolucion_total: { label: "Devuelta", tone: "neutral" },
+};
+
+export function saleStatusMeta(status: string) {
+  return SALE_STATUS[status as SaleStatus] ?? { label: status, tone: "neutral" as const };
+}
+
 export type CashRegisterSession = {
   id: number;
   cash_register_id: number;
@@ -55,7 +69,7 @@ export type Sale = {
   discount_total: string;
   tax_total: string;
   total: string;
-  status: "completada" | "cancelada";
+  status: SaleStatus;
   cancel_reason: string | null;
   created_at: string;
   items: SaleItem[];

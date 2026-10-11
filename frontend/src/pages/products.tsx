@@ -26,6 +26,7 @@ import {
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { formatStock } from "../lib/formatters";
 import { qk } from "../api/query-keys";
+import { useCan } from "../components/auth/require-permission";
 
 type ProductFormState = {
   sku: string;
@@ -92,6 +93,7 @@ function formToPayload(form: ProductFormState): ProductPayload {
 }
 
 export function ProductsPage() {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -122,6 +124,7 @@ export function ProductsPage() {
   const lowStockQuery = useQuery({
     queryKey: qk.lowStock(),
     queryFn: () => getLowStock(),
+    enabled: can("inventario:ver"),
   });
 
   const createMutation = useMutation({
@@ -197,7 +200,7 @@ export function ProductsPage() {
         title="Productos"
         subtitle="Catálogo, categorías y unidades de medida"
         actions={
-          activeTab === "productos" ? (
+          activeTab === "productos" && can("productos:crear") ? (
             <Button icon={<PackagePlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
               Nuevo
             </Button>
@@ -323,16 +326,18 @@ export function ProductsPage() {
                         </td>
                         <td className={tableCellClass}>
                           <div className="flex gap-2">
-                            <Tooltip content="Editar">
-                              <Button
-                                aria-label={`Editar ${product.name}`}
-                                className="h-11 w-11 px-0"
-                                onClick={() => openEditModal(product)}
-                                variant="secondary"
-                              >
-                                <Edit aria-hidden="true" size={17} />
-                              </Button>
-                            </Tooltip>
+                            {can("productos:editar") ? (
+                              <Tooltip content="Editar">
+                                <Button
+                                  aria-label={`Editar ${product.name}`}
+                                  className="h-11 w-11 px-0"
+                                  onClick={() => openEditModal(product)}
+                                  variant="secondary"
+                                >
+                                  <Edit aria-hidden="true" size={17} />
+                                </Button>
+                              </Tooltip>
+                            ) : null}
                             <Tooltip content="Imprimir etiqueta">
                               <Button
                                 aria-label={`Etiqueta ${product.name}`}
@@ -343,7 +348,7 @@ export function ProductsPage() {
                                 <Printer aria-hidden="true" size={17} />
                               </Button>
                             </Tooltip>
-                            {product.is_active ? (
+                            {!can("productos:desactivar") ? null : product.is_active ? (
                               <Tooltip content="Desactivar">
                                 <Button
                                   aria-label={`Desactivar ${product.name}`}
@@ -376,7 +381,7 @@ export function ProductsPage() {
                   {products.length === 0 ? (
                     <tr>
                       <td colSpan={6}>
-                        <EmptyState icon={<Package size={32} />} message="Sin productos registrados." actionLabel="Nuevo producto" onAction={openCreateModal} />
+                        <EmptyState icon={<Package size={32} />} message="Sin productos registrados." actionLabel={can("productos:crear") ? "Nuevo producto" : undefined} onAction={can("productos:crear") ? openCreateModal : undefined} />
                       </td>
                     </tr>
                   ) : null}
@@ -755,6 +760,7 @@ function LabelPreviewModal({ productId, onClose }: { productId: number; onClose:
 }
 
 function CategoriesTab() {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -833,9 +839,11 @@ function CategoriesTab() {
           <h2 className="text-lg font-bold text-neutral-text-primary">Administrar Categorías</h2>
           <p className="text-xs text-neutral-text-secondary">Clasificación de productos</p>
         </div>
-        <Button icon={<Plus size={16} />} onClick={openCreateModal}>
-          Nueva Categoría
-        </Button>
+        {can("productos:crear") ? (
+          <Button icon={<Plus size={16} />} onClick={openCreateModal}>
+            Nueva Categoría
+          </Button>
+        ) : null}
       </div>
 
       {categoriesQuery.isLoading ? (
@@ -870,27 +878,31 @@ function CategoriesTab() {
                   </td>
                   <td className={tableCellClass}>
                     <div className="flex gap-2">
-                      <Tooltip content="Editar">
-                        <Button
-                          aria-label={`Editar ${category.name}`}
-                          className="h-11 w-11 px-0"
-                          onClick={() => openEditModal(category)}
-                          variant="secondary"
-                        >
-                          <Edit aria-hidden="true" size={17} />
-                        </Button>
-                      </Tooltip>
-                      <Tooltip content="Desactivar">
-                        <Button
-                          aria-label={`Desactivar ${category.name}`}
-                          className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
-                          disabled={!category.is_active}
-                          onClick={() => setConfirmDeactivateId(category.id)}
-                          variant="ghost"
-                        >
-                          <Trash2 aria-hidden="true" size={17} />
-                        </Button>
-                      </Tooltip>
+                      {can("productos:editar") ? (
+                        <Tooltip content="Editar">
+                          <Button
+                            aria-label={`Editar ${category.name}`}
+                            className="h-11 w-11 px-0"
+                            onClick={() => openEditModal(category)}
+                            variant="secondary"
+                          >
+                            <Edit aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      ) : null}
+                      {can("productos:desactivar") ? (
+                        <Tooltip content="Desactivar">
+                          <Button
+                            aria-label={`Desactivar ${category.name}`}
+                            className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
+                            disabled={!category.is_active}
+                            onClick={() => setConfirmDeactivateId(category.id)}
+                            variant="ghost"
+                          >
+                            <Trash2 aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -998,6 +1010,7 @@ function CategoriesTab() {
 }
 
 function UnitsTab() {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [editingUnit, setEditingUnit] = useState<UnitOfMeasure | null>(null);
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
@@ -1085,9 +1098,11 @@ function UnitsTab() {
           <h2 className="text-lg font-bold text-neutral-text-primary">Unidades de Medida</h2>
           <p className="text-xs text-neutral-text-secondary">Unidades para control de stock</p>
         </div>
-        <Button icon={<Plus size={16} />} onClick={openCreateModal}>
-          Nueva Unidad
-        </Button>
+        {can("productos:crear") ? (
+          <Button icon={<Plus size={16} />} onClick={openCreateModal}>
+            Nueva Unidad
+          </Button>
+        ) : null}
       </div>
 
       {unitsQuery.isLoading ? (
@@ -1122,26 +1137,30 @@ function UnitsTab() {
                   </td>
                   <td className={tableCellClass}>
                     <div className="flex gap-2">
-                      <Tooltip content="Editar">
-                        <Button
-                          aria-label={`Editar ${unit.name}`}
-                          className="h-11 w-11 px-0"
-                          onClick={() => openEditModal(unit)}
-                          variant="secondary"
-                        >
-                          <Edit aria-hidden="true" size={17} />
-                        </Button>
-                      </Tooltip>
-                      <Tooltip content="Eliminar">
-                        <Button
-                          aria-label={`Eliminar ${unit.name}`}
-                          className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
-                          onClick={() => setConfirmDeleteId(unit.id)}
-                          variant="ghost"
-                        >
-                          <Trash2 aria-hidden="true" size={17} />
-                        </Button>
-                      </Tooltip>
+                      {can("productos:editar") ? (
+                        <Tooltip content="Editar">
+                          <Button
+                            aria-label={`Editar ${unit.name}`}
+                            className="h-11 w-11 px-0"
+                            onClick={() => openEditModal(unit)}
+                            variant="secondary"
+                          >
+                            <Edit aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      ) : null}
+                      {can("productos:desactivar") ? (
+                        <Tooltip content="Eliminar">
+                          <Button
+                            aria-label={`Eliminar ${unit.name}`}
+                            className="h-11 w-11 px-0 hover:text-danger hover:bg-danger/10"
+                            onClick={() => setConfirmDeleteId(unit.id)}
+                            variant="ghost"
+                          >
+                            <Trash2 aria-hidden="true" size={17} />
+                          </Button>
+                        </Tooltip>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
