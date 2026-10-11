@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+﻿import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
@@ -19,10 +19,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Link } from "react-router-dom";
+
 import type { CashRegisterSession, SessionSummary } from "../api/sales";
 import { closeCashRegister, getSessionSummary, listSessions } from "../api/sales";
 import { usePosStore } from "../stores/pos-store";
-import { Badge, Button, Card, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Modal, PageHeader, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 
 // ── Denomination Config ──────────────────────────────────────────
@@ -71,12 +73,10 @@ export function CashCutPage() {
   if (sessionsQuery.isLoading) {
     return (
       <div className="grid gap-5">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Corte de Caja</h1>
-          <p className="text-sm text-neutral-text-secondary">
-            Conteo de denominaciones, cierre de sesión y resumen
-          </p>
-        </div>
+        <PageHeader
+          title="Corte de Caja"
+          subtitle="Conteo de denominaciones, cierre de sesión y resumen"
+        />
         <SkeletonTable rows={4} cols={5} />
       </div>
     );
@@ -85,12 +85,10 @@ export function CashCutPage() {
   if (sessionsQuery.isError) {
     return (
       <div className="grid gap-5">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Corte de Caja</h1>
-          <p className="text-sm text-neutral-text-secondary">
-            Conteo de denominaciones, cierre de sesión y resumen
-          </p>
-        </div>
+        <PageHeader
+          title="Corte de Caja"
+          subtitle="Conteo de denominaciones, cierre de sesión y resumen"
+        />
         <ErrorState onRetry={() => void sessionsQuery.refetch()} />
       </div>
     );
@@ -109,12 +107,10 @@ export function CashCutPage() {
 
   return (
     <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-text-primary">Corte de Caja</h1>
-        <p className="text-sm text-neutral-text-secondary">
-          Conteo de denominaciones, cierre de sesión e historial de arqueos
-        </p>
-      </div>
+      <PageHeader
+        title="Corte de Caja"
+        subtitle="Conteo de denominaciones, cierre de sesión e historial de arqueos"
+      />
 
       {/* Tab Navigation */}
       <nav className="flex gap-1 overflow-x-auto rounded-lg border border-neutral-border bg-neutral-bg p-1">
@@ -172,7 +168,7 @@ export function CashCutPage() {
                           ${Number(session.opening_amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 mt-1 text-[11px] text-neutral-text-muted">
+                      <div className="flex items-center gap-1 mt-1 text-xs text-neutral-text-muted">
                         <Calendar size={12} />
                         <span>
                           {new Date(session.opened_at).toLocaleString("es-MX", {
@@ -197,9 +193,17 @@ export function CashCutPage() {
             </div>
           </section>
         ) : (
-          <Card className="p-8 text-center border-dashed border-neutral-border">
-            <CheckCircle2 aria-hidden="true" className="mx-auto mb-2 text-neutral-text-muted" size={32} />
-            <p className="text-sm text-neutral-text-secondary">No hay sesiones de caja abiertas en este momento.</p>
+          <Card className="p-8 text-center border-dashed border-neutral-border flex flex-col items-center justify-center gap-3">
+            <CheckCircle2 aria-hidden="true" className="mx-auto text-neutral-text-muted" size={32} />
+            <div>
+              <p className="text-sm font-semibold text-neutral-text-primary">No hay sesiones de caja abiertas en este momento.</p>
+              <p className="text-xs text-neutral-text-secondary mt-1">Abre una caja en el Punto de Venta para comenzar a registrar operaciones.</p>
+            </div>
+            <Link to="/pos">
+              <Button icon={<Calculator aria-hidden="true" size={16} />} variant="primary">
+                Abrir caja en el Punto de Venta
+              </Button>
+            </Link>
           </Card>
         )
       ) : (
@@ -548,7 +552,7 @@ function CashSessionDetailsView({
                   {labelText}
                 </p>
                 {expectedCash !== null && (
-                  <p className="text-[11px] text-neutral-text-muted mt-0.5 font-mono">
+                  <p className="text-xs text-neutral-text-muted mt-0.5 font-mono">
                     Esperado: ${expectedCash.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                   </p>
                 )}
@@ -716,13 +720,13 @@ function CashSessionDetailsView({
                     <div key={s.id} className="p-4 flex items-center justify-between gap-3 text-xs">
                       <div>
                         <p className="font-bold text-neutral-text-primary">{s.cash_register_name}</p>
-                        <p className="text-[10px] text-neutral-text-muted mt-0.5">{s.username}</p>
+                        <p className="text-xs text-neutral-text-muted mt-0.5">{s.username}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-mono font-semibold text-neutral-text-primary">
                           ${Number(s.closing_amount ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                         </p>
-                        <span className={`inline-block text-[10px] font-bold mt-1 px-1.5 py-0.25 rounded-full ${isOk ? "bg-success/10 text-success" : diff < 0 ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
+                        <span className={`inline-block text-xs font-bold mt-1 px-1.5 py-0.25 rounded-full ${isOk ? "bg-success/10 text-success" : diff < 0 ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
                           {isOk ? "OK" : `${diff > 0 ? "+" : ""}${diff.toFixed(2)}`}
                         </span>
                       </div>
@@ -913,7 +917,7 @@ function PrintableCashCut({
 function StatCard({ label, value, meta }: { label: string; value: string; meta: string }) {
   return (
     <div className="bg-neutral-surface border border-neutral-border rounded-lg p-5 shadow-sm">
-      <div className="text-[10px] font-bold text-neutral-text-secondary uppercase tracking-widest mb-2">
+      <div className="text-xs font-bold text-neutral-text-secondary uppercase tracking-widest mb-2">
         {label}
       </div>
       <div className="font-mono text-2xl font-bold text-neutral-text-primary tracking-tight leading-none mb-1.5">

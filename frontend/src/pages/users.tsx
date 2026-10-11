@@ -6,7 +6,7 @@ import { Edit, Search, Shield, UserMinus, UserPlus, Users } from "lucide-react";
 
 import type { Role, User, UserCreatePayload, UserUpdatePayload } from "../api/users";
 import { createUser, deactivateUser, listRoles, listUsers, updateUser } from "../api/users";
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Toggle, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Pagination, Select, SkeletonTable, Table, Toggle, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -107,15 +107,15 @@ export function UsersPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Usuarios</h1>
-          <p className="text-sm text-neutral-text-secondary">Administración de cuentas y roles</p>
-        </div>
-        <Button icon={<UserPlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
-          Nuevo
-        </Button>
-      </div>
+      <PageHeader
+        title="Usuarios"
+        subtitle="Administración de cuentas y roles"
+        actions={
+          <Button icon={<UserPlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
+            Nuevo
+          </Button>
+        }
+      />
 
       <section className="grid gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

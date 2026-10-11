@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+﻿import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
@@ -353,14 +353,14 @@ function PosTerminal() {
         <div className="flex flex-wrap items-center gap-3">
           <Badge tone="success">{sessionName ?? "Caja"}</Badge>
           <div className="flex flex-wrap items-center gap-2">
-            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-neutral-text-secondary">F2</kbd>
-            <span className="text-[11px] text-neutral-text-secondary">Buscar</span>
-            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-neutral-text-secondary">F5</kbd>
-            <span className="text-[11px] text-neutral-text-secondary">Cobrar</span>
-            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-neutral-text-secondary">F8</kbd>
-            <span className="text-[11px] text-neutral-text-secondary">Último Ticket</span>
-            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-neutral-text-secondary">Esc</kbd>
-            <span className="text-[11px] text-neutral-text-secondary">Vaciar</span>
+            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs text-neutral-text-secondary">F2</kbd>
+            <span className="text-xs text-neutral-text-secondary">Buscar</span>
+            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs text-neutral-text-secondary">F5</kbd>
+            <span className="text-xs text-neutral-text-secondary">Cobrar</span>
+            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs text-neutral-text-secondary">F8</kbd>
+            <span className="text-xs text-neutral-text-secondary">Último Ticket</span>
+            <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs text-neutral-text-secondary">Esc</kbd>
+            <span className="text-xs text-neutral-text-secondary">Vaciar</span>
           </div>
         </div>
         <Button onClick={clearSession} className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">
@@ -538,7 +538,7 @@ function ProductSearch({
             type="text"
             value={search}
           />
-          <span className="absolute right-3 text-[10px] font-bold text-primary-text cursor-pointer hover:underline flex items-center gap-1 select-none" onClick={() => inputRef.current?.focus()}>
+          <span className="absolute right-3 text-xs font-bold text-primary-text cursor-pointer hover:underline flex items-center gap-1 select-none" onClick={() => inputRef.current?.focus()}>
             <Barcode size={14} /> Escanear
           </span>
         </div>
@@ -549,7 +549,7 @@ function ProductSearch({
         <button
           onClick={() => setSelectedCategoryId(undefined)}
           type="button"
-          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors outline-none whitespace-nowrap ${
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors outline-none whitespace-nowrap ${
             selectedCategoryId === undefined
               ? "bg-primary text-on-primary border-transparent"
               : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary-text"
@@ -562,7 +562,7 @@ function ProductSearch({
             key={category.id}
             onClick={() => setSelectedCategoryId(category.id)}
             type="button"
-            className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors outline-none whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors outline-none whitespace-nowrap ${
               selectedCategoryId === category.id
                 ? "bg-primary text-on-primary border-transparent"
                 : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:border-primary hover:text-primary-text"
@@ -612,7 +612,7 @@ function ProductSearch({
                   <div className="text-xs font-bold text-neutral-text-primary mb-0.5 line-clamp-2 leading-tight">
                     {product.name}
                   </div>
-                  <div className="font-mono text-[9px] text-neutral-text-muted mb-2 uppercase">
+                  <div className="font-mono text-xs text-neutral-text-muted mb-2 uppercase">
                     {product.sku}
                   </div>
                   <div className="mt-auto flex items-end justify-between gap-1 w-full">
@@ -620,7 +620,7 @@ function ProductSearch({
                       ${Number(product.sale_price).toFixed(2)}
                     </div>
                     <div
-                      className={`text-[9px] font-bold leading-none ${
+                      className={`text-xs font-bold leading-none ${
                         isOut ? "text-danger" : isLow ? "text-warning" : "text-success"
                       }`}
                     >
@@ -651,7 +651,7 @@ function CartPanel() {
       <div className="flex items-center justify-between border-b border-neutral-border px-4 py-3 bg-neutral-surface shrink-0">
         <div>
           <div className="text-xs font-bold text-neutral-text-primary">Carrito de venta</div>
-          <div className="text-[10px] font-mono text-neutral-text-muted">Detalle de transacción</div>
+          <div className="text-xs font-mono text-neutral-text-muted">Detalle de transacción</div>
         </div>
         <button
           onClick={clearCart}
@@ -669,7 +669,7 @@ function CartPanel() {
           <div className="flex h-full flex-col items-center justify-center text-neutral-text-secondary text-center py-12">
             <ShoppingCart className="mb-2 text-neutral-text-muted opacity-40" size={32} />
             <p className="text-xs font-medium">El carrito está vacío</p>
-            <p className="text-[10px] text-neutral-text-muted mt-0.5">Selecciona productos para comenzar</p>
+            <p className="text-xs text-neutral-text-muted mt-0.5">Selecciona productos para comenzar</p>
           </div>
         ) : (
           cart.map((item: CartItem) => {
@@ -682,14 +682,14 @@ function CartPanel() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold text-neutral-text-primary truncate">{item.product_name}</div>
-                    <div className="text-[10px] text-neutral-text-muted font-mono mt-0.5">
+                    <div className="text-xs text-neutral-text-muted font-mono mt-0.5">
                       ${item.unit_price} × {item.quantity} {item.unit_abbreviation}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-mono text-xs font-bold text-neutral-text-primary">${lineTotal.toFixed(2)}</div>
                     <button
-                      className="text-[10px] text-danger hover:underline font-semibold mt-0.5"
+                      className="text-xs text-danger hover:underline font-semibold mt-0.5"
                       onClick={() => removeFromCart(item.product_id)}
                       type="button"
                     >
@@ -1043,7 +1043,7 @@ function PaymentModal({
         <div className="space-y-4">
           {/* Main Total Card */}
           <div className="bg-neutral-bg border border-neutral-border rounded-lg p-5 text-center">
-            <div className="text-[10px] font-bold text-neutral-text-secondary uppercase tracking-widest mb-1">
+            <div className="text-xs font-bold text-neutral-text-secondary uppercase tracking-widest mb-1">
               Total a Pagar
             </div>
             <div className="font-mono text-3xl font-extrabold text-primary-text">
@@ -1093,7 +1093,7 @@ function PaymentModal({
               ? "border-danger/20 bg-danger/10 text-danger"
               : "border-success/20 bg-success/10 text-success"
           }`}>
-            <div className="text-[10px] font-bold uppercase tracking-wider opacity-80 mb-1">
+            <div className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">
               {remaining > 0 ? "Falta por cobrar" : cashChange > 0 ? "Cambio a entregar" : "Cobro completo"}
             </div>
             <div className="font-mono text-2xl font-extrabold">
@@ -1105,7 +1105,7 @@ function PaymentModal({
           {payments.length > 1 && (
             <div className="grid gap-2 border border-neutral-border rounded-lg bg-neutral-bg p-3 max-h-[140px] overflow-y-auto">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-text-secondary">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-text-secondary">
                   Estructura de Pagos Divididos
                 </span>
               </div>
@@ -1122,7 +1122,7 @@ function PaymentModal({
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="capitalize">{p.method}</span>
-                      <span className="text-[10px] text-neutral-text-muted">({idx + 1})</span>
+                      <span className="text-xs text-neutral-text-muted">({idx + 1})</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono">${Number(p.amount || 0).toFixed(2)}</span>

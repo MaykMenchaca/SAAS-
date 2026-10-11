@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import type { SaleListItem } from "../api/sales";
 import { printSaleTicket } from "../api/printing";
 import { cancelSale, getSale, listSales } from "../api/sales";
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, PageHeader, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterSale } from "../api/invalidate";
 
@@ -34,12 +34,10 @@ export function SalesHistoryPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Historial de Ventas</h1>
-          <p className="text-sm text-neutral-text-secondary">Todas las transacciones registradas</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Historial de Ventas"
+        subtitle="Todas las transacciones registradas y reimpresión de tickets"
+      />
 
       <section className="grid gap-3">
         {salesQuery.isLoading ? (

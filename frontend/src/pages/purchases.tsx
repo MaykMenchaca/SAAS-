@@ -40,7 +40,7 @@ import {
   sendOrder,
   updateSupplier,
 } from "../api/purchases";
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterPurchase } from "../api/invalidate";
 
@@ -73,12 +73,10 @@ export function PurchasesPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Compras</h1>
-          <p className="text-sm text-neutral-text-secondary">Órdenes de compra y proveedores</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Compras"
+        subtitle="Órdenes de compra y proveedores"
+      />
 
       {/* Tab Navigation */}
       <nav className="flex gap-1 overflow-x-auto rounded-lg border border-neutral-border bg-neutral-bg p-1">

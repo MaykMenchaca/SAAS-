@@ -69,10 +69,10 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [x] 5.3 Esc seguro, sin "Crédito" (H-30, H-53) · commit 581556b · verificación: `tsc -b` + build OK · Esc ignorado en campos editables y con la paleta abierta, confirmación con `Modal` si hay más de 3 artículos, `stopPropagation` en la paleta, método "Crédito" eliminado
 - [x] 5.4 Campana, reportes y catálogos duplicados (H-44, H-49, H-54, UI-13) · commit 720d7cd · tests: `test_catalog_duplicates_fase5.py` (5), `test_listar_ordenes_por_varios_estados` · popover de notificaciones (stock bajo, OC pendientes, ventas offline), rango de fechas validado, días sin ventas en 0, ticks es-MX, SVG con `role="img"`; índice `uq_categories_name_ci` y migración `f2d5b8c9a0e1` que unifica duplicados (**pendiente aplicar a pos_db** al integrar F5; en pos_db solo está "Herramientas Manuales" id 6 sin productos)
 - [x] 5.5 Contraste y foco (UI-01, UI-02, UI-06, UI-14) · commit 6f9d9ae · verificación: `npm run build` OK, 375 tests backend passed · tokens `on-primary`/`on-danger`/`primary-text` WCAG AA (>=4.5:1), `:focus-visible` global accesible, login sin placeholder revelador y botón con validación descriptiva
-- [ ] 5.6 Responsive con drawer (UI-03, UI-05, UI-08, UI-09, UI-17)
-- [ ] 5.7 Tipografía y formato de cantidades (UI-07, UI-10)
-- [ ] 5.8 Textos y pulido (UI-12, UI-15, UI-16)
-- [ ] **Gate fase 5**
+- [x] 5.6 Responsive con drawer (UI-03, UI-05, UI-08, UI-09, UI-17) · commit 699f033 · verificación: `npm run build` OK, 375 tests backend passed · drawer off-canvas móvil con backdrop y auto-cierre, header móvil con botón hamburguesa, breadcrumbs compactos en <md, touch targets >=44px en controles y nav, tablas con scroll horizontal y inputs con `text-base lg:text-sm` evitando auto-zoom en iOS
+- [x] 5.7 Tipografía y formato de cantidades (UI-07, UI-10) · componente estándar accesible `PageHeader` (h1 `text-2xl font-bold lg:text-3xl tracking-tight text-neutral-text-primary`), reemplazo global de tamaños arbitrarios `text-[9|10|11px]` por tokens accesibles `text-xs`, formato uniforme de cantidades discretas y límites de inventario `formatStockLimits` ("Mín: X / Máx: —")
+- [x] 5.8 Textos y pulido (UI-12, UI-15, UI-16) · títulos dinámicos en pestaña de navegador `document.title = "${pageTitle} · ${brandName}"`, botones de navegación accesibles con `aria-label`, ortografía en español ("Respaldos", "Acciones", "Crear respaldo"), eliminación de clases redundantes de cursor
+- [x] **Gate fase 5** · APROBADO (2026-10-11, 375 tests backend passed, frontend build OK, gate.ps1 en verde)
 
 ## Fase 6: Calidad continua · la 6.3 se adelanta después del gate F0
 - [ ] 6.1 Tests sin app context compartido + rollbacks (H-34)

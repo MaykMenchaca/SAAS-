@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   Boxes,
@@ -301,7 +301,7 @@ export function CommandPalette() {
             type="text"
             value={query}
           />
-          <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
+          <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-neutral-text-secondary">
             Esc
           </kbd>
         </div>
@@ -328,7 +328,7 @@ export function CommandPalette() {
               if (items.length === 0) return null;
               return (
                 <div className="py-1" key={section}>
-                  <div className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-text-muted">
+                  <div className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-neutral-text-muted">
                     {SECTION_LABELS[section]}
                   </div>
                   <div className="grid gap-0.5">
@@ -358,10 +358,10 @@ export function CommandPalette() {
                           <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-primary-text" : "text-neutral-text-secondary")} size={16} />
                           <span className="flex-1 truncate font-medium">{cmd.label}</span>
                           {cmd.hint ? (
-                            <span className="shrink-0 font-mono text-[10px] text-neutral-text-muted">{cmd.hint}</span>
+                            <span className="shrink-0 font-mono text-xs text-neutral-text-muted">{cmd.hint}</span>
                           ) : null}
                           {cmd.shortcut ? (
-                            <kbd className="shrink-0 rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
+                            <kbd className="shrink-0 rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-neutral-text-secondary">
                               {cmd.shortcut}
                             </kbd>
                           ) : null}
@@ -376,7 +376,7 @@ export function CommandPalette() {
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center justify-between border-t border-neutral-border bg-neutral-bg/40 px-4 py-2 text-[10px] text-neutral-text-secondary">
+        <div className="flex items-center justify-between border-t border-neutral-border bg-neutral-bg/40 px-4 py-2 text-xs text-neutral-text-secondary">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↑</kbd>

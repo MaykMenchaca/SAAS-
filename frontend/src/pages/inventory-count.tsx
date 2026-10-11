@@ -83,10 +83,14 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Link className="text-neutral-text-secondary hover:text-primary-text" to="/inventario">
+              <Link
+                aria-label="Volver al inventario"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-neutral-text-secondary hover:bg-neutral-surface hover:text-primary-text transition-colors"
+                to="/inventario"
+              >
                 <ArrowLeft size={20} />
               </Link>
-              <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">Conteos Físicos</h1>
             </div>
           </div>
         </div>
@@ -102,10 +106,14 @@ function CountList({ onOpenCount }: { onOpenCount: (id: number) => void }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Link className="text-neutral-text-secondary hover:text-primary-text" to="/inventario">
+            <Link
+              aria-label="Volver al inventario"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-neutral-text-secondary hover:bg-neutral-surface hover:text-primary-text transition-colors"
+              to="/inventario"
+            >
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-2xl font-bold text-neutral-text-primary">Conteos Físicos</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">Conteos Físicos</h1>
           </div>
           <p className="mt-0.5 text-sm text-neutral-text-secondary">
             Conteo de inventario físico con ajuste automático
@@ -303,10 +311,15 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
     return (
       <div className="grid gap-5">
         <div className="flex items-center gap-2">
-          <button className="text-neutral-text-secondary hover:text-primary-text" onClick={onBack} type="button">
+          <button
+            aria-label="Volver a la lista de conteos"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-neutral-text-secondary hover:bg-neutral-surface hover:text-primary-text transition-colors"
+            onClick={onBack}
+            type="button"
+          >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Conteo</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">Conteo</h1>
         </div>
         <Card className="p-6">
           <ErrorState message="No se pudo cargar el conteo." onRetry={() => void countQuery.refetch()} />
@@ -349,13 +362,14 @@ function CountSession({ countId, onBack }: { countId: number; onBack: () => void
         <div>
           <div className="flex items-center gap-2">
             <button
-              className="text-neutral-text-secondary hover:text-primary-text"
+              aria-label="Volver a la lista de conteos"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-neutral-text-secondary hover:bg-neutral-surface hover:text-primary-text transition-colors"
               onClick={onBack}
               type="button"
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-2xl font-bold text-neutral-text-primary">Conteo #{count.id}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">Conteo #{count.id}</h1>
             <Badge
               tone={
                 count.status === "cerrado"

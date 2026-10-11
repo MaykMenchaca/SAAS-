@@ -6,7 +6,7 @@ import { CornerDownLeft, Search, Undo2 } from "lucide-react";
 
 import type { ReturnItemInput, SaleItem } from "../api/sales";
 import { getSale, listSales, returnSale } from "../api/sales";
-import { Badge, Button, Card, ErrorState, Input, Modal, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, Modal, PageHeader, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
 import { qk } from "../api/query-keys";
 import { invalidateAfterSale } from "../api/invalidate";
 
@@ -40,12 +40,10 @@ export function ReturnsPage() {
 
   return (
     <div className="grid gap-5">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-text-primary">Devoluciones</h1>
-        <p className="text-sm text-neutral-text-secondary">
-          Busca una venta por folio para devolver productos
-        </p>
-      </div>
+      <PageHeader
+        title="Devoluciones"
+        subtitle="Busca una venta por folio para devolver productos"
+      />
 
       {/* Search by folio */}
       <Card className="p-4">

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+﻿import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Bell, CloudOff, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -68,7 +68,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
         {total > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-on-danger text-[10px] font-bold leading-none border border-neutral-surface"
+            className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-on-danger text-xs font-bold leading-none border border-neutral-surface"
           >
             {total > 9 ? "9+" : total}
           </span>

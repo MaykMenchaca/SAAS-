@@ -23,7 +23,8 @@ import {
   updateUnit,
   deleteUnit,
 } from "../api/products";
-import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Pagination, Select, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { formatStock } from "../lib/formatters";
 import { qk } from "../api/query-keys";
 
 type ProductFormState = {
@@ -192,17 +193,17 @@ export function ProductsPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Productos</h1>
-          <p className="text-sm text-neutral-text-secondary">Catálogo, categorías y unidades de medida</p>
-        </div>
-        {activeTab === "productos" && (
-          <Button icon={<PackagePlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
-            Nuevo
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Productos"
+        subtitle="Catálogo, categorías y unidades de medida"
+        actions={
+          activeTab === "productos" ? (
+            <Button icon={<PackagePlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
+              Nuevo
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Tab Navigation */}
       <nav className="flex gap-1 overflow-x-auto rounded-lg border border-neutral-border bg-neutral-bg p-1">
@@ -315,7 +316,7 @@ export function ProductsPage() {
                             {lowStock ? (
                               <Badge tone="warning">
                                 <AlertTriangle aria-hidden="true" className="mr-1 inline" size={12} />
-                                {lowStock.quantity} / min {lowStock.min_stock}
+                                {formatStock(lowStock.quantity)} / mín. {formatStock(lowStock.min_stock)}
                               </Badge>
                             ) : null}
                           </div>

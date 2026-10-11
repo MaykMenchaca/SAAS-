@@ -24,7 +24,7 @@ import { createAgentKey, listCashRegisters, updateCashRegister } from "../api/sa
 import { useServerStatus } from "../hooks/useServerStatus";
 import { queryClient } from "../lib/query-client";
 import { usePosStore } from "../stores/pos-store";
-import { Badge, Button, Card, ErrorState, Input, Modal, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, Modal, PageHeader, Pagination, Select, Skeleton, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ const tabs: { id: Tab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "cajas", label: "Cajas", icon: Printer },
   { id: "auditoria", label: "Auditoría", icon: ScrollText },
-  { id: "backups", label: "Backups", icon: Database },
+  { id: "backups", label: "Respaldos", icon: Database },
 ];
 
 function formatBytes(bytes: number): string {
@@ -58,12 +58,10 @@ export function SettingsPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Configuración</h1>
-          <p className="text-sm text-neutral-text-secondary">Ajustes del sistema, auditoría y respaldos</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Configuración"
+        subtitle="Ajustes del sistema, auditoría y respaldos"
+      />
 
       {/* Tab Navigation */}
       <nav className="flex gap-1 overflow-x-auto rounded-lg border border-neutral-border bg-neutral-bg p-1">
@@ -667,14 +665,14 @@ function BackupsTab() {
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-neutral-text-secondary">
-          Respaldos de la base de datos. Los backups se almacenan localmente.
+          Respaldos de la base de datos. Los respaldos se almacenan localmente.
         </p>
         <Button
           disabled={createMutation.isPending}
           icon={<Download aria-hidden="true" size={17} />}
           onClick={() => createMutation.mutate()}
         >
-          {createMutation.isPending ? "Creando..." : "Crear backup"}
+          {createMutation.isPending ? "Creando..." : "Crear respaldo"}
         </Button>
       </div>
 
@@ -686,7 +684,7 @@ function BackupsTab() {
               <th className={tableHeadClass}>Archivo</th>
               <th className={`${tableHeadClass} text-right`}>Tamaño</th>
               <th className={tableHeadClass}>Fecha</th>
-              <th className={tableHeadClass}>Acciónes</th>
+              <th className={tableHeadClass}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -744,7 +742,7 @@ function BackupsTab() {
               <tr>
                 <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={4}>
                   <Database aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                  Sin backups. Crea el primero.
+                  Sin respaldos. Crea el primero.
                 </td>
               </tr>
             ) : null}

@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AxiosError } from "axios";
 import { KeyRound, LogIn, UserRound } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -22,6 +22,10 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+
+  useEffect(() => {
+    document.title = "Iniciar Sesión · VRNTAS POS";
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate replace to="/" />;

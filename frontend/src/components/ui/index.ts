@@ -8,6 +8,7 @@ export { ErrorState } from "./error-state";
 export { FilterChip } from "./filter-chip";
 export { Input } from "./input";
 export { Modal } from "./modal";
+export { PageHeader } from "./page-header";
 export { Pagination } from "./pagination";
 export { Select } from "./select";
 export { Skeleton, SkeletonKPI, SkeletonTable } from "./skeleton";

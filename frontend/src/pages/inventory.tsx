@@ -7,8 +7,8 @@ import { Link } from "react-router-dom";
 
 import type { StockAdjustPayload, StockItem, StockMovement } from "../api/inventory";
 import { adjustStock, listMovements, listStock } from "../api/inventory";
-import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Input, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
-import { formatStock } from "../lib/formatters";
+import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Input, Modal, PageHeader, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { formatStock, formatStockLimits } from "../lib/formatters";
 import { qk } from "../api/query-keys";
 import { invalidateInventory } from "../api/invalidate";
 
@@ -48,17 +48,17 @@ export function InventoryPage() {
   return (
     <div className="grid gap-5">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Inventario</h1>
-          <p className="text-sm text-neutral-text-secondary">Stock actual y movimientos</p>
-        </div>
-        <Link to="/inventario/conteo">
-          <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
-            Conteo físico
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Inventario"
+        subtitle="Stock actual y movimientos"
+        actions={
+          <Link to="/inventario/conteo">
+            <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
+              Conteo físico
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Filter Chips */}
       <div className="flex flex-wrap gap-2">
@@ -96,7 +96,7 @@ export function InventoryPage() {
                 <tr>
                   <th className={tableHeadClass}>Producto</th>
                   <th className={`${tableHeadClass} text-right`}>Stock</th>
-                  <th className={tableHeadClass}>Min / Max</th>
+                  <th className={tableHeadClass}>Mín / Máx</th>
                   <th className={tableHeadClass}>Estado</th>
                   <th className={tableHeadClass}>Acciones</th>
                 </tr>
@@ -116,8 +116,8 @@ export function InventoryPage() {
                       <td className={`${tableCellClass} text-right font-mono font-semibold ${isLow ? "text-danger" : ""}`}>
                         {formatStock(item.quantity)} {item.unit_abbreviation}
                       </td>
-                      <td className={`${tableCellClass} text-neutral-text-secondary`}>
-                        {formatStock(item.min_stock)} / {formatStock(item.max_stock)}
+                      <td className={`${tableCellClass} text-neutral-text-secondary text-xs`}>
+                        {formatStockLimits(item.min_stock, item.max_stock)}
                       </td>
                       <td className={tableCellClass}>
                         {isLow ? (

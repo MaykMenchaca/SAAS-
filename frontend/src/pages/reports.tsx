@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+﻿import type { FormEvent } from "react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,7 +17,7 @@ import {
 
 import type { GrossMarginReport, InventoryValuation, SalesReport, TopProductsReport } from "../api/reports";
 import { fetchGrossMargin, fetchInventoryValuation, fetchSalesReport, fetchTopProducts } from "../api/reports";
-import { Badge, Button, Card, ErrorState, Input, SkeletonKPI, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, PageHeader, SkeletonKPI, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency } from "../lib/formatters";
 import { qk } from "../api/query-keys";
@@ -89,12 +89,10 @@ export function ReportsPage() {
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Reportes</h1>
-          <p className="text-sm text-neutral-text-secondary">Análisis de ventas, inventario y rentabilidad</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Reportes"
+        subtitle="Análisis de ventas, inventario y rentabilidad"
+      />
 
       {/* Tab Navigation */}
       <nav className="flex gap-1 overflow-x-auto rounded-lg border border-neutral-border bg-neutral-bg p-1">
@@ -729,7 +727,7 @@ function PaymentMethodsDonut({ data }: { data: { method: string; count: number; 
           ))}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] text-neutral-text-secondary">Total</span>
+          <span className="text-xs text-neutral-text-secondary">Total</span>
           <span className="text-xs font-bold text-neutral-text-primary">${total.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
@@ -859,7 +857,7 @@ function DailySalesChart({ data }: { data: DailyPoint[] }) {
           ))}
         </svg>
       </div>
-      <div className="flex justify-between px-2 text-[10px] text-neutral-text-secondary mt-1">
+      <div className="flex justify-between px-2 text-xs text-neutral-text-secondary mt-1">
         <span>{formatShortDate(data[0].date)}</span>
         {data.length > 2 ? <span>{formatShortDate(data[Math.floor(data.length / 2)].date)}</span> : null}
         <span>{formatShortDate(data[data.length - 1].date)}</span>

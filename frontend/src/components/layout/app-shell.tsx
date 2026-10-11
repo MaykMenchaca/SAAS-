@@ -1,4 +1,4 @@
-import {
+﻿import {
   BarChart3,
   Boxes,
   Calculator,
@@ -146,7 +146,7 @@ function TopbarClock() {
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
   }, []);
-  return <span className="font-mono text-[11px] text-neutral-text-muted">{timeStr}</span>;
+  return <span className="font-mono text-xs text-neutral-text-muted">{timeStr}</span>;
 }
 
 
@@ -172,7 +172,7 @@ function NavBadge({ count, tone, collapsed }: { count: number; tone: "warning" |
   return (
     <span
       className={cn(
-        "ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none min-w-5 text-center",
+        "ml-auto rounded-full px-1.5 py-0.5 text-xs font-bold leading-none min-w-5 text-center",
         toneClasses,
       )}
     >
@@ -222,6 +222,11 @@ export function AppShell() {
     queryKey: qk.branding(),
     queryFn: getBranding,
   });
+
+  useEffect(() => {
+    const brandName = brandingQuery.data?.company_name || "VRNTAS POS";
+    document.title = `${pageTitle} · ${brandName}`;
+  }, [pageTitle, brandingQuery.data?.company_name]);
 
   // Dynamic company brand customization state
   const isAdmin = user?.role === "admin";
@@ -355,7 +360,7 @@ export function AppShell() {
               <p className="text-sm font-bold text-white leading-tight transition-colors truncate">
                 {brandingQuery.data?.company_name || "Ferretería"}
               </p>
-              <p className="text-[10px] tracking-wider text-sidebar-text uppercase truncate">
+              <p className="text-xs tracking-wider text-sidebar-text uppercase truncate">
                 {brandingQuery.data?.company_subtitle || "VRNTAS POS"}
               </p>
             </div>
@@ -381,7 +386,7 @@ export function AppShell() {
           {visibleSections.map((section) => (
             <div key={section.label} className="space-y-1">
               {!isCollapsed ? (
-                <div className="text-[10px] font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2 fade-in">
+                <div className="text-xs font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2 fade-in">
                   {section.label}
                 </div>
               ) : (
@@ -446,7 +451,7 @@ export function AppShell() {
           ) : (
             <div className="fade-in space-y-3">
               {sessionId && (
-                <Badge className="w-full justify-center border-success/30 bg-success/10 text-success text-[10px] py-0.5" dot tone="success">
+                <Badge className="w-full justify-center border-success/30 bg-success/10 text-success text-xs py-0.5" dot tone="success">
                   {sessionName ?? "Turno activo"}
                 </Badge>
               )}
@@ -457,7 +462,7 @@ export function AppShell() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-white">{user?.full_name ?? "Usuario"}</p>
-                  <p className="truncate text-[10px] text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
+                  <p className="truncate text-xs text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
                 </div>
                 <button
                   onClick={() => void logout()}
@@ -480,7 +485,7 @@ export function AppShell() {
             {/* Mobile menu button (UI-03, UI-05) */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 cursor-pointer shadow-sm shrink-0"
+              className="lg:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 shadow-sm shrink-0"
               aria-label="Abrir menú de navegación"
             >
               <Menu size={18} />
@@ -489,7 +494,7 @@ export function AppShell() {
             {/* Sidebar toggle button (desktop) */}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm shrink-0"
+              className="hidden lg:flex h-9 w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 shadow-sm shrink-0"
               title={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
               aria-label={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
             >
@@ -514,7 +519,7 @@ export function AppShell() {
             >
               <Search className="text-neutral-text-muted shrink-0" size={14} />
               <span className="flex-1 text-left truncate">Buscar páginas, productos...</span>
-              <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
+              <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-neutral-text-secondary">
                 {cmdKey}K
               </kbd>
             </button>
@@ -522,7 +527,7 @@ export function AppShell() {
             {/* Mobile search trigger icon */}
             <button
               aria-label="Buscar"
-              className="sm:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 cursor-pointer shadow-sm shrink-0"
+              className="sm:hidden flex h-11 w-11 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-colors active:scale-95 shadow-sm shrink-0"
               onClick={() => commandPalette.setOpen(true)}
               type="button"
             >
@@ -570,7 +575,7 @@ export function AppShell() {
             <button
               aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               onClick={toggleTheme}
-              className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 cursor-pointer shadow-sm shrink-0"
+              className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 shadow-sm shrink-0"
               type="button"
               title={theme === "dark" ? "Modo Claro" : "Modo Oscuro"}
             >
@@ -649,7 +654,7 @@ export function AppShell() {
                   <p className="text-sm font-bold text-white leading-tight truncate">
                     {brandingQuery.data?.company_name || "Ferretería"}
                   </p>
-                  <p className="text-[10px] tracking-wider text-sidebar-text uppercase truncate">
+                  <p className="text-xs tracking-wider text-sidebar-text uppercase truncate">
                     {brandingQuery.data?.company_subtitle || "VRNTAS POS"}
                   </p>
                 </div>
@@ -669,7 +674,7 @@ export function AppShell() {
             <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-6">
               {visibleSections.map((section) => (
                 <div key={section.label} className="space-y-1">
-                  <div className="text-[10px] font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2">
+                  <div className="text-xs font-semibold text-sidebar-muted/80 uppercase tracking-widest px-4 mb-2">
                     {section.label}
                   </div>
                   <div className="space-y-0.5">
@@ -707,7 +712,7 @@ export function AppShell() {
             {/* Drawer footer */}
             <div className="border-t border-white/10 p-4 shrink-0 space-y-3">
               {sessionId && (
-                <Badge className="w-full justify-center border-success/30 bg-success/10 text-success text-[10px] py-1" dot tone="success">
+                <Badge className="w-full justify-center border-success/30 bg-success/10 text-success text-xs py-1" dot tone="success">
                   {sessionName ?? "Turno activo"}
                 </Badge>
               )}
@@ -717,7 +722,7 @@ export function AppShell() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-white">{user?.full_name ?? "Usuario"}</p>
-                  <p className="truncate text-[10px] text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
+                  <p className="truncate text-xs text-sidebar-text capitalize">{user?.role ?? "rol"}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -760,7 +765,7 @@ export function AppShell() {
           <div className="space-y-5">
             {/* Live Preview Card */}
             <div className="rounded-lg bg-sidebar-bg p-4 border border-white/10 text-white shadow-inner">
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Vista Previa en Barra Lateral</div>
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Vista Previa en Barra Lateral</div>
               <div className="flex items-center gap-3">
                 {(() => {
                   const IconComp = LOGO_ICONS[tempIcon as keyof typeof LOGO_ICONS] || ShoppingCart;
@@ -795,7 +800,7 @@ export function AppShell() {
                 })()}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-tight truncate">{tempName || "Ferretería"}</p>
-                  <p className="text-[10px] tracking-wider uppercase text-slate-400 truncate">{tempSubtitle || "VRNTAS POS"}</p>
+                  <p className="text-xs tracking-wider uppercase text-slate-400 truncate">{tempSubtitle || "VRNTAS POS"}</p>
                 </div>
               </div>
             </div>
@@ -870,7 +875,7 @@ export function AppShell() {
             <div className="space-y-2 pt-2">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold text-neutral-text-secondary">Color Personalizado (Matiz / Hue)</label>
-                <span className="text-[10px] font-mono text-neutral-text-muted">
+                <span className="text-xs font-mono text-neutral-text-muted">
                   {isCustomColor(tempColor) ? `${tempColor}°` : "Por defecto"}
                 </span>
               </div>

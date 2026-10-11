@@ -6,9 +6,9 @@ import { getLowStock } from "../api/inventory";
 import type { OpenSessionSummary } from "../api/reports";
 import { fetchDashboardSummary } from "../api/reports";
 import { listSales } from "../api/sales";
-import { Badge, Button, Card, ErrorState, SkeletonKPI, SkeletonTable } from "../components/ui";
+import { Badge, Button, Card, ErrorState, PageHeader, SkeletonKPI, SkeletonTable } from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
-import { formatCurrency } from "../lib/formatters";
+import { formatCurrency, formatStock } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
 import { qk } from "../api/query-keys";
 
@@ -126,10 +126,7 @@ export function DashboardPage() {
   return (
     <div className="grid gap-5">
       {/* Page Title */}
-      <div>
-        <h1 className="text-xl font-bold text-neutral-text-primary">Dashboard</h1>
-        <p className="text-xs text-neutral-text-secondary">Resumen operativo del negocio</p>
-      </div>
+      <PageHeader title="Dashboard" subtitle="Resumen operativo del negocio" />
 
       {/* Turno: datos reales de las sesiones abiertas (H-27) */}
       {data ? <ShiftBanner sessions={data.open_sessions} userId={user?.id} /> : null}
@@ -189,14 +186,14 @@ export function DashboardPage() {
             }[kpi.tone];
 
             return (
-              <Card className="p-4 flex flex-col justify-between h-[105px]" key={kpi.label}>
+              <Card className="p-4 flex flex-col justify-between min-h-[115px]" key={kpi.label}>
                 <div className="flex items-start justify-between gap-3">
                   <div className={`flex h-8 w-8 items-center justify-center rounded border ${toneClasses}`}>
                     <Icon aria-hidden="true" size={16} />
                   </div>
                   {kpi.delta ? (
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      className={`text-xs font-bold px-2 py-0.5 rounded ${
                         kpi.delta.startsWith("−")
                           ? "bg-danger/10 text-danger"
                           : kpi.tone === "warning"
@@ -208,9 +205,9 @@ export function DashboardPage() {
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-[11px] font-medium text-neutral-text-secondary">{kpi.label}</span>
-                  <span className="font-mono text-xl font-bold text-neutral-text-primary">{kpi.value}</span>
+                <div className="mt-2 flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-medium text-neutral-text-secondary">{kpi.label}</span>
+                  <span className="font-mono text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">{kpi.value}</span>
                 </div>
               </Card>
             );
@@ -224,7 +221,7 @@ export function DashboardPage() {
         <Card className="p-4 flex flex-col justify-between min-w-0 overflow-hidden">
           <div>
             <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Rendimiento Semanal</h2>
-            <p className="text-[11px] text-neutral-text-muted mt-0.5">Ventas diarias — Últimos 7 días</p>
+            <p className="text-xs text-neutral-text-muted mt-0.5">Ventas diarias — Últimos 7 días</p>
           </div>
 
           {weeklySalesQuery.isLoading ? (
@@ -241,11 +238,11 @@ export function DashboardPage() {
                       className="w-full bg-primary/20 hover:bg-primary rounded-t transition-[height,background-color] duration-300 ease-[var(--ease-out-strong)] relative group cursor-default"
                       style={{ height: `${pct}%` }}
                     >
-                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-pos-total-bg text-pos-total-text text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-neutral-border/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md z-10">
+                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-pos-total-bg text-pos-total-text text-xs font-mono font-bold px-1.5 py-0.5 rounded border border-neutral-border/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md z-10">
                         ${stat.value.toFixed(2)}
                       </span>
                     </div>
-                    <span className="font-mono text-[9px] text-neutral-text-muted mb-1 truncate">{stat.label}</span>
+                    <span className="font-mono text-xs text-neutral-text-muted mb-1 truncate">{stat.label}</span>
                   </div>
                 );
               })}
@@ -253,17 +250,17 @@ export function DashboardPage() {
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-3 text-xs">
-            <div className="flex items-center gap-4 text-[10px] text-neutral-text-secondary">
+            <div className="flex items-center gap-4 text-xs text-neutral-text-secondary">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded bg-primary" />
                 <span>Ingreso diario</span>
               </div>
-              <div className="text-[10px] text-neutral-text-muted">
+              <div className="text-xs text-neutral-text-muted">
                 Promedio: ${(chartTotal / 7).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="text-left sm:text-right">
-              <span className="text-[10px] text-neutral-text-muted mr-1.5">Total semana:</span>
+              <span className="text-xs text-neutral-text-muted mr-1.5">Total semana:</span>
               <span className="font-mono font-bold text-neutral-text-primary">
                 ${chartTotal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -276,9 +273,9 @@ export function DashboardPage() {
           <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
             <div>
               <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Stock Crítico</h2>
-              <p className="text-[10px] text-neutral-text-muted mt-0.5">Productos bajo el mínimo</p>
+              <p className="text-xs text-neutral-text-muted mt-0.5">Productos bajo el mínimo</p>
             </div>
-            <Link className="text-[10px] font-bold text-primary-text hover:underline" to="/inventario">Ver todo</Link>
+            <Link className="text-xs font-bold text-primary-text hover:underline" to="/inventario">Ver todo</Link>
           </div>
 
           {lowStockItems.length === 0 ? (
@@ -294,13 +291,13 @@ export function DashboardPage() {
                   <div className="py-2 flex items-center justify-between gap-3 text-xs" key={item.id}>
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-neutral-text-primary truncate">{item.product_name}</div>
-                      <div className="font-mono text-[9px] text-neutral-text-muted uppercase mt-0.5">{item.sku}</div>
+                      <div className="font-mono text-xs text-neutral-text-muted uppercase mt-0.5">{item.sku}</div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className={`font-mono font-bold ${isCritical ? "text-danger" : "text-warning"}`}>
-                        {qty} {item.unit_abbreviation}
+                        {formatStock(qty)} {item.unit_abbreviation}
                       </div>
-                      <div className="text-[9px] text-neutral-text-muted">Mín: {min}</div>
+                      <div className="text-xs text-neutral-text-muted">Mín: {formatStock(min)}</div>
                     </div>
                   </div>
                 );
@@ -317,9 +314,9 @@ export function DashboardPage() {
           <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
             <div>
               <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Últimas Ventas</h2>
-              <p className="text-[10px] text-neutral-text-muted mt-0.5">Historial de tickets recientes</p>
+              <p className="text-xs text-neutral-text-muted mt-0.5">Historial de tickets recientes</p>
             </div>
-            <Link className="text-[10px] font-bold text-primary-text hover:underline" to="/ventas">Historial completo</Link>
+            <Link className="text-xs font-bold text-primary-text hover:underline" to="/ventas">Historial completo</Link>
           </div>
 
           {salesQuery.isLoading ? (
@@ -330,7 +327,7 @@ export function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-neutral-border text-neutral-text-muted uppercase text-[9px] tracking-wider bg-neutral-bg">
+                  <tr className="border-b border-neutral-border text-neutral-text-muted uppercase text-xs tracking-wider bg-neutral-bg">
                     <th className="py-2 px-3">Folio</th>
                     <th className="py-2 px-3">Cajero</th>
                     <th className="py-2 px-3">Estado</th>
@@ -360,7 +357,7 @@ export function DashboardPage() {
         <Card className="p-4">
           <div>
             <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Productos más vendidos</h2>
-            <p className="text-[10px] text-neutral-text-muted mt-0.5">Top del período mensual</p>
+            <p className="text-xs text-neutral-text-muted mt-0.5">Top del período mensual</p>
           </div>
 
           {dashboardQuery.isLoading ? (
@@ -375,14 +372,14 @@ export function DashboardPage() {
                   key={product.name}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border ${rankingClass(index)}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold border ${rankingClass(index)}`}>
                       {index + 1}
                     </span>
                     <span className="text-xs font-bold text-neutral-text-primary truncate">{product.name}</span>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-mono text-xs font-bold text-neutral-text-primary">${Number(product.revenue).toFixed(2)}</div>
-                    <div className="text-[9px] text-neutral-text-muted">{product.quantity} uds</div>
+                    <div className="text-xs text-neutral-text-muted">{formatStock(product.quantity)} {Number(product.quantity) === 1 ? "ud" : "uds"}</div>
                   </div>
                 </div>
               ))}
@@ -430,12 +427,12 @@ function ShiftBanner({ sessions, userId }: { sessions: OpenSessionSummary[]; use
       <div className="flex flex-wrap items-center gap-6">
         <div className="text-right">
           <div className="font-mono text-sm font-semibold text-neutral-text-primary">{formatCurrency(own.revenue)}</div>
-          <div className="text-[10px] text-neutral-text-muted">Vendido en turno</div>
+          <div className="text-xs text-neutral-text-muted">Vendido en turno</div>
         </div>
         <div className="w-px h-8 bg-neutral-border" />
         <div className="text-right">
           <div className="font-mono text-sm font-semibold text-neutral-text-primary">{own.count}</div>
-          <div className="text-[10px] text-neutral-text-muted">{own.count === 1 ? "Transacción" : "Transacciones"}</div>
+          <div className="text-xs text-neutral-text-muted">{own.count === 1 ? "Transacción" : "Transacciones"}</div>
         </div>
         <div className="w-px h-8 bg-neutral-border" />
         <Link to="/corte-caja">
