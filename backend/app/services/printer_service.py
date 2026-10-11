@@ -90,7 +90,7 @@ class PrinterService:
         ]
 
         for item in sale.items:
-            lines.append(shorten(item.product_name, width=PrinterService.WIDTH, placeholder="..."))
+            lines.append(shorten(PrinterService._clean(item.product_name), width=PrinterService.WIDTH, placeholder="..."))
             qty_price = f"{PrinterService._qty(item.quantity)} x {PrinterService._money(item.unit_price)}"
             lines.append(PrinterService._kv(qty_price, PrinterService._money(item.subtotal)))
             if item.discount_amount and item.discount_amount > 0:
@@ -130,7 +130,7 @@ class PrinterService:
         lines = [
             PrinterService._center(name),
             PrinterService._line(),
-            shorten(product.name, width=PrinterService.WIDTH, placeholder="..."),
+            shorten(PrinterService._clean(product.name), width=PrinterService.WIDTH, placeholder="..."),
             PrinterService._kv("SKU", product.sku),
             PrinterService._center(f"${PrinterService._decimal(product.sale_price):.2f}"),
             PrinterService._line(),
@@ -311,13 +311,22 @@ class PrinterService:
         return "-" * PrinterService.WIDTH
 
     @staticmethod
+    def _clean(value) -> str:
+        """Quita caracteres de control (C0, DEL y C1) de los datos: un nombre o una referencia con
+        ESC/GS no debe convertirse en un comando para la impresora, p. ej. abrir el cajón (SEC-100)."""
+        return "".join(
+            ch for ch in str(value) if not (ord(ch) < 0x20 or 0x7F <= ord(ch) <= 0x9F)
+        )
+
+    @staticmethod
     def _center(value: str) -> str:
+        value = PrinterService._clean(value)
         return value[: PrinterService.WIDTH].center(PrinterService.WIDTH).rstrip()
 
     @staticmethod
     def _kv(label: str, value: str) -> str:
-        label = str(label)
-        value = str(value)
+        label = PrinterService._clean(label)
+        value = PrinterService._clean(value)
         space = PrinterService.WIDTH - len(label) - len(value)
         if space < 1:
             return f"{label} {value}"[: PrinterService.WIDTH]

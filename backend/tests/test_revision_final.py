@@ -217,3 +217,22 @@ def test_cerrar_el_conteo_dos_veces_no_duplica_el_ajuste(db, seed_admin, seed_pr
     with pytest.raises(ValueError, match="cerrado"):
         InventoryCountService.close_count(count_id, admin_id)
     assert _stock(db, pid) == Decimal("90")
+
+
+# ── SEC-100: datos con caracteres de control no inyectan comandos ESC/POS ──
+
+def test_ticket_no_inyecta_comandos_escpos_desde_los_datos(db, seed_admin, seed_open_session, seed_product_for_sale):
+    from app.services.printer_service import PrinterService
+    from app.services.sale_service import SaleService
+
+    seed_product_for_sale.name = "Martillo\x1bp0\x19\x96"  # sin NUL: PostgreSQL lo rechaza
+    db.session.commit()
+    sale = SaleService.create_sale(
+        user_id=seed_admin.id, session_id=seed_open_session.id,
+        items=[{"product_id": seed_product_for_sale.id, "quantity": 1}],
+        payments=[{"method": "tarjeta", "amount": "116.00", "reference": "1234\x1bp0\x19\x96"}],
+    )
+    payload = PrinterService.build_payload(PrinterService.format_sale_ticket(sale), "cp850")
+    # Solo el ESC @ y el ESC t iniciales, y el ESC d del corte: ningún ESC p (pulso de cajón)
+    assert b"\x1bp" not in payload
+    assert payload.count(b"\x1b") == 3
