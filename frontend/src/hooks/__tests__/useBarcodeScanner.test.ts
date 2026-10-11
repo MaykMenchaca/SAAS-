@@ -91,4 +91,32 @@ describe("useBarcodeScanner", () => {
     expect(callback).not.toHaveBeenCalled();
     expect(newCallback).toHaveBeenCalledWith("987");
   });
+
+  it("evita que la ráfaga del lector se escriba en el campo con foco", () => {
+    renderHook(() => useBarcodeScanner(vi.fn()));
+    const eventos: KeyboardEvent[] = [];
+    act(() => {
+      for (const key of "75012") {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+        eventos.push(event);
+        window.dispatchEvent(event);
+        vi.advanceTimersByTime(10);
+      }
+    });
+    // Las dos primeras teclas aún no se distinguen del tipeo humano; de la tercera en adelante, sí
+    expect(eventos.map((e) => e.defaultPrevented)).toEqual([false, false, true, true, true]);
+  });
+
+  it("acepta un umbral configurable para lectores más lentos", () => {
+    const onScan = vi.fn();
+    renderHook(() => useBarcodeScanner(onScan, { maxIntervalMs: 120 }));
+    act(() => {
+      for (const key of "1234") {
+        simulateKeyPress(key);
+        vi.advanceTimersByTime(90);
+      }
+      simulateKeyPress("Enter");
+    });
+    expect(onScan).toHaveBeenCalledWith("1234");
+  });
 });

@@ -11,13 +11,14 @@ import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency, formatStock } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
 import { qk } from "../api/query-keys";
+import type { SalesReport } from "../api/reports";
 
 async function fetchWeeklySales() {
   const now = new Date();
   const fromStr = localISODate(addLocalDays(now, -6));
   const toStr = localISODate(now);
 
-  const response = await apiClient.get<any>("/reports/sales", {
+  const response = await apiClient.get<SalesReport>("/reports/sales", {
     params: { from: fromStr, to: toStr },
   });
   return response.data;
@@ -78,7 +79,7 @@ export function DashboardPage() {
 
   const chartData = last7Days.map((dateObj) => {
     const dateStr = localISODate(dateObj);
-    const match = dailyReportData.find((d: any) => d.date === dateStr);
+    const match = dailyReportData.find((d) => d.date === dateStr);
     const dayLabel = dateObj.toLocaleDateString("es-MX", { weekday: "short" }).toUpperCase().replace(".", "");
     return {
       label: dayLabel,

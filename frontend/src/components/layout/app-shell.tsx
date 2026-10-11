@@ -46,12 +46,13 @@ import { Badge, Button, Input, Modal } from "../ui";
 import { CommandPalette } from "./command-palette";
 import { useCommandPalette } from "./command-palette-context";
 import { qk } from "../../api/query-keys";
+import type { LucideIcon } from "lucide-react";
 
 type BadgeKey = keyof SidebarBadges;
 
 type NavItem = {
   href: string;
-  icon: any;
+  icon: LucideIcon;
   label: string;
   badgeKey?: BadgeKey;
   badgeTone?: "warning" | "danger" | "info";

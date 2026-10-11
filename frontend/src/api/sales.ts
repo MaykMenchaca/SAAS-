@@ -74,7 +74,8 @@ export type SaleListItem = {
 
 export type SaleItemInput = {
   product_id: number;
-  quantity: number;
+  /** Decimal como texto con 3 decimales ("1.500"), igual que el resto de montos. */
+  quantity: string;
   unit_price: string;
   tax_rate: string;
   discount_percent?: string;
@@ -209,7 +210,7 @@ export type SaleQuoteResponse = {
 export type SaleQuotePayload = {
   items: Array<{
     product_id: number;
-    quantity: number;
+    quantity: string;
     discount_percent?: string;
   }>;
   session_id?: number;

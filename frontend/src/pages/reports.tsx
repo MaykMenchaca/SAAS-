@@ -176,7 +176,7 @@ function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
     {
       icon: CircleDollarSign,
       label: "Ingreso total",
-      value: isLoading ? "..." : `$${data?.total_revenue ?? "0.00"}`,
+      value: isLoading ? "..." : formatCurrency(data?.total_revenue ?? "0"),
     },
     {
       icon: XCircle,

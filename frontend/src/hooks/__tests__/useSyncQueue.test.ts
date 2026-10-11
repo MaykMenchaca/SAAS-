@@ -49,7 +49,7 @@ describe("useSyncQueue / syncOfflineQueue", () => {
       items: [
         {
           product_id: 1,
-          quantity: 1,
+          quantity: "1.000",
           unit_price: "100.00",
           tax_rate: "16.00",
         },
@@ -90,7 +90,7 @@ describe("useSyncQueue / syncOfflineQueue", () => {
       items: [
         {
           product_id: 1,
-          quantity: 999,
+          quantity: "999.000",
           unit_price: "100.00",
           tax_rate: "16.00",
         },

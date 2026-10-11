@@ -26,6 +26,7 @@ import { closeCashRegister, getSessionSummary, listSessions } from "../api/sales
 import { usePosStore } from "../stores/pos-store";
 import { Badge, Button, Card, ErrorState, Modal, PageHeader, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
 import { qk } from "../api/query-keys";
+import { formatCurrency } from "../lib/formatters";
 
 // ── Denomination Config ──────────────────────────────────────────
 
@@ -435,13 +436,13 @@ function CashSessionDetailsView({
         labelText = "Faltante en caja (Arqueo menor al esperado)";
         labelColor = "text-danger";
         valColor = "text-danger font-bold";
-        diffDisplay = `-$${Math.abs(difference).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        diffDisplay = `-${formatCurrency(Math.abs(difference))}`;
       } else {
         bannerBg = "bg-warning/10 dark:bg-warning/20 border border-warning/20";
         labelText = "Sobrante en caja (Arqueo mayor al esperado)";
         labelColor = "text-warning";
         valColor = "text-warning font-bold";
-        diffDisplay = `+$${difference.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        diffDisplay = `+${formatCurrency(difference)}`;
       }
     }
   }
@@ -491,17 +492,17 @@ function CashSessionDetailsView({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
             label="Ventas del Turno"
-            value={`$${Number(summary.grand_total).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`}
+            value={formatCurrency(summary.grand_total)}
             meta={`${summary.sales_completed} transacciones (${summary.sales_cancelled} canceladas)`}
           />
           <StatCard
             label="Fondo Inicial (Apertura)"
-            value={`$${Number(summary.opening_amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`}
+            value={formatCurrency(summary.opening_amount)}
             meta="Registrado al abrir caja"
           />
           <StatCard
             label="Efectivo Esperado"
-            value={`$${expectedCash !== null ? expectedCash.toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "0.00"}`}
+            value={formatCurrency(expectedCash ?? 0)}
             meta="Monto inicial + ventas en efectivo"
           />
         </div>

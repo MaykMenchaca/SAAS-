@@ -1018,7 +1018,7 @@ function UnitsTab() {
       closeUnitModal();
       toast.success("Unidad de medida creada con éxito.");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       const msg = err instanceof AxiosError ? err.response?.data?.error ?? "Error al crear la unidad." : "Error al crear la unidad.";
       toast.error(msg);
     },
@@ -1032,7 +1032,7 @@ function UnitsTab() {
       closeUnitModal();
       toast.success("Unidad de medida actualizada con éxito.");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       const msg = err instanceof AxiosError ? err.response?.data?.error ?? "Error al actualizar la unidad." : "Error al actualizar la unidad.";
       toast.error(msg);
     },
@@ -1045,7 +1045,7 @@ function UnitsTab() {
       toast.success("Unidad de medida eliminada con éxito.");
       setConfirmDeleteId(null);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       const details = err instanceof AxiosError ? err.response?.data?.details?.error?.[0] || err.response?.data?.error : null;
       toast.error(details ?? "No se puede eliminar la unidad porque está asociada a productos.");
       setConfirmDeleteId(null);
