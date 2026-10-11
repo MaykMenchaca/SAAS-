@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, getStoredRefreshToken } from "./client";
 
 export type AuthUser = {
   id: number;
@@ -53,5 +53,7 @@ export async function refreshRequest(refreshToken: string) {
 }
 
 export async function logoutRequest() {
-  await apiClient.post("/auth/logout");
+  // Se envía el refresh token para que el servidor también lo revoque (SEC-103); si no, seguiría
+  // sirviendo 7 días para obtener tokens nuevos aunque se haya cerrado la sesión
+  await apiClient.post("/auth/logout", { refresh_token: getStoredRefreshToken() ?? undefined });
 }

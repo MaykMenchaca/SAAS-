@@ -26,11 +26,23 @@ function errorMessage(error: unknown) {
   return "Error desconocido";
 }
 
-/** 4xx (salvo 401/408/429) = el servidor rechazó la venta; reintentar no la arreglará. */
-function isPermanentRejection(error: unknown) {
+/** Errores de sesión, no de la venta: token inválido (422 {msg}) o contraseña/usuario (403 con code). */
+function isAuthError(error: unknown) {
   if (!isAxiosError(error) || !error.response) return false;
+  const { status, data } = error.response;
+  if (status === 401) return true;
+  if (status === 422 && typeof data?.msg === "string" && !data?.error) return true;
+  return status === 403 && ["password_change_required", "user_inactive"].includes(data?.code);
+}
+
+/**
+ * 4xx (salvo 401/408/429 y errores de sesión) = el servidor rechazó la venta; reintentar no la
+ * arreglará. Un problema de sesión no es culpa de la venta: no se rechaza, se reintenta (FE-105).
+ */
+function isPermanentRejection(error: unknown) {
+  if (!isAxiosError(error) || !error.response || isAuthError(error)) return false;
   const status = error.response.status;
-  return status >= 400 && status < 500 && ![401, 408, 429].includes(status);
+  return status >= 400 && status < 500 && ![408, 429].includes(status);
 }
 
 function scheduleRetry() {

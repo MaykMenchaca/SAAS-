@@ -125,4 +125,41 @@ describe("useSyncQueue / syncOfflineQueue", () => {
     expect(rejected.length).toBe(1);
     expect(rejected[0].error).toBe("Stock insuficiente");
   });
+
+  // FE-105: un problema de sesión no es culpa de la venta; se conserva en la cola para reintentar
+  it.each([
+    ["contraseña temporal", 403, { error: "Debes cambiar tu contraseña", code: "password_change_required" }],
+    ["usuario desactivado", 403, { error: "Usuario inactivo", code: "user_inactive" }],
+    ["token inválido", 422, { msg: "Signature verification failed" }],
+    ["sesión expirada", 401, { msg: "Token has expired" }],
+  ])("no rechaza la venta por %s", async (_name, status, data) => {
+    const mockSale = {
+      client_uuid: "uuid-auth", session_id: 1,
+      items: [{ product_id: 1, quantity: "1.000", unit_price: "100.00", tax_rate: "16.00" }],
+      payments: [{ method: "efectivo", amount: "116.00" }], open_drawer: false,
+    } as salesApi.CreateSalePayload;
+    usePosStore.setState({ offlineSalesQueue: [{ userId: 1, queuedAt: new Date().toISOString(), sale: mockSale }] });
+    vi.mocked(salesApi.createSale).mockRejectedValueOnce({ isAxiosError: true, response: { status, data } });
+
+    await syncOfflineQueue();
+
+    expect(usePosStore.getState().offlineSalesQueue.length).toBe(1);
+    expect(usePosStore.getState().rejectedSales.length).toBe(0);
+  });
+
+  it("sí rechaza un 422 de validación de la venta", async () => {
+    const mockSale = {
+      client_uuid: "uuid-422", session_id: 1,
+      items: [{ product_id: 1, quantity: "1.000", unit_price: "100.00", tax_rate: "16.00" }],
+      payments: [{ method: "efectivo", amount: "116.00" }], open_drawer: false,
+    } as salesApi.CreateSalePayload;
+    usePosStore.setState({ offlineSalesQueue: [{ userId: 1, queuedAt: new Date().toISOString(), sale: mockSale }] });
+    vi.mocked(salesApi.createSale).mockRejectedValueOnce({
+      isAxiosError: true, response: { status: 422, data: { error: "Datos inválidos", details: {} } },
+    });
+
+    await syncOfflineQueue();
+
+    expect(usePosStore.getState().rejectedSales.length).toBe(1);
+  });
 });

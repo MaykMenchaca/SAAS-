@@ -14,7 +14,7 @@ import { createSale, getSession, listCashRegisters, listSessions, openCashRegist
 import { Badge, Button, Card, Input, Modal } from "../components/ui";
 import { useAuthStore } from "../stores/auth-store";
 import type { CartItem } from "../stores/pos-store";
-import { calcLineTotal, getCartTotals, usePosStore } from "../stores/pos-store";
+import { calcLineTotal, getCartTotals, usePosStore, sumPaymentsCents, toCents } from "../stores/pos-store";
 import { useBarcodeScanner } from "../hooks/useBarcodeScanner";
 import { qk } from "../api/query-keys";
 import { useCommandPalette } from "../components/layout/command-palette-context";
@@ -850,17 +850,21 @@ function PaymentModal({
   }, [sessionId, cart, initialPaymentId]);
 
   // Calculate totals
-  const paidTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const remaining = Math.round((total - paidTotal) * 100) / 100;
+  // Sumas y comparaciones en centavos enteros: 10 + 1.13 en flotantes da 11.129999… y dejaba
+  // deshabilitado "Completar cobro" con el pago exacto (FE-104)
+  const paidCents = sumPaymentsCents(payments);
+  const totalCents = toCents(total);
+  const paidTotal = paidCents / 100;
+  const remaining = (totalCents - paidCents) / 100;
 
   // For the last cash payment, calculate change
   const lastCashPayment = [...payments].reverse().find((p) => p.method === "efectivo");
   const cashChange =
     lastCashPayment && remaining <= 0
-      ? Math.max(0, Math.round((paidTotal - total) * 100) / 100)
+      ? Math.max(0, (paidCents - totalCents) / 100)
       : 0;
 
-  const isPaymentSufficient = paidTotal >= total;
+  const isPaymentSufficient = paidCents >= totalCents;
 
   function addPayment() {
     const nextId = ++paymentIdCounter;

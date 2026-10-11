@@ -79,6 +79,16 @@ type PosState = {
  * Redondeo bancario (HALF_EVEN) para centavos.
  * Si la parte fraccionaria es exactamente 0.5, redondea al entero par más cercano.
  */
+/** Importe (número o texto) a centavos enteros; vacío o inválido cuenta como 0. */
+export function toCents(value: number | string): number {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+/** Suma de pagos en centavos enteros: evita que 10 + 1.13 = 11.129999… bloquee el cobro exacto (FE-104). */
+export function sumPaymentsCents(payments: { amount: number | string }[]): number {
+  return payments.reduce((sum, p) => sum + toCents(p.amount), 0);
+}
+
 export function roundHalfEvenCents(cents: number): number {
   const floor = Math.floor(cents);
   const diff = cents - floor;
