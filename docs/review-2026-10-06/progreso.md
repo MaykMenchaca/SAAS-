@@ -80,10 +80,11 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 ## Fase 6: Calidad continua · la 6.3 se adelanta después del gate F0
 - [x] 6.1 Tests sin app context compartido + rollbacks (H-34) · tests: `test_h34_isolation.py` (3 tests) · decorador `@with_rollback` aplicado en todos los servicios mutadores (`SaleService`, `PurchaseOrderService`, `InventoryCountService`, `UserService`, `ProductService`, `InventoryService`), `expire_on_commit=False` en SQLAlchemy, `IsolatedClient` en tests con limpieza de sesión `_db.session.remove()` antes y después de cada llamada, y fixtures persistidas con commit en BD real
 - [x] 6.2 Vitest + Playwright · Vitest configurado con 12 tests unitarios pasando (`pos-store.test.ts` para `getCartTotals`, `useBarcodeScanner.test.ts` con patrón latest ref, `useSyncQueue.test.ts` para sincronización offline y reintentos), y suite Playwright (`playwright.config.ts`, `e2e/critical-flows.spec.ts`) para flujos críticos (venta, devolución y corte)
-- [ ] 6.3 CI, hooks versionados, `tools/` y README (H-50)
+- [x] 6.1-ajuste (Claude) · commit 51dd0e2 · bug real: la auditoría de configuración y de respaldos se perdía (log_action tras el commit); 5 tests rotos por el aislamiento de 6.1 corregidos (siembra sin commit / objetos fuera de sesión) · `test_auditoria_persistente_fase6.py` (3)
+- [ ] 6.3 CI, hooks versionados, `tools/` y README (H-50) · en curso por Gemini (rama `fix/fase-6`)
 - [ ] 6.4 Dependencias, CORS y paginación (H-35, H-45)
-- [ ] 6.5 Constraints, índices, `parse_date`, folios (H-33, H-32, H-52) ⚠️ folios
-- [ ] 6.6 Limpieza del frontend (H-41, H-46, H-47, H-48, H-55)
+- [x] 6.5 Constraints, índices, `parse_date`, folios (H-33, H-32, H-52) ⚠️ folios · commit 7e9bc02 (rama `fix/fase-6-claude`, Claude) · tests: `test_modelo_datos_fase6.py` (12), suite 418 passed · CHECK stock/pagos, 6 índices + trigram declarado, IntegrityError → 409 (fechas → 400 desde 4.14), migración `c9d0e1f2a3b4` (**sin aplicar a pos_db**; datos verificados: 0 violaciones), folios con huecos documentados
+- [x] 6.6 Limpieza del frontend (H-41, H-46, H-47, H-48, H-55) · commit 645d6f4 (rama `fix/fase-6-claude`, Claude) · Vitest 14 passed, build OK · sin `any`, SW solo en producción con versión y sin caché de /api, cantidades como texto, 422 de JWT cierra sesión, escáner configurable con preventDefault en ráfaga, `formatCurrency` en todos los montos
 - [ ] **Gate fase 6**
 - [ ] **Re-revisión completa** (`/revision-agentes`, los 6 revisores)
 
@@ -205,6 +206,9 @@ _(El carril A documenta aquí cada endpoint o campo nuevo antes de que el carril
 | 2026-10-06 | Subfase 0.2.4: Respaldo y rotación en PostgreSQL | Usuario aprobó respaldo con pg_dump, rotación de contraseña de pos_user y listen_addresses='localhost' |
 | 2026-10-06 | Subfase 1.1: Tope de descuento | Usuario eligió 0% (estricto: cajeros sin permiso 'ventas:descuento' no pueden aplicar descuento) |
 | 2026-10-06 | Fase 1: Ramas Git | Usuario eligió crear 'fix/fase-1' directamente desde 'fix/fase-0' |
+| 2026-10-11 | 6.5 Folios | Sin respuesta del usuario: default conservador, **folios con posibles huecos** (secuencias), documentado en `DEPLOYMENT.md` (revisable) |
+| 2026-10-11 | 6.3 CI en GitHub | Sin respuesta: no se hace push; el CI queda escrito para que el usuario lo suba o lo autorice |
+| 2026-10-11 | Reparto F6 | Gemini: 6.1, 6.2, 6.3 (rama `fix/fase-6`). Claude: 6.5, 6.6 y ajustes de 6.1 (rama `fix/fase-6-claude`, worktree `../pos-carril-c`) |
 | 2026-10-10 | 5.4 Catálogos duplicados (H-54) | Usuario eligió **unificar y prevenir**: migración que une categorías por mayúsculas/espacios + índice único |
 | 2026-10-10 | 4.11 Impresión en cajas remotas (OPS-03) | Usuario eligió **impresora USB en cada caja**: agente de impresión local por caja que toma trabajos de una cola en el servidor (pull; evita las restricciones del navegador hacia localhost) |
 | 2026-10-10 | Gate F4 pendientes | El usuario respondió "okey, sigue con lo que resta del plan": se aplicaron las migraciones a `pos_db` con respaldo `pre-fase-4.dump`, se corrió la re-revisión y se abrió la Fase 5 en paralelo (carril B) |
@@ -222,3 +226,5 @@ _(Problemas encontrados durante la ejecución, fuera del alcance de la subfase. 
 - ✅ (resuelto en 4.14) (gate F4) OPS-07: ventas offline rechazadas sin opción de recaptura ("Cargar al carrito"). La 4.10 solo agrega el aviso en el corte.
 - (gate F4) Las migraciones de fases 1–3 (`e5c2b1890a12` … `d4e5f6a7b8c9`) nunca se habían aplicado a `pos_db`; se aplicaron el 2026-10-10 junto con las de F4 (respaldo `pre-fase-4.dump`).
 - (4.14) Pruebas en paralelo: `pos_test_db` tiene esquemas `lane_a`…`lane_d` para que varios agentes corran pytest sin chocar (`TEST_DATABASE_URL=...pos_test_db?options=-csearch_path%3Dlane_c,public`). Documentarlo en el README (6.3).
+- (6.5) La opción de configuración `allow_negative_stock` no la usa ningún código (las ventas siempre exigen existencias) y ahora la BD prohíbe stock negativo: quitarla de la configuración o implementarla. Candidato a una subfase de UI/config.
+- (6.5) Migraciones pendientes de aplicar a `pos_db`: `a1b3c5d7e9f2` (4.14), `f2d5b8c9a0e1` (5.4), `b7c8d9e0f1a2` (unión) y `c9d0e1f2a3b4` (6.5). Aplicarlas al integrar con `update-production.ps1` (respaldo previo).
