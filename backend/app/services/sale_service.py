@@ -166,6 +166,13 @@ class SaleService:
         if not session or session.status != "abierta":
             raise ValueError("La sesión de caja no está abierta")
 
+        # Un reenvío simultáneo con el mismo client_uuid esperó el bloqueo de la sesión:
+        # ahora ve la venta ya creada y la devuelve en vez de chocar con el UNIQUE (OPS-10)
+        if client_uuid:
+            existing_sale = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+            if existing_sale:
+                return existing_sale
+
         # Validar pertenencia de la sesión: el usuario debe ser el dueño o tener 'caja:supervisar' / admin (H-16)
         if session.user_id != user_id:
             user = db.session.get(User, user_id) if user_id else None
@@ -195,6 +202,8 @@ class SaleService:
         db.session.add(sale)
         db.session.flush()
 
+        # Bloqueo del stock en orden de producto antes de descontar (OPS-09)
+        InventoryService.lock_stock(line["product_id"] for line in pricing["lines"])
         for line in pricing["lines"]:
             sale_item = SaleItem(
                 sale_id=sale.id,
@@ -327,6 +336,7 @@ class SaleService:
             raise ValueError("No se puede cancelar una venta que tiene devoluciones asociadas")
 
         # Return inventory for each item
+        InventoryService.lock_stock(item.product_id for item in sale.items)
         for item in sale.items:
             InventoryService.move_stock(
                 product_id=item.product_id,
@@ -464,6 +474,10 @@ class SaleService:
 
         refund_total = Decimal("0")
 
+        # Bloqueo del stock en orden de producto antes de reingresar (OPS-09)
+        InventoryService.lock_stock(
+            item.product_id for item in sale.items if item.id in grouped_quantities
+        )
         for si_id, qty in grouped_quantities.items():
             sale_item = db.session.get(SaleItem, si_id)
             # Calculate proportional refund

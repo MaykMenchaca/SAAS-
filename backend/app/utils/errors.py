@@ -71,10 +71,34 @@ def translate_messages(messages):
     return _translate_message(messages)
 
 
+# Códigos SQLSTATE de conflicto entre transacciones: el cliente puede reintentar (OPS-09)
+_RETRYABLE_SQLSTATES = {"40P01", "40001"}  # deadlock_detected, serialization_failure
+
+
 def register_error_handlers(app):
+    from sqlalchemy.exc import OperationalError
+
+    from app.extensions import db
+    from app.utils.timeutil import InvalidDateError
+
     @app.errorhandler(ValidationError)
     def handle_validation_error(e):
         return jsonify({"error": "Datos inválidos", "details": translate_messages(e.messages)}), 422
+
+    @app.errorhandler(InvalidDateError)
+    def handle_invalid_date(e):
+        return jsonify({"error": str(e)}), 400
+
+    @app.errorhandler(OperationalError)
+    def handle_operational_error(e):
+        db.session.rollback()
+        if getattr(e.orig, "pgcode", None) in _RETRYABLE_SQLSTATES or "deadlock" in str(e.orig).lower():
+            app.logger.warning("Conflicto de concurrencia (reintentable): %s", e.orig)
+            return jsonify({
+                "error": "Otra operación modificó los mismos datos al mismo tiempo; intenta de nuevo.",
+                "code": "conflict_retry",
+            }), 409
+        return handle_internal_error(e)
 
     @app.errorhandler(404)
     def handle_not_found(e):

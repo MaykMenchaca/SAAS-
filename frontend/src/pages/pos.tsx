@@ -981,7 +981,7 @@ function PaymentModal({
     };
 
     // Guardar en cola asociada al usuario (H-18)
-    usePosStore.getState().addOfflineSale(payload, user?.id, mockSale.total);
+    usePosStore.getState().addOfflineSale(payload, user?.id, mockSale.total, cart);
 
       // Limpiar carrito y disparar éxito
       clearCart();

@@ -39,10 +39,11 @@ def list_stock():
     """List all stock records, optionally filtered by product name/SKU."""
     search = request.args.get("search") or request.args.get("q")
 
+    # Un producto desactivado con existencias sigue contando en inventario (H-43)
     query = (
         Stock.query
         .join(Product)
-        .filter(Product.is_active.is_(True))
+        .filter(db.or_(Product.is_active.is_(True), Stock.quantity != 0))
         .order_by(Product.name)
     )
 

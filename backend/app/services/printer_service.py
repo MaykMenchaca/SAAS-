@@ -34,6 +34,10 @@ _RAW_DEVICE_RE = re.compile(r"^\\\\\.\\(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
 # Destinos de archivo permitidos (spooler "imprimir a archivo" y pruebas). Nunca otros archivos (OPS-04).
 PRINT_FILE_SUFFIXES = (".prn",)
 
+# Escrituras en curso por destino (impresora del servidor), para no apilar hilos colgados (OPS-12)
+_busy_writers: dict[str, threading.Thread] = {}
+_busy_lock = threading.Lock()
+
 # Sustituciones para caracteres que no existen en la página de códigos
 _TRANSLITERATIONS = {"€": "EUR", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "…": "..."}
 
@@ -201,7 +205,15 @@ class PrinterService:
 
     @staticmethod
     def _write(target: str, payload: bytes) -> None:
-        """Escribe en la impresora con timeout para no bloquear el request si está colgada."""
+        """Escribe en la impresora con timeout para no bloquear el request si está colgada.
+
+        Si una escritura anterior al mismo destino sigue colgada, no se lanza otra: así no se
+        acumulan pulsos de cajón que se abrirían todos juntos al liberarse el puerto (OPS-12).
+        """
+        with _busy_lock:
+            previous = _busy_writers.get(target)
+            if previous is not None and previous.is_alive():
+                raise RuntimeError("Impresora no disponible: la escritura anterior sigue sin terminar")
         error: list[BaseException] = []
 
         def worker():
@@ -211,6 +223,8 @@ class PrinterService:
                 error.append(exc)
 
         thread = threading.Thread(target=worker, daemon=True)
+        with _busy_lock:
+            _busy_writers[target] = thread
         thread.start()
         thread.join(PrinterService.WRITE_TIMEOUT)
         if thread.is_alive():

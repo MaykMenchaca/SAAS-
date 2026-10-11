@@ -13,6 +13,10 @@ class StockSchema(Schema):
     min_stock = fields.Method("get_min_stock")
     max_stock = fields.Method("get_max_stock")
     last_updated = fields.DateTime(dump_only=True)
+    is_active = fields.Method("get_is_active")
+
+    def get_is_active(self, obj):
+        return bool(obj.product.is_active) if obj.product else False
 
     def get_product_name(self, obj):
         return obj.product.name if obj.product else None

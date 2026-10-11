@@ -49,9 +49,13 @@ def local_day_bounds(day: date) -> tuple[datetime, datetime]:
     return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
 
 
+class InvalidDateError(ValueError):
+    """Fecha de un parámetro con formato inválido: la API responde 400 (H-32)."""
+
+
 def parse_local_date(value: str) -> date:
-    """Parsea `YYYY-MM-DD`. Lanza ValueError con mensaje en español si es inválida."""
+    """Parsea `YYYY-MM-DD`. Lanza InvalidDateError (400) con mensaje en español si es inválida."""
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except (TypeError, ValueError):
-        raise ValueError(f"Fecha inválida: '{value}'. Usa el formato AAAA-MM-DD")
+        raise InvalidDateError(f"Fecha inválida: '{value}'. Usa el formato AAAA-MM-DD")

@@ -253,6 +253,8 @@ class PurchaseOrderService:
                 "Solo se pueden recibir órdenes enviadas o parcialmente recibidas"
             )
 
+        # Bloqueo del stock en orden de producto antes de recibir (OPS-09)
+        InventoryService.lock_stock(oi.product_id for oi in order.items)
         for item_data in items:
             order_item = db.session.get(
                 PurchaseOrderItem, item_data["order_item_id"], populate_existing=True
