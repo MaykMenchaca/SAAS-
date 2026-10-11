@@ -75,6 +75,7 @@ class CashRegisterSession(db.Model):
 
 class Sale(db.Model):
     __tablename__ = "sales"
+    __table_args__ = (db.Index("ix_sales_created_at", "created_at"),)  # reportes por rango (H-33)
 
     id = db.Column(db.Integer, primary_key=True)
     folio = db.Column(db.String(20), unique=True, nullable=False, index=True)
@@ -154,6 +155,10 @@ class SaleItem(db.Model):
 
 class Payment(db.Model):
     __tablename__ = "payments"
+    __table_args__ = (
+        db.CheckConstraint("amount > 0", name="ck_payments_amount_pos"),
+        db.CheckConstraint("change_amount >= 0", name="ck_payments_change_nonneg"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(
@@ -215,6 +220,7 @@ class SaleReturn(db.Model):
 
 class SaleReturnItem(db.Model):
     __tablename__ = "sale_return_items"
+    __table_args__ = (db.Index("ix_sale_return_items_sale_item_id", "sale_item_id"),)
 
     id = db.Column(db.Integer, primary_key=True)
     sale_return_id = db.Column(

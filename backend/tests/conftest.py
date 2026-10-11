@@ -37,12 +37,13 @@ PERMISSION_CODES = {
 def flask_app():
     application = create_app(TestConfig)
     with application.app_context():
+        # pg_trgm antes de create_all: el modelo declara el índice GIN trigram (6.5); en una BD
+        # nueva (CI) el operador gin_trgm_ops aún no existiría
+        _db.session.execute(_db.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        _db.session.commit()
         _db.drop_all()
         _db.create_all()
-        # Create sequences and extensions not managed by SQLAlchemy's create_all
-        _db.session.execute(
-            _db.text("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-        )
+        # Create sequences not managed by SQLAlchemy's create_all
         _db.session.execute(
             _db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1")
         )

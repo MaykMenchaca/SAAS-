@@ -6,6 +6,11 @@ from app.extensions import db
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        db.Index("ix_audit_logs_created_at", "created_at"),
+        db.Index("ix_audit_logs_user_id", "user_id"),
+        db.Index("ix_audit_logs_entity", "entity_type", "entity_id"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)

@@ -7,6 +7,10 @@ from app.extensions import db
 
 class Stock(db.Model):
     __tablename__ = "stock"
+    __table_args__ = (
+        # El sistema nunca vende sin existencias; la BD lo garantiza (H-33)
+        db.CheckConstraint("quantity >= 0", name="ck_stock_quantity_nonneg"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(
@@ -35,6 +39,7 @@ class Stock(db.Model):
 
 class StockMovement(db.Model):
     __tablename__ = "stock_movements"
+    __table_args__ = (db.Index("ix_stock_movements_created_at", "created_at"),)
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(

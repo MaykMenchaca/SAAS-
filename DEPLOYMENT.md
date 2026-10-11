@@ -104,3 +104,7 @@ Decisión de la fase 4.3: **no se configura HTTPS local**. Por eso:
 - El header muestra **"N ventas pendientes"**. Si el servidor rechaza una venta (por ejemplo, la caja ya se cerró o no hay stock), pasa a **"Rechazadas"**: no bloquea a las demás y se revisa o descarta desde ese mismo panel.
 - Las ventas pendientes se guardan en el navegador de esa caja: **no borres los datos del navegador** mientras haya pendientes.
 - Para tener caché real en las cajas haría falta HTTPS local con un certificado confiable en cada equipo; queda fuera de esta fase.
+
+## Folios de venta y de compra
+
+Los folios (`V-AAAAMMDD-NNNN`, `OC-AAAAMMDD-NNNN`) salen de secuencias de PostgreSQL. Son únicos y crecientes, pero **pueden tener huecos**: si una venta se rechaza después de pedir su número (por ejemplo, por stock insuficiente), ese número no se reutiliza. Es el comportamiento elegido en la fase 6.5 porque la facturación (CFDI) está fuera del alcance actual y numerar sin huecos obligaría a serializar todas las ventas de todas las cajas. Si en el futuro se requiere numeración consecutiva para fines fiscales, el folio debe asignarse al final de la venta con una tabla contador bloqueada (`with_for_update`).

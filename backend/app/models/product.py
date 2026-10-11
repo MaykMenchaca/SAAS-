@@ -38,6 +38,15 @@ class UnitOfMeasure(db.Model):
 
 class Product(db.Model):
     __tablename__ = "products"
+    __table_args__ = (
+        # Búsqueda por similitud (H-38); antes solo existía en la migración 786e5fd0177a
+        db.Index(
+            "idx_products_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     sku = db.Column(db.String(50), unique=True, nullable=False, index=True)

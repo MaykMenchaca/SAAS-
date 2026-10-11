@@ -76,7 +76,7 @@ _RETRYABLE_SQLSTATES = {"40P01", "40001"}  # deadlock_detected, serialization_fa
 
 
 def register_error_handlers(app):
-    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.exc import IntegrityError, OperationalError
 
     from app.extensions import db
     from app.utils.timeutil import InvalidDateError
@@ -84,6 +84,16 @@ def register_error_handlers(app):
     @app.errorhandler(ValidationError)
     def handle_validation_error(e):
         return jsonify({"error": "Datos inválidos", "details": translate_messages(e.messages)}), 422
+
+    @app.errorhandler(IntegrityError)
+    def handle_integrity_error(e):
+        # Un UNIQUE, FK o CHECK que la validación previa no atrapó (carrera entre dos peticiones)
+        db.session.rollback()
+        app.logger.warning("Conflicto de integridad: %s", e.orig)
+        return jsonify({
+            "error": "Conflicto con datos existentes: el registro ya existe o fue modificado por otra operación.",
+            "code": "integrity_conflict",
+        }), 409
 
     @app.errorhandler(InvalidDateError)
     def handle_invalid_date(e):
