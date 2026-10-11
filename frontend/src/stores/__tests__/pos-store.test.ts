@@ -104,3 +104,24 @@ describe("getCartTotals", () => {
     expect(totals.total).toBe(364);
   });
 });
+
+describe("getCartTotals con cantidades fraccionarias (FE-103)", () => {
+  it("1.5 m × $12.99 da 22.60, igual que el servidor", async () => {
+    const { getCartTotals } = await import("../pos-store");
+    const totals = getCartTotals([
+      {
+        product_id: 1,
+        product_name: "Cable",
+        product_sku: "CABLE-12",
+        quantity: 1.5,
+        unit_price: "12.99",
+        tax_rate: "16.00",
+        discount_percent: "0",
+        unit_abbreviation: "m",
+      },
+    ]);
+    expect(totals.subtotal).toBe(19.48);
+    expect(totals.taxTotal).toBe(3.12);
+    expect(totals.total).toBe(22.6);
+  });
+});

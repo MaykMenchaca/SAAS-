@@ -1,5 +1,5 @@
 """Sale service — complete transactional sale logic."""
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -80,13 +80,15 @@ class SaleService:
                     "y requiere el permiso 'ventas:descuento'"
                 )
 
-            line_gross = qty * price
+            # Importe bruto en centavos (HALF_EVEN): con fracciones (1.5 m × 12.99 = 19.485) el total
+            # debe quedar en centavos exactos para poder cobrarse "exacto" y con tarjeta (FE-103)
+            line_gross = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
             line_discount = (line_gross * disc_pct / Decimal("100")).quantize(
-                Decimal("0.01")
+                Decimal("0.01"), rounding=ROUND_HALF_EVEN
             )
             line_subtotal = line_gross - line_discount
             line_tax = (line_subtotal * tax_rate / Decimal("100")).quantize(
-                Decimal("0.01")
+                Decimal("0.01"), rounding=ROUND_HALF_EVEN
             )
             line_total = line_subtotal + line_tax
 

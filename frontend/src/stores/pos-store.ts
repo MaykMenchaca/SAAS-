@@ -95,7 +95,7 @@ export function calcLineTotal(item: CartItem): number {
   const discPct = Number(item.discount_percent || 0);
   const taxRate = Number(item.tax_rate || 0);
 
-  const grossCents = qty * priceCents;
+  const grossCents = roundHalfEvenCents(qty * priceCents); // igual que el servidor (FE-103)
   const discCents = roundHalfEvenCents(grossCents * (discPct / 100));
   const subtotalCents = grossCents - discCents;
   const taxCents = roundHalfEvenCents(subtotalCents * (taxRate / 100));
@@ -115,7 +115,7 @@ export function getCartTotals(cart: CartItem[]) {
     const discPct = Number(item.discount_percent || 0);
     const taxRate = Number(item.tax_rate || 0);
 
-    const grossCents = qty * priceCents;
+    const grossCents = roundHalfEvenCents(qty * priceCents); // igual que el servidor (FE-103)
     const lineDiscountCents = roundHalfEvenCents(grossCents * (discPct / 100));
     const lineSubtotalCents = grossCents - lineDiscountCents;
     const lineTaxCents = roundHalfEvenCents(lineSubtotalCents * (taxRate / 100));
