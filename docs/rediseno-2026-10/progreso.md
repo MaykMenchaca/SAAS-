@@ -6,10 +6,10 @@
 
 ## Fase 0: Preparación
 - [x] 0.1 Rama y worktree, paquete de diseño en `docs/rediseno-2026-10/diseno/`, guía `ui-ux-pro-max` copiada
-- [ ] 0.2 Línea base verde (pytest, vitest, build)
-- [ ] 0.3 Entorno de revisión: esquema `shots` con datos de ejemplo y usuarios admin, gerente y cajero
-- [ ] 0.4 `equivalencias.md` (diseño → componentes)
-- [ ] **Gate 0**
+- [x] 0.2 Línea base verde · pytest **446 passed** (6 min 29 s, esquema `lane_d`), Vitest **29 passed**, build OK (chunk mayor 455.7 kB / 141.9 kB gzip)
+- [x] 0.3 Entorno de revisión · esquema `shots` en `pos_test_db` (no toca `pos_db`), con migraciones al día y datos del diseño: 17 productos, 6 categorías, turno abierto, 5 ventas (efectivo, mixta y tarjeta), 1 devolución, 1 proveedor y 1 OC. Usuarios `admin` (24 permisos), `lmendez` gerente (19) y `jperez` cajero (7), con contraseñas solo en el `shots.env` del scratchpad. Servidores: backend :5000 (esquema `shots`) y frontend :3000 desde `pos-rediseno`
+- [x] 0.4 `equivalencias.md` · estrategia de tokens nuevos + alias viejos (se borran en 8.3), mapa de componentes, shell y pantallas, y lista de lo que no se toca
+- [x] **Gate 0** · APROBADO (2026-10-12): línea base verde, entorno de revisión con 3 roles verificados por API y equivalencias escritas
 
 ## Fase 1: Fundaciones
 - [ ] 1.1 Tokens Industry en claro y oscuro (acento 700)
