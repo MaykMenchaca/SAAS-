@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Historial de ventas</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">{{ countLabel }} · {{ sumLabel }}</p>
+    </div>
+    <button class="btn btn-secondary" style="height:38px"><lucide-icon name="download" size="16"></lucide-icon>Exportar CSV</button>
+  </div>
+
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <div style="display:flex; border:1px solid var(--color-divider)">
+      <sc-for list="{{ ranges }}" as="c" hint-placeholder-count="4">
+        <button onClick="{{ c.pick }}" style="height:36px; padding:0 14px; border:0; border-left:{{ c.sep }}; background:{{ c.bg }}; color:{{ c.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ c.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex; border:1px solid var(--color-divider)">
+      <sc-for list="{{ statuses }}" as="c" hint-placeholder-count="3">
+        <button onClick="{{ c.pick }}" style="height:36px; padding:0 14px; border:0; border-left:{{ c.sep }}; background:{{ c.bg }}; color:{{ c.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ c.label }}</button>
+      </sc-for>
+    </div>
+    <select class="input" style="width:180px; min-height:38px"><option>Todos los cajeros</option><option>Jorge Pérez</option><option>Ana Ruiz</option></select>
+    <div style="position:relative; width:260px; max-width:100%">
+      <span style="position:absolute; left:10px; top:10px; color:var(--ink-2); display:inline-flex"><lucide-icon name="search" size="16"></lucide-icon></span>
+      <input class="input" value="{{ q }}" onChange="{{ setQ }}" placeholder="Buscar folio" style="padding-left:34px; min-height:38px">
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+    <section class="blueprint" style="flex:1 1 560px; min-width:0; min-width:0">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Folio</th><th>Fecha</th><th>Cajero</th><th style="text-align:right">Art.</th><th>Método</th><th style="text-align:right">Total</th><th>Estado</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+              <tr onClick="{{ r.select }}" style="cursor:pointer; background:{{ r.bg }}; box-shadow:{{ r.bar }}">
+                <td style="font-weight:500; color:var(--acc-text); white-space:nowrap; font-variant-numeric:tabular-nums">{{ r.folio }}</td>
+                <td style="color:var(--ink-2); white-space:nowrap">{{ r.date }}</td>
+                <td>{{ r.cashier }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ r.items }}</td>
+                <td style="color:var(--ink-2)">{{ r.method }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; text-decoration:{{ r.strike }}">{{ r.total }}</td>
+                <td><span class="tag" style="background:{{ r.tagBg }}; color:{{ r.tagFg }}">{{ r.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:flex-start; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <div style="flex:1">
+          <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc-text)">Ticket</div>
+          <h2 style="margin:2px 0 0; font-size:22px; font-variant-numeric:tabular-nums">{{ sel.folio }}</h2>
+          <div style="font-size:13px; color:var(--ink-2)">{{ sel.date }} · Caja 1 · {{ sel.cashier }}</div>
+        </div>
+        <span class="tag" style="background:{{ sel.tagBg }}; color:{{ sel.tagFg }}">{{ sel.status }}</span>
+      </header>
+      <div style="display:flex; flex-direction:column; padding:6px 0">
+        <sc-for list="{{ selItems }}" as="i" hint-placeholder-count="3">
+          <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 12px; padding:8px 18px">
+            <span style="font-weight:500">{{ i.name }}</span>
+            <span style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ i.sub }}</span>
+            <span style="font-size:13px; color:var(--ink-2); font-variant-numeric:tabular-nums">{{ i.qty }} × {{ i.price }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; padding:12px 18px; border-top:1px solid var(--color-divider)">
+        <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums">{{ sel.sub }}</span></div>
+        <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>IVA (16%)</span><span style="font-variant-numeric:tabular-nums">{{ sel.tax }}</span></div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-family:var(--font-heading); font-weight:600; font-size:17px">Total</span><span style="font-family:var(--font-heading); font-weight:600; font-size:30px; font-variant-numeric:tabular-nums">{{ sel.total }}</span></div>
+        <div style="display:flex; justify-content:space-between; color:var(--ink-2); font-size:13px"><span>Pago · {{ sel.method }}</span><span style="font-variant-numeric:tabular-nums">{{ sel.paid }}</span></div>
+      </div>
+      <sc-if value="{{ selCanceled }}">
+        <div style="margin:0 18px 14px; padding:10px 12px; border:1px solid var(--bad); background:var(--bad-tint); color:var(--bad); font-size:13px">Cancelada por Laura Méndez: “Cliente se arrepintió antes de entregar mercancía”.</div>
+      </sc-if>
+      <sc-if value="{{ confirming }}">
+        <div style="margin:0 18px 14px; display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--bad)">
+          <div class="field"><label>Motivo de cancelación</label><input class="input" placeholder="Ingresa el motivo..." value="{{ reason }}" onChange="{{ setReason }}"></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end">
+            <button class="btn btn-secondary" onClick="{{ cancelConfirm }}" style="height:34px">Volver</button>
+            <button class="btn" onClick="{{ doCancel }}" disabled="{{ noReason }}" style="height:34px; background:var(--bad); border-color:var(--bad); color:var(--color-bg)">Confirmar cancelación</button>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showActions }}">
+        <div style="display:flex; gap:8px; padding:0 18px 16px; flex-wrap:wrap">
+          <button class="btn btn-secondary" style="height:38px; flex:1"><lucide-icon name="printer" size="15"></lucide-icon>Reimprimir</button>
+          <button class="btn btn-secondary" onClick="{{ goReturn }}" style="height:38px; flex:1"><lucide-icon name="corner-down-left" size="15"></lucide-icon>Devolución</button>
+          <sc-if value="{{ canCancel }}" hint-placeholder-val="{{ true }}"><button class="btn btn-ghost" onClick="{{ askCancel }}" style="height:38px; color:var(--bad)">Cancelar venta</button></sc-if>
+        </div>
+      </sc-if>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ITEMS = {
+  a: [["Cemento gris 50 kg", 1, 259], ["Brocha 3\" cerda natural", 1, 54], ["Cinta de aislar negra 19 mm", 1, 18]],
+  b: [["Pintura vinílica blanca 19 L", 1, 1649]],
+  c: [["Taquete plástico ¼\" (bolsa 100)", 1, 35], ["Tornillo tablaroca 6×1\" (caja 100)", 1, 68]],
+  d: [["Cable THW cal. 12", 50, 16.5], ["Foco LED 9 W luz blanca", 8, 39], ["Cinta de aislar negra 19 mm", 4, 18]],
+  e: [["Llave perica 10\"", 1, 239], ["Martillo uña curva 16 oz", 1, 189]],
+};
+const SALES = [
+  ["0048", "Hoy 14:52", "Jorge Pérez", "Efectivo", "a", "Completada"],
+  ["0047", "Hoy 14:40", "Ana Ruiz", "Tarjeta", "b", "Completada"],
+  ["0046", "Hoy 14:31", "Jorge Pérez", "Efectivo", "c", "Completada"],
+  ["0045", "Hoy 14:18", "Jorge Pérez", "Transferencia", "d", "Completada"],
+  ["0044", "Hoy 14:05", "Ana Ruiz", "Efectivo", "e", "Cancelada"],
+  ["0043", "Hoy 13:47", "Ana Ruiz", "Efectivo", "a", "Completada"],
+  ["0042", "Hoy 13:22", "Jorge Pérez", "Tarjeta", "e", "Completada"],
+  ["0041", "Hoy 12:14", "Jorge Pérez", "Efectivo", "c", "Completada"],
+  ["0040", "Hoy 11:58", "Ana Ruiz", "Efectivo + Tarjeta", "d", "Completada"],
+  ["0039", "Hoy 11:31", "Jorge Pérez", "Efectivo", "a", "Completada"],
+].map(([n, date, cashier, method, k, status]) => {
+  const sub = ITEMS[k].reduce((a, [, q, p]) => a + q * p, 0);
+  return { folio: "V-20261011-" + n, date, cashier, method, k, status, sub, total: Math.round(sub * 116) / 100, items: ITEMS[k].reduce((a, i) => a + i[1], 0) };
+});
+
+class Component extends DCLogic {
+  state = { range: "Hoy", status: "Todas", q: "", sel: "V-20261011-0048", confirming: false, reason: "", canceled: {} };
+  renderVals() {
+    const s = this.state;
+    const stat = (x) => (s.canceled[x.folio] ? "Cancelada" : x.status);
+    const rows = SALES.filter((x) => (s.status === "Todas" || (s.status === "Completadas" ? stat(x) === "Completada" : stat(x) === "Cancelada")) && (!s.q || x.folio.toLowerCase().includes(s.q.toLowerCase()))).map((x) => {
+      const on = x.folio === s.sel, c = stat(x) === "Cancelada";
+      return { ...x, total: mx(x.total), status: stat(x), strike: c ? "line-through" : "none",
+        tagBg: c ? "var(--bad-tint)" : "var(--ok-tint)", tagFg: c ? "var(--bad)" : "var(--ok)",
+        bg: on ? "var(--acc-tint)" : "transparent", bar: on ? "inset 2px 0 0 var(--color-accent)" : "none",
+        select: () => this.setState({ sel: x.folio, confirming: false, reason: "" }) };
+    });
+    const sel = SALES.find((x) => x.folio === s.sel);
+    const selC = stat(sel) === "Cancelada";
+    const completed = SALES.filter((x) => stat(x) === "Completada");
+    const seg = (list, cur, key) => list.map((l, i) => ({ label: l, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ [key]: l }), bg: cur === l ? "var(--color-accent)" : "transparent", fg: cur === l ? "var(--on-acc)" : "var(--color-text)" }));
+    return {
+      countLabel: `${SALES.length} tickets hoy`,
+      sumLabel: `${mx(completed.reduce((a, x) => a + x.total, 0))} vendidos`,
+      ranges: seg(["Hoy", "Ayer", "7 días", "Este mes"], s.range, "range"),
+      statuses: seg(["Todas", "Completadas", "Canceladas"], s.status, "status"),
+      q: s.q, setQ: (e) => this.setState({ q: e.target.value }),
+      rows,
+      sel: { ...sel, sub: mx(sel.sub), tax: mx(sel.total - sel.sub), total: mx(sel.total), paid: mx(sel.total), status: stat(sel),
+        tagBg: selC ? "var(--bad-tint)" : "var(--ok-tint)", tagFg: selC ? "var(--bad)" : "var(--ok)" },
+      selItems: ITEMS[sel.k].map(([name, q, p]) => ({ name, qty: q, price: mx(p), sub: mx(q * p) })),
+      selCanceled: selC, confirming: s.confirming && !selC, showActions: !selC && !s.confirming,
+      askCancel: () => this.setState({ confirming: true }), cancelConfirm: () => this.setState({ confirming: false }),
+      reason: s.reason, setReason: (e) => this.setState({ reason: e.target.value }), noReason: !s.reason.trim(),
+      doCancel: () => this.setState((st) => ({ canceled: { ...st.canceled, [sel.folio]: true }, confirming: false })),
+      goReturn: () => this.props.navigate?.("devoluciones"),
+      canCancel: this.props.role !== "cajero",
+    };
+  }
+}
+</script>
+</body>
+</html>

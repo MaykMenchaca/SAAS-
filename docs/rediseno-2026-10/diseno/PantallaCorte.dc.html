@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Corte de caja</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">Caja 1 · Turno de Jorge Pérez · abierto hoy a las 08:02</p>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+      <button onClick="{{ t.pick }}" style="height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isCut }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section class="blueprint" style="flex:1 1 560px; min-width:0; display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <h2 style="margin:0; font-size:21px">Conteo de efectivo</h2>
+          <button class="btn btn-ghost" onClick="{{ reset }}" style="font-size:14px">Reiniciar conteo</button>
+        </header>
+        <div style="display:grid; grid-template-columns:1fr 1fr">
+          <div style="display:flex; flex-direction:column">
+            <div style="padding:10px 18px; font-family:var(--font-heading); font-weight:600; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); border-bottom:1px solid var(--line-soft)">Billetes</div>
+            <sc-for list="{{ bills }}" as="d" hint-placeholder-count="6">
+              <div style="display:grid; grid-template-columns:72px auto minmax(0,1fr); gap:10px; align-items:center; padding:8px 18px; border-bottom:1px solid var(--line-soft)">
+                <span style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums">{{ d.label }}</span>
+                <div style="display:flex">
+                  <button class="btn btn-secondary btn-icon" onClick="{{ d.dec }}" style="width:34px; height:34px"><lucide-icon name="minus" size="14"></lucide-icon></button>
+                  <input value="{{ d.qty }}" onChange="{{ d.change }}" type="number" style="width:52px; height:34px; border:1px solid var(--color-divider); border-left:0; border-right:0; background:var(--color-surface); color:var(--color-text); text-align:center; font:inherit; font-size:15px; font-variant-numeric:tabular-nums; outline:none">
+                  <button class="btn btn-secondary btn-icon" onClick="{{ d.inc }}" style="width:34px; height:34px"><lucide-icon name="plus" size="14"></lucide-icon></button>
+                </div>
+                <span style="text-align:right; font-variant-numeric:tabular-nums; color:{{ d.color }}">{{ d.sub }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; border-left:1px solid var(--color-divider)">
+            <div style="padding:10px 18px; font-family:var(--font-heading); font-weight:600; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); border-bottom:1px solid var(--line-soft)">Monedas</div>
+            <sc-for list="{{ coins }}" as="d" hint-placeholder-count="5">
+              <div style="display:grid; grid-template-columns:72px auto minmax(0,1fr); gap:10px; align-items:center; padding:8px 18px; border-bottom:1px solid var(--line-soft)">
+                <span style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums">{{ d.label }}</span>
+                <div style="display:flex">
+                  <button class="btn btn-secondary btn-icon" onClick="{{ d.dec }}" style="width:34px; height:34px"><lucide-icon name="minus" size="14"></lucide-icon></button>
+                  <input value="{{ d.qty }}" onChange="{{ d.change }}" type="number" style="width:52px; height:34px; border:1px solid var(--color-divider); border-left:0; border-right:0; background:var(--color-surface); color:var(--color-text); text-align:center; font:inherit; font-size:15px; font-variant-numeric:tabular-nums; outline:none">
+                  <button class="btn btn-secondary btn-icon" onClick="{{ d.inc }}" style="width:34px; height:34px"><lucide-icon name="plus" size="14"></lucide-icon></button>
+                </div>
+                <span style="text-align:right; font-variant-numeric:tabular-nums; color:{{ d.color }}">{{ d.sub }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:17px; letter-spacing:.06em; text-transform:uppercase">Total contado</span>
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:32px; font-variant-numeric:tabular-nums">{{ counted }}</span>
+        </div>
+      </section>
+
+      <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)"><h2 style="margin:0; font-size:21px">Resumen del turno</h2></header>
+        <div style="display:flex; flex-direction:column; padding:8px 0">
+          <sc-for list="{{ summary }}" as="r" hint-placeholder-count="6">
+            <div style="display:flex; justify-content:space-between; gap:12px; padding:7px 18px; color:{{ r.color }}; font-weight:{{ r.fw }}; border-top:{{ r.border }}">
+              <span>{{ r.label }}</span><span style="font-variant-numeric:tabular-nums">{{ r.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin:4px 18px 0; display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--color-divider)">
+          <div style="padding:12px 14px"><div style="font-size:13px; color:var(--ink-2)">Efectivo esperado</div><div style="font-family:var(--font-heading); font-weight:600; font-size:26px; font-variant-numeric:tabular-nums">{{ expected }}</div></div>
+          <div style="padding:12px 14px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Contado</div><div style="font-family:var(--font-heading); font-weight:600; font-size:26px; font-variant-numeric:tabular-nums">{{ counted }}</div></div>
+        </div>
+        <div style="margin:12px 18px 0; padding:14px 16px; border:1px solid {{ diffColor }}; background:{{ diffBg }}; color:{{ diffColor }}; display:flex; align-items:baseline; justify-content:space-between">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:16px; letter-spacing:.08em; text-transform:uppercase">{{ diffLabel }}</span>
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:36px; line-height:1; font-variant-numeric:tabular-nums">{{ diff }}</span>
+        </div>
+        <div class="field" style="padding:14px 18px 0">
+          <label>Observaciones</label>
+          <textarea class="input" placeholder="Observaciones adicionales sobre faltantes, sobrantes o incidentes en el turno..." style="min-height:80px"></textarea>
+        </div>
+        <div style="padding:14px 18px 18px">
+          <button class="btn btn-primary blueprint" onClick="{{ close }}" style="width:100%; height:48px; font-size:17px">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <lucide-icon name="lock" size="17"></lucide-icon>Cerrar turno e imprimir corte
+          </button>
+          <sc-if value="{{ closed }}"><div style="margin-top:10px; font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Turno cerrado. Corte enviado a la impresora.</div></sc-if>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isHistory }}">
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Caja</th><th>Cajero</th><th style="text-align:right">Fondo apertura</th><th style="text-align:right">Efectivo esperado</th><th style="text-align:right">Efectivo cerrado</th><th style="text-align:right">Diferencia</th><th>Cierre</th><th></th></tr></thead>
+          <tbody>
+            <sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+              <tr>
+                <td style="font-weight:500">{{ h.box }}</td><td>{{ h.user }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ h.open }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ h.exp }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ h.closed }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; color:{{ h.color }}">{{ h.diff }}</td>
+                <td style="color:var(--ink-2); white-space:nowrap">{{ h.date }}</td>
+                <td style="text-align:right"><button class="btn btn-ghost" style="font-size:14px">Ver arqueo</button></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => (n < 0 ? "−$" : "$") + Math.abs(n).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const DEN = [[1000, "$1,000", "b"], [500, "$500", "b"], [200, "$200", "b"], [100, "$100", "b"], [50, "$50", "b"], [20, "$20", "b"], [10, "$10", "c"], [5, "$5", "c"], [2, "$2", "c"], [1, "$1", "c"], [0.5, "$0.50", "c"]];
+const INIT = { 1000: 4, 500: 6, 200: 12, 100: 9, 50: 7, 20: 11, 10: 14, 5: 9, 2: 6, 1: 8, 0.5: 3 };
+const FONDO = 1500, EFECTIVO = 9860, TARJETA = 3420.5, TRANSF = 1102, DEVOL = 245;
+
+class Component extends DCLogic {
+  state = { tab: "cut", qty: { ...INIT }, closed: false };
+  setQ(v, n) { this.setState((s) => ({ qty: { ...s.qty, [v]: Math.max(0, n) }, closed: false })); }
+  renderVals() {
+    const s = this.state;
+    const row = ([v, label]) => {
+      const q = s.qty[v] || 0;
+      return { label, qty: q, sub: mx(q * v), color: q ? "var(--color-text)" : "var(--ink-3)",
+        inc: () => this.setQ(v, q + 1), dec: () => this.setQ(v, q - 1),
+        change: (e) => this.setQ(v, Number(e.target.value) || 0) };
+    };
+    const counted = DEN.reduce((a, [v]) => a + (s.qty[v] || 0) * v, 0);
+    const expected = FONDO + EFECTIVO - DEVOL;
+    const diff = Math.round((counted - expected) * 100) / 100;
+    const tabs = [["cut", "Corte actual"], ["history", "Historial"]].map(([id, label]) => ({
+      label, pick: () => this.setState({ tab: id }), line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    const r = (label, value, opts = {}) => ({ label, value: mx(value), color: opts.muted ? "var(--ink-2)" : "var(--color-text)", fw: opts.bold ? 600 : 400, border: opts.top ? "1px solid var(--color-divider)" : "0" });
+    return {
+      tabs, isCut: s.tab === "cut", isHistory: s.tab === "history",
+      bills: DEN.filter((d) => d[2] === "b").map(row), coins: DEN.filter((d) => d[2] === "c").map(row),
+      counted: mx(counted), expected: mx(expected),
+      summary: [
+        r("Fondo inicial", FONDO), r("Ventas en efectivo", EFECTIVO), r("Devoluciones en efectivo", -DEVOL),
+        r("Ventas con tarjeta", TARJETA, { muted: true, top: true }), r("Ventas por transferencia", TRANSF, { muted: true }),
+        r("Total vendido en turno", EFECTIVO + TARJETA + TRANSF, { bold: true, top: true }),
+      ],
+      diff: (diff > 0 ? "+" : "") + mx(diff),
+      diffLabel: diff === 0 ? "Cuadra" : diff > 0 ? "Sobrante" : "Faltante",
+      diffColor: diff === 0 ? "var(--ok)" : diff > 0 ? "var(--warn)" : "var(--bad)",
+      diffBg: diff === 0 ? "var(--ok-tint)" : diff > 0 ? "var(--warn-tint)" : "var(--bad-tint)",
+      reset: () => this.setState({ qty: Object.fromEntries(DEN.map(([v]) => [v, 0])), closed: false }),
+      close: () => this.setState({ closed: true }), closed: s.closed,
+      history: [
+        ["Caja 1", "Ana Ruiz", 1500, 10842.5, 10842.5, "10 oct, 21:04"],
+        ["Caja 2", "Jorge Pérez", 1000, 6210, 6180, "10 oct, 20:47"],
+        ["Caja 1", "Jorge Pérez", 1500, 12388, 12398, "09 oct, 21:10"],
+        ["Caja 1", "Ana Ruiz", 1500, 9920.5, 9920.5, "08 oct, 21:02"],
+        ["Caja 2", "Mario Torres", 1000, 5133, 5083, "08 oct, 20:55"],
+        ["Caja 1", "Jorge Pérez", 1500, 11105, 11105, "07 oct, 21:06"],
+      ].map(([box, user, open, exp, closed, date]) => {
+        const d = closed - exp;
+        return { box, user, open: mx(open), exp: mx(exp), closed: mx(closed), date, diff: d === 0 ? "$0.00" : (d > 0 ? "+" : "") + mx(d), color: d === 0 ? "var(--ink-2)" : d > 0 ? "var(--warn)" : "var(--bad)" };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

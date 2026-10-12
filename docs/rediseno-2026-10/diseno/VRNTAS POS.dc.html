@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div data-theme="{{ theme }}" style="height:100vh; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body); font-size:14px; line-height:1.5; overflow:hidden">
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+    <dc-import name="PantallaLogin" on-login="{{ login }}" hint-size="100%,100%" style="display:block; height:100%"></dc-import>
+  </sc-if>
+  <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid; grid-template-columns:{{ cols }}; height:100%">
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}">
+        <aside style="display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--color-divider)">
+          <div style="display:flex; align-items:center; gap:12px; height:64px; padding:0 18px; border-bottom:1px solid var(--color-divider); flex:none">
+            <div style="width:34px; height:34px; flex:none; display:grid; place-items:center; background:var(--color-accent); color:var(--on-acc); font-family:var(--font-heading); font-weight:600; font-size:20px; line-height:1">V</div>
+            <div style="min-width:0">
+              <div style="font-family:var(--font-heading); font-weight:600; font-size:18px; line-height:1.1">Ferretería</div>
+              <div style="font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)">VRNTAS POS</div>
+            </div>
+          </div>
+          <nav style="flex:1; overflow:auto; padding:18px 10px; display:flex; flex-direction:column; gap:18px">
+            <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="4">
+              <div style="display:flex; flex-direction:column; gap:2px">
+                <div style="padding:0 10px 6px; font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)">{{ sec.label }}</div>
+                <sc-for list="{{ sec.items }}" as="it" hint-placeholder-count="3">
+                  <button onClick="{{ it.go }}" style="display:flex; align-items:center; gap:10px; width:100%; height:38px; padding:0 10px; border:0; background:{{ it.bg }}; box-shadow:{{ it.bar }}; color:{{ it.fg }}; font:inherit; font-size:14px; font-weight:{{ it.fw }}; text-align:left; cursor:pointer" style-hover="background:var(--line-soft)">
+                    <span style="display:inline-flex; color:{{ it.iconColor }}"><lucide-icon name="{{ it.icon }}" size="17"></lucide-icon></span>
+                    <span style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ it.label }}</span>
+                    <sc-if value="{{ it.hasBadge }}">
+                      <span style="min-width:22px; height:20px; padding:0 6px; display:grid; place-items:center; font-size:12px; font-weight:500; background:{{ it.badgeBg }}; color:{{ it.badgeFg }}">{{ it.badge }}</span>
+                    </sc-if>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-for>
+          </nav>
+          <div style="flex:none; border-top:1px solid var(--color-divider); padding:14px; display:flex; flex-direction:column; gap:12px">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--color-divider)">
+              <span style="width:8px; height:8px; border-radius:50%; background:var(--ok); flex:none"></span>
+              <div style="flex:1; min-width:0">
+                <div style="font-size:13px; font-weight:500">Caja 1 · Turno abierto</div>
+                <div style="font-size:12px; color:var(--ink-2)">Desde 08:02 · Fondo $1,500.00</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px">
+              <div style="width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid var(--color-divider); font-family:var(--font-heading); font-weight:600; font-size:14px">{{ who.initials }}</div>
+              <div style="flex:1; min-width:0">
+                <div style="font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ who.name }}</div>
+                <div style="font-size:12px; color:var(--ink-2)">{{ who.user }} · {{ who.roleLabel }}</div>
+              </div>
+              <button class="btn btn-ghost btn-icon" title="Cerrar sesión" onClick="{{ logout }}" style="color:var(--ink-2)"><lucide-icon name="log-out" size="16"></lucide-icon></button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <span style="font-size:12px; color:var(--ink-2)">Ver la app como</span>
+              <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider)">
+                <sc-for list="{{ roleOpts }}" as="o" hint-placeholder-count="3">
+                  <button onClick="{{ o.pick }}" style="height:28px; border:0; border-left:{{ o.sep }}; background:{{ o.bg }}; color:{{ o.fg }}; font:inherit; font-size:12px; cursor:pointer">{{ o.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </sc-if>
+      <sc-if value="{{ collapsed }}" hint-placeholder-val="{{ false }}">
+        <aside style="display:flex; flex-direction:column; align-items:center; min-height:0; border-right:1px solid var(--color-divider)">
+          <div style="height:64px; display:grid; place-items:center; border-bottom:1px solid var(--color-divider); width:100%; flex:none">
+            <div style="width:34px; height:34px; display:grid; place-items:center; background:var(--color-accent); color:var(--on-acc); font-family:var(--font-heading); font-weight:600; font-size:20px; line-height:1">V</div>
+          </div>
+          <nav style="flex:1; overflow:auto; padding:14px 0; display:flex; flex-direction:column; align-items:center; gap:4px">
+            <sc-for list="{{ flatItems }}" as="it" hint-placeholder-count="11">
+              <button onClick="{{ it.go }}" title="{{ it.label }}" style="position:relative; width:44px; height:40px; display:grid; place-items:center; border:0; background:{{ it.bg }}; box-shadow:{{ it.bar }}; color:{{ it.iconColor }}; cursor:pointer" style-hover="background:var(--line-soft)">
+                <lucide-icon name="{{ it.icon }}" size="18"></lucide-icon>
+                <sc-if value="{{ it.hasBadge }}">
+                  <span style="position:absolute; top:7px; right:8px; width:7px; height:7px; border-radius:50%; background:{{ it.badgeFg }}"></span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </nav>
+          <div style="flex:none; padding:12px 0; border-top:1px solid var(--color-divider); width:100%; display:flex; flex-direction:column; align-items:center; gap:10px">
+            <span title="Caja 1 · Turno abierto" style="width:8px; height:8px; border-radius:50%; background:var(--ok)"></span>
+            <button class="btn btn-ghost btn-icon" title="Cerrar sesión" onClick="{{ logout }}" style="color:var(--ink-2)"><lucide-icon name="log-out" size="16"></lucide-icon></button>
+          </div>
+        </aside>
+      </sc-if>
+
+      <div style="display:flex; flex-direction:column; min-width:0; min-height:0">
+        <header style="flex:none; height:64px; display:flex; align-items:center; gap:14px; padding:0 24px; border-bottom:1px solid var(--color-divider)">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto; overflow:hidden; font-size:14px">
+            <span style="color:var(--ink-2); white-space:nowrap; flex:none">{{ crumbSection }}</span>
+            <span style="color:var(--ink-3)">/</span>
+            <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0">{{ crumbTitle }}</span>
+          </div>
+          <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openPalette }}" class="input" style="flex:0 1 300px; min-width:160px; display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--ink-2); text-align:left">
+            <lucide-icon name="search" size="16"></lucide-icon>
+            <span style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0">Buscar páginas, productos…</span>
+            <span style="font-size:12px; padding:0 6px; border:1px solid var(--color-divider); color:var(--ink-2)">Ctrl K</span>
+          </button>
+          </sc-if>
+          <sc-if value="{{ narrow }}">
+            <button onClick="{{ openPalette }}" class="btn btn-secondary btn-icon" title="Buscar (Ctrl K)" style="flex:none"><lucide-icon name="search" size="17"></lucide-icon></button>
+          </sc-if>
+          <sc-if value="{{ notPos }}" hint-placeholder-val="{{ true }}">
+            <button class="btn btn-primary" onClick="{{ goPos }}" style="height:36px; padding:0 14px; font-size:15px; white-space:nowrap; flex:none"><lucide-icon name="shopping-cart" size="16"></lucide-icon>Nueva venta</button>
+          </sc-if>
+          <div style="display:flex; align-items:center; gap:14px; padding:0 4px 0 16px; border-left:1px solid var(--color-divider); height:32px; flex:none">
+            <span style="font-size:13px; color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap">{{ clock }}</span>
+            <button onClick="{{ toggleOffline }}" title="{{ lanTitle }}" style="display:flex; align-items:center; gap:6px; height:28px; padding:0 8px; border:1px solid {{ lanBorder }}; background:{{ lanBg }}; color:{{ lanFg }}; font:inherit; font-size:13px; white-space:nowrap; cursor:pointer"><span style="width:8px; height:8px; border-radius:50%; background:{{ lanDot }}"></span>{{ lanLabel }}</button>
+          </div>
+          <button class="btn btn-secondary btn-icon" title="9 alertas pendientes" onClick="{{ goInventario }}" style="position:relative; flex:none">
+            <lucide-icon name="bell" size="17"></lucide-icon>
+            <span style="position:absolute; top:-7px; right:-7px; min-width:18px; height:18px; padding:0 4px; display:grid; place-items:center; background:var(--bad); color:var(--color-bg); font-family:var(--font-body); font-size:12px; font-weight:500; line-height:1">9</span>
+          </button>
+          <button class="btn btn-secondary btn-icon" title="{{ themeLabel }}" onClick="{{ toggleTheme }}" style="flex:none"><lucide-icon name="{{ themeIcon }}" size="17"></lucide-icon></button>
+        </header>
+        <main style="flex:1; min-height:0; overflow:auto; position:relative">
+          <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}"><dc-import name="PantallaDashboard" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isPos }}"><dc-import name="PantallaPOS" navigate="{{ go }}" offline="{{ offline }}" role="{{ role }}" hint-size="100%,100%" style="display:block; height:100%"></dc-import></sc-if>
+          <sc-if value="{{ isProductos }}"><dc-import name="PantallaProductos" navigate="{{ go }}" role="{{ role }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isInventario }}"><dc-import name="PantallaInventario" navigate="{{ go }}" role="{{ role }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isCompras }}"><dc-import name="PantallaCompras" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isVentas }}"><dc-import name="PantallaVentas" navigate="{{ go }}" role="{{ role }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isCorte }}"><dc-import name="PantallaCorte" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isDevoluciones }}"><dc-import name="PantallaDevoluciones" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isUsuarios }}"><dc-import name="PantallaUsuarios" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isReportes }}"><dc-import name="PantallaReportes" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+          <sc-if value="{{ isConfig }}"><dc-import name="PantallaConfig" navigate="{{ go }}" hint-size="100%,100%"></dc-import></sc-if>
+        </main>
+      </div>
+    </div>
+
+    <sc-if value="{{ paletteOpen }}">
+      <div onClick="{{ closePalette }}" style="position:fixed; inset:0; z-index:50; background:var(--overlay); display:flex; justify-content:center; padding-top:12vh">
+        <div onClick="{{ stop }}" class="blueprint" style="width:min(560px, 92vw); height:fit-content; background:var(--color-bg); box-shadow:var(--shadow-lg)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; align-items:center; gap:10px; padding:0 16px; height:56px; border-bottom:1px solid var(--color-divider)">
+            <span style="color:var(--ink-2); display:inline-flex"><lucide-icon name="search" size="18"></lucide-icon></span>
+            <input autoFocus="{{ true }}" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ paletteKey }}" placeholder="Ir a una página…" style="flex:1; border:0; outline:none; background:transparent; color:var(--color-text); font:inherit; font-size:17px">
+            <span style="font-size:12px; padding:0 6px; border:1px solid var(--color-divider); color:var(--ink-2)">Esc</span>
+          </div>
+          <div style="padding:8px; max-height:50vh; overflow:auto; display:flex; flex-direction:column">
+            <sc-for list="{{ results }}" as="r" hint-placeholder-count="5">
+              <button onClick="{{ r.go }}" style="display:flex; align-items:center; gap:12px; height:42px; padding:0 10px; border:0; background:{{ r.bg }}; color:var(--color-text); font:inherit; font-size:15px; text-align:left; cursor:pointer" style-hover="background:var(--line-soft)">
+                <span style="display:inline-flex; color:var(--ink-2)"><lucide-icon name="{{ r.icon }}" size="17"></lucide-icon></span>
+                <span style="flex:1">{{ r.label }}</span>
+                <span style="font-size:13px; color:var(--ink-2)">{{ r.section }}</span>
+              </button>
+            </sc-for>
+            <sc-if value="{{ noResults }}">
+              <div style="padding:18px 10px; color:var(--ink-2)">Sin coincidencias.</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;login&quot;,&quot;dashboard&quot;,&quot;pos&quot;,&quot;productos&quot;,&quot;inventario&quot;,&quot;compras&quot;,&quot;ventas&quot;,&quot;corte&quot;,&quot;devoluciones&quot;,&quot;usuarios&quot;,&quot;reportes&quot;,&quot;config&quot;],&quot;default&quot;:&quot;dashboard&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;collapsed&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;admin&quot;,&quot;gerente&quot;,&quot;cajero&quot;],&quot;default&quot;:&quot;admin&quot;,&quot;tsType&quot;:&quot;'admin'|'gerente'|'cajero'&quot;},&quot;offline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const NAV = [
+  { label: "Principal", items: [
+    { id: "dashboard", label: "Dashboard", icon: "layout-dashboard" },
+    { id: "pos", label: "Punto de venta", icon: "shopping-cart" },
+  ]},
+  { label: "Inventario", items: [
+    { id: "inventario", label: "Inventario", icon: "boxes", badge: 7, tone: "warn" },
+    { id: "productos", label: "Productos", icon: "package" },
+    { id: "compras", label: "Compras", icon: "truck", badge: 2, tone: "acc" },
+  ]},
+  { label: "Finanzas", items: [
+    { id: "ventas", label: "Historial de ventas", icon: "receipt-text" },
+    { id: "corte", label: "Corte de caja", icon: "calculator" },
+    { id: "devoluciones", label: "Devoluciones", icon: "corner-down-left" },
+  ]},
+  { label: "Sistema", items: [
+    { id: "usuarios", label: "Usuarios", icon: "users" },
+    { id: "reportes", label: "Reportes", icon: "chart-column" },
+    { id: "config", label: "Configuración", icon: "settings" },
+  ]},
+];
+const ACCESS = {
+  admin: null,
+  gerente: ["dashboard", "pos", "inventario", "productos", "compras", "ventas", "corte", "devoluciones", "usuarios", "reportes"],
+  cajero: ["pos", "inventario", "productos", "ventas", "corte", "devoluciones"],
+};
+const WHO = {
+  admin: { name: "Administrador", user: "admin", initials: "AD", roleLabel: "Administrador" },
+  gerente: { name: "Laura Méndez", user: "lmendez", initials: "LM", roleLabel: "Gerente" },
+  cajero: { name: "Jorge Pérez", user: "jperez", initials: "JP", roleLabel: "Cajero" },
+};
+const allowed = (role, id) => !ACCESS[role] || ACCESS[role].includes(id);
+const ALL = NAV.flatMap((s) => s.items.map((i) => ({ ...i, section: s.label })));
+const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+class Component extends DCLogic {
+  state = {
+    screen: this.props.startScreen ?? "dashboard",
+    theme: this.props.theme ?? "light",
+    palette: false,
+    q: "",
+    role: this.props.role ?? "admin",
+    offline: this.props.offline ?? false,
+    now: new Date(),
+  };
+
+  componentDidMount() {
+    this.timer = setInterval(() => this.setState({ now: new Date() }), 15000);
+    this.onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        this.setState((s) => ({ palette: !s.palette, q: "" }));
+      } else if (e.key === "Escape" && this.state.palette) {
+        this.setState({ palette: false });
+      }
+    };
+    window.addEventListener("keydown", this.onKey);
+    this.onResize = () => this.setState({ w: window.innerWidth });
+    window.addEventListener("resize", this.onResize);
+    this.onResize();
+  }
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    window.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("resize", this.onResize);
+  }
+  componentDidUpdate(prev) {
+    if (prev.theme !== this.props.theme && this.props.theme) this.setState({ theme: this.props.theme });
+    if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
+    if (prev.role !== this.props.role && this.props.role) this.setRole(this.props.role);
+    if (prev.offline !== this.props.offline && this.props.offline !== undefined) this.setState({ offline: this.props.offline });
+  }
+
+  go = (id) => this.setState({ screen: allowed(this.state.role, id) || id === "login" ? id : this.state.screen, palette: false, q: "" });
+  setRole(role) {
+    const screen = this.state.screen === "login" || allowed(role, this.state.screen) ? this.state.screen : ACCESS[role][0];
+    this.setState({ role, screen });
+  }
+
+  item(it) {
+    const active = this.state.screen === it.id;
+    const warn = it.tone === "warn";
+    return {
+      ...it,
+      go: () => this.go(it.id),
+      bg: active ? "var(--acc-tint)" : "transparent",
+      fg: active ? "var(--acc-text)" : "var(--color-text)",
+      fw: active ? 600 : 400,
+      bar: active ? "inset 2px 0 0 var(--color-accent)" : "none",
+      iconColor: active ? "var(--color-accent)" : "var(--ink-2)",
+      hasBadge: !!it.badge,
+      badgeBg: warn ? "var(--warn-tint)" : "var(--acc-tint)",
+      badgeFg: warn ? "var(--warn)" : "var(--acc-text)",
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const isLogin = s.screen === "login";
+    const collapsed = s.screen === "pos" || this.props.collapsed === true;
+    const cur = ALL.find((i) => i.id === s.screen) || ALL[0];
+    const d = s.now;
+    const date = d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }).replace(/\./g, "");
+    const time = d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const q = norm(s.q.trim());
+    const results = ALL.filter((i) => allowed(s.role, i.id)).filter((i) => !q || norm(i.label).includes(q) || norm(i.section).includes(q)).map((i, idx) => ({
+      label: i.label, section: i.section, icon: i.icon, go: () => this.go(i.id),
+      bg: idx === 0 && q ? "var(--line-soft)" : "transparent",
+    }));
+    const flags = {};
+    for (const i of ALL) flags["is" + i.id.charAt(0).toUpperCase() + i.id.slice(1)] = s.screen === i.id;
+    flags.isPos = s.screen === "pos";
+    return {
+      ...flags,
+      theme: s.theme,
+      isLogin,
+      isApp: !isLogin,
+      login: () => this.go("dashboard"),
+      logout: () => this.go("login"),
+      collapsed,
+      expanded: !collapsed,
+      cols: collapsed ? "64px minmax(0,1fr)" : "236px minmax(0,1fr)",
+      sections: NAV.map((sec) => ({ label: sec.label, items: sec.items.filter((it) => allowed(s.role, it.id)).map((it) => this.item(it)) })).filter((sec) => sec.items.length),
+      flatItems: NAV.flatMap((sec) => sec.items.filter((it) => allowed(s.role, it.id)).map((it) => this.item(it))),
+      role: s.role,
+      who: WHO[s.role],
+      roleOpts: ["admin", "gerente", "cajero"].map((r, i) => ({ label: WHO[r].roleLabel === "Administrador" ? "Admin" : WHO[r].roleLabel, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setRole(r), bg: s.role === r ? "var(--color-accent)" : "transparent", fg: s.role === r ? "var(--on-acc)" : "var(--color-text)" })),
+      offline: s.offline,
+      toggleOffline: () => this.setState({ offline: !s.offline }),
+      lanLabel: s.offline ? "Sin conexión" : "LAN",
+      lanTitle: s.offline ? "Sin conexión al servidor (clic para simular reconexión)" : "Conexión LAN activa (clic para simular desconexión)",
+      lanDot: s.offline ? "var(--bad)" : "var(--ok)",
+      lanFg: s.offline ? "var(--bad)" : "var(--ink-2)",
+      lanBg: s.offline ? "var(--bad-tint)" : "transparent",
+      lanBorder: s.offline ? "var(--bad)" : "transparent",
+      crumbSection: cur.section,
+      crumbTitle: cur.label,
+      notPos: s.screen !== "pos",
+      goPos: () => this.go("pos"),
+      goInventario: () => this.go("inventario"),
+      wide: (s.w ?? 1400) >= 1200, narrow: (s.w ?? 1400) < 1200,
+      clock: (s.w ?? 1400) >= 1200 ? `${date} · ${time}` : time,
+      themeIcon: s.theme === "dark" ? "sun" : "moon",
+      themeLabel: s.theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
+      toggleTheme: () => this.setState((st) => ({ theme: st.theme === "dark" ? "light" : "dark" })),
+      paletteOpen: s.palette,
+      openPalette: () => this.setState({ palette: true, q: "" }),
+      closePalette: () => this.setState({ palette: false }),
+      stop: (e) => e.stopPropagation(),
+      q: s.q,
+      setQ: (e) => this.setState({ q: e.target.value }),
+      paletteKey: (e) => { if (e.key === "Enter" && results[0]) results[0].go(); },
+      results,
+      noResults: results.length === 0,
+    };
+  }
+}
+</script>
+</body>
+</html>

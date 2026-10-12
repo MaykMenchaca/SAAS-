@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Productos</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">16 productos activos · 6 categorías · 7 unidades de medida</p>
+    </div>
+    <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+    <button class="btn btn-primary blueprint" onClick="{{ newProduct }}" style="height:40px; padding:0 16px; font-size:16px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <lucide-icon name="plus" size="16"></lucide-icon>{{ newLabel }}
+    </button>
+    </sc-if>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+      <button onClick="{{ t.pick }}" style="height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isProductos }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <div style="position:relative; width:340px; max-width:100%">
+        <span style="position:absolute; left:10px; top:10px; color:var(--ink-2); display:inline-flex"><lucide-icon name="search" size="16"></lucide-icon></span>
+        <input class="input" value="{{ q }}" onChange="{{ setQ }}" placeholder="SKU, código o nombre" style="padding-left:34px; min-height:38px">
+      </div>
+      <div style="display:flex; border:1px solid var(--color-divider); flex-wrap:wrap">
+        <sc-for list="{{ catChips }}" as="c" hint-placeholder-count="7">
+          <button onClick="{{ c.pick }}" style="height:36px; padding:0 12px; border:0; border-left:{{ c.sep }}; background:{{ c.bg }}; color:{{ c.fg }}; font:inherit; font-size:13px; cursor:pointer">{{ c.name }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section class="blueprint" style="flex:1 1 560px; min-width:0; min-width:0">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="overflow:auto; padding:2px 8px 8px">
+          <table class="table">
+            <thead><tr><th>Producto</th><th>Categoría</th><th style="text-align:right">Costo</th><th style="text-align:right">Precio</th><th style="text-align:right">Margen</th><th style="text-align:right">Stock</th><th>Estado</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+                <tr onClick="{{ r.select }}" style="cursor:pointer; background:{{ r.bg }}; box-shadow:{{ r.bar }}">
+                  <td style="min-width:220px"><div style="font-weight:500">{{ r.name }}</div><div style="font-size:12px; color:var(--ink-2); letter-spacing:.04em">{{ r.sku }} · {{ r.code }}</div></td>
+                  <td style="color:var(--ink-2)">{{ r.cat }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2)">{{ r.cost }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ r.price }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums">{{ r.margin }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; color:{{ r.stockColor }}">{{ r.stock }}</td>
+                  <td><span class="tag" style="background:{{ r.tagBg }}; color:{{ r.tagFg }}">{{ r.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc-text)">{{ panelKicker }}</div>
+          <h2 style="margin:2px 0 0; font-size:22px; line-height:1.15">{{ panelTitle }}</h2>
+        </header>
+        <div style="padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:12px 12px">
+          <sc-for list="{{ fields }}" as="f" hint-placeholder-count="10">
+            <div class="field" style="grid-column:{{ f.span }}">
+              <label>{{ f.label }}</label>
+              <input class="input" value="{{ f.value }}" onChange="{{ f.change }}" readOnly="{{ readOnly }}" style="font-variant-numeric:tabular-nums">
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin:0 18px; display:grid; grid-template-columns:1fr 1fr 1fr; border:1px solid var(--color-divider)">
+          <div style="padding:10px 12px"><div style="font-size:12px; color:var(--ink-2)">Precio c/IVA</div><div style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums">{{ priceTax }}</div></div>
+          <div style="padding:10px 12px; border-left:1px solid var(--color-divider)"><div style="font-size:12px; color:var(--ink-2)">Utilidad</div><div style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums">{{ profit }}</div></div>
+          <div style="padding:10px 12px; border-left:1px solid var(--color-divider)"><div style="font-size:12px; color:var(--ink-2)">Margen</div><div style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums; color:{{ marginColor }}">{{ marginPct }}</div></div>
+        </div>
+        <sc-if value="{{ readOnly }}"><div style="padding:14px 18px 16px; font-size:13px; color:var(--ink-2); display:flex; gap:6px; align-items:center"><lucide-icon name="lock" size="14"></lucide-icon>Tu rol solo puede consultar el catálogo.</div></sc-if>
+        <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; gap:8px; padding:16px 18px; flex-wrap:wrap">
+          <button class="btn btn-primary" onClick="{{ save }}" style="height:38px; flex:1; font-size:15px">{{ saveLabel }}</button>
+          <button class="btn btn-secondary" style="height:38px"><lucide-icon name="tag" size="15"></lucide-icon>Etiqueta</button>
+          <button class="btn btn-ghost" style="height:38px; color:var(--bad)">Desactivar</button>
+        </div>
+        </sc-if>
+        <sc-if value="{{ saved }}">
+          <div style="margin:0 18px 16px; font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Cambios guardados.</div>
+        </sc-if>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isCategorias }}">
+    <section class="blueprint" style="max-width:860px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Categoría</th><th>Descripción</th><th style="text-align:right">Productos</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            <sc-for list="{{ categories }}" as="c" hint-placeholder-count="6">
+              <tr><td style="font-weight:500">{{ c.name }}</td><td style="color:var(--ink-2)">{{ c.desc }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ c.count }}</td><td><span class="tag" style="background:var(--ok-tint); color:var(--ok)">Activa</span></td><td style="text-align:right"><button class="btn btn-ghost" style="font-size:14px">Editar</button></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ isUnidades }}">
+    <section class="blueprint" style="max-width:760px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Nombre</th><th>Abreviatura</th><th>Permite fracciones</th><th></th></tr></thead>
+          <tbody>
+            <sc-for list="{{ units }}" as="u" hint-placeholder-count="7">
+              <tr><td style="font-weight:500">{{ u.name }}</td><td style="font-variant-numeric:tabular-nums">{{ u.abbr }}</td><td style="color:var(--ink-2)">{{ u.frac }}</td><td style="text-align:right"><button class="btn btn-ghost" style="font-size:14px">Editar</button></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const P = [
+  [1, "MAR-016", "7501206612345", "Martillo uña curva 16 oz", "Herramientas", "pz", 128, 189, 24, 6, 40],
+  [2, "TOR-6X1", "7501031100221", "Tornillo tablaroca 6×1\" (caja 100)", "Fijación", "cja", 42.5, 68, 3, 10, 60],
+  [3, "CIN-AIS", "7501031987412", "Cinta de aislar negra 19 mm", "Eléctrico", "pz", 9.8, 18, 86, 20, 150],
+  [4, "PIN-V19", "7501045500190", "Pintura vinílica blanca 19 L", "Pintura", "pz", 1180, 1649, 5, 4, 12],
+  [5, "PVC-12", "7501088812006", "Tubo PVC hidráulico ½\" × 6 m", "Plomería", "pz", 58, 92, 0, 8, 40],
+  [6, "CEM-50", "7501099950001", "Cemento gris 50 kg", "Construcción", "pz", 205, 259, 41, 15, 80],
+  [7, "LED-9W", "7501012300909", "Foco LED 9 W luz blanca", "Eléctrico", "pz", 22, 39, 7, 12, 60],
+  [8, "LLP-10", "7501206610102", "Llave perica 10\"", "Herramientas", "pz", 165, 239, 11, 4, 20],
+  [9, "BRO-3", "7501045503003", "Brocha 3\" cerda natural", "Pintura", "pz", 31, 54, 18, 6, 30],
+  [10, "TAQ-14", "7501031101414", "Taquete plástico ¼\" (bolsa 100)", "Fijación", "pz", 19, 35, 52, 10, 80],
+  [11, "CAB-12", "7501012312120", "Cable THW cal. 12", "Eléctrico", "m", 9.4, 16.5, 312.5, 100, 600],
+  [12, "PEG-PVC", "7501088825025", "Pegamento PVC 250 ml", "Plomería", "pz", 48, 79, 9, 10, 40],
+].map(([id, sku, code, name, cat, unit, cost, price, stock, min, max]) => ({ id, sku, code, name, cat, unit, cost, price, stock, min, max, tax: 16 }));
+const CATS = ["Todas", "Herramientas", "Fijación", "Eléctrico", "Pintura", "Plomería", "Construcción"];
+const FIELDS = [
+  ["sku", "SKU", "auto"], ["code", "Código de barras", "auto"], ["name", "Nombre", "1 / -1"],
+  ["cat", "Categoría", "auto"], ["unit", "Unidad", "auto"], ["cost", "Costo", "auto"], ["price", "Precio de venta", "auto"],
+  ["tax", "IVA %", "auto"], ["min", "Stock mínimo", "auto"], ["max", "Stock máximo", "auto"],
+];
+const EMPTY = { sku: "", code: "", name: "", cat: "Herramientas", unit: "pz", cost: "", price: "", tax: 16, min: "", max: "" };
+
+class Component extends DCLogic {
+  state = { tab: "productos", q: "", cat: "Todas", sel: 1, edits: {}, creating: false, saved: false };
+  current() {
+    if (this.state.creating) return { ...EMPTY, ...this.state.edits };
+    const p = P.find((x) => x.id === this.state.sel) || P[0];
+    return { ...p, ...this.state.edits };
+  }
+  renderVals() {
+    const s = this.state;
+    const q = norm(s.q.trim());
+    const rows = P.filter((p) => (s.cat === "Todas" || p.cat === s.cat) && (!q || norm(p.name).includes(q) || norm(p.sku).includes(q) || p.code.includes(q))).map((p) => {
+      const on = !s.creating && p.id === s.sel;
+      const out = p.stock <= 0, low = !out && p.stock < p.min;
+      return {
+        ...p, cost: mx(p.cost), price: mx(p.price), margin: Math.round(((p.price - p.cost) / p.price) * 100) + "%",
+        stock: `${p.stock} ${p.unit}`, stockColor: out ? "var(--bad)" : low ? "var(--warn)" : "var(--color-text)",
+        status: "Activo", tagBg: "var(--ok-tint)", tagFg: "var(--ok)",
+        bg: on ? "var(--acc-tint)" : "transparent", bar: on ? "inset 2px 0 0 var(--color-accent)" : "none",
+        select: () => this.setState({ sel: p.id, edits: {}, creating: false, saved: false }),
+      };
+    });
+    const cur = this.current();
+    const cost = Number(cur.cost) || 0, price = Number(cur.price) || 0, tax = Number(cur.tax) || 0;
+    const margin = price ? ((price - cost) / price) * 100 : 0;
+    const tabs = [["productos", "Productos"], ["categorias", "Categorías"], ["unidades", "Unidades"]].map(([id, label]) => ({
+      label, pick: () => this.setState({ tab: id }),
+      line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    return {
+      tabs, isProductos: s.tab === "productos", isCategorias: s.tab === "categorias", isUnidades: s.tab === "unidades",
+      newLabel: s.tab === "categorias" ? "Nueva categoría" : s.tab === "unidades" ? "Nueva unidad" : "Nuevo producto",
+      newProduct: () => this.setState({ tab: "productos", creating: true, edits: {}, saved: false }),
+      q: s.q, setQ: (e) => this.setState({ q: e.target.value }),
+      catChips: CATS.map((c, i) => ({ name: c, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ cat: c }), bg: s.cat === c ? "var(--color-accent)" : "transparent", fg: s.cat === c ? "var(--on-acc)" : "var(--color-text)" })),
+      rows,
+      panelKicker: s.creating ? "Alta" : (this.props.role === "cajero" ? "Consulta · " : "Editar · ") + cur.sku,
+      canEdit: this.props.role !== "cajero", readOnly: this.props.role === "cajero",
+      panelTitle: s.creating ? "Nuevo producto" : cur.name,
+      fields: FIELDS.map(([k, label, span]) => ({ label, span, value: String(cur[k] ?? ""), change: (e) => this.setState((st) => ({ edits: { ...st.edits, [k]: e.target.value }, saved: false })) })),
+      priceTax: mx(price * (1 + tax / 100)), profit: mx(price - cost), marginPct: margin.toFixed(1) + "%",
+      marginColor: margin < 15 ? "var(--warn)" : "var(--color-text)",
+      saveLabel: s.creating ? "Crear producto" : "Guardar cambios",
+      save: () => this.setState({ saved: true }), saved: s.saved,
+      categories: [
+        ["Herramientas", "Manuales y eléctricas"], ["Fijación", "Tornillería, taquetes y clavos"], ["Eléctrico", "Cable, focos y accesorios"],
+        ["Pintura", "Pinturas, brochas y lijas"], ["Plomería", "Tubería PVC, conexiones y pegamentos"], ["Construcción", "Cemento, varilla y agregados"],
+      ].map(([name, desc]) => ({ name, desc, count: P.filter((p) => p.cat === name).length })),
+      units: [["Pieza", "pz", false], ["Kilogramo", "kg", true], ["Litro", "lt", true], ["Metro", "m", true], ["Caja", "cja", false], ["Par", "par", false], ["Rollo", "rollo", false]].map(([name, abbr, f]) => ({ name, abbr, frac: f ? "Sí" : "No" })),
+    };
+  }
+}
+</script>
+</body>
+</html>

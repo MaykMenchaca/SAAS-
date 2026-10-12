@@ -1,0 +1,45 @@
+/* VRNTAS — capa de tema claro/oscuro sobre industry.css */
+:root, [data-theme="light"] {
+  --ink-2: color-mix(in srgb, #1d1f20 68%, transparent);
+  --ink-3: color-mix(in srgb, #1d1f20 46%, transparent);
+  --line-soft: color-mix(in srgb, #1d1f20 7%, transparent);
+  --acc-text: #416180;
+  --acc-tint: #e3eef9;
+  --acc-hover: #416180;
+  --on-acc: #f7f8fa;
+  --bar: #94bce3;
+  --ok: oklch(0.5 0.1 155);   --ok-tint: oklch(0.5 0.1 155 / 0.12);
+  --warn: oklch(0.52 0.11 65); --warn-tint: oklch(0.62 0.12 70 / 0.16);
+  --bad: oklch(0.52 0.15 27);  --bad-tint: oklch(0.52 0.15 27 / 0.11);
+  --overlay: color-mix(in srgb, #1d2d3d 45%, transparent);
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #131517;
+  --color-surface: #1c1f22;
+  --color-text: #e5e7e9;
+  --color-accent: #8db2d7;
+  --color-divider: color-mix(in srgb, #e5e7e9 17%, transparent);
+  --ink-2: color-mix(in srgb, #e5e7e9 70%, transparent);
+  --ink-3: color-mix(in srgb, #e5e7e9 48%, transparent);
+  --line-soft: color-mix(in srgb, #e5e7e9 7%, transparent);
+  --acc-text: #b5d9fd;
+  --acc-tint: color-mix(in srgb, #8db2d7 16%, transparent);
+  --acc-hover: #b5d9fd;
+  --on-acc: #0f1215;
+  --bar: #416180;
+  --ok: oklch(0.78 0.1 155);   --ok-tint: oklch(0.78 0.1 155 / 0.14);
+  --warn: oklch(0.8 0.11 75);  --warn-tint: oklch(0.8 0.11 75 / 0.14);
+  --bad: oklch(0.74 0.13 27);  --bad-tint: oklch(0.74 0.13 27 / 0.14);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .btn-primary:hover { background: #b5d9fd; }
+[data-theme="dark"] .btn-primary:active { background: #d6ebff; }
+[data-theme="dark"] .tag-accent { background: var(--acc-tint); color: var(--acc-text); }
+[data-theme="dark"] .tag-neutral { background: var(--line-soft); color: var(--ink-2); }
+html, body { margin: 0; height: 100%; }
+a { color: var(--acc-text); }
+a:hover { color: var(--color-accent); }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }

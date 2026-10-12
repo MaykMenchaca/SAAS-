@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div>
+    <h1 style="margin:0; font-size:38px; line-height:1">Configuración</h1>
+    <p style="margin:6px 0 0; color:var(--ink-2)">Datos del negocio, auditoría y respaldos</p>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+      <button onClick="{{ t.pick }}" style="display:flex; align-items:center; gap:8px; height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer"><lucide-icon name="{{ t.icon }}" size="17"></lucide-icon>{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isGeneral }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <div style="flex:1 1 560px; min-width:0; display:flex; flex-direction:column; gap:24px; min-width:0">
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+          <section class="blueprint">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+              <h2 style="margin:0; font-size:20px">{{ g.title }}</h2>
+              <div style="font-size:13px; color:var(--ink-2)">{{ g.desc }}</div>
+            </header>
+            <div style="padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:12px">
+              <sc-for list="{{ g.fields }}" as="f" hint-placeholder-count="3">
+                <div class="field" style="grid-column:{{ f.span }}">
+                  <label>{{ f.label }}</label>
+                  <input class="input" value="{{ f.value }}" onChange="{{ f.change }}" placeholder="{{ f.placeholder }}">
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </sc-for>
+        <div style="display:flex; align-items:center; gap:12px">
+          <button class="btn btn-primary blueprint" onClick="{{ save }}" style="height:42px; padding:0 20px; font-size:16px">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            Guardar configuración
+          </button>
+          <sc-if value="{{ saved }}"><span style="font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Configuración guardada.</span></sc-if>
+        </div>
+      </div>
+
+      <div style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column; gap:10px">
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)">Vista previa del ticket</div>
+        <div class="blueprint" style="padding:22px 20px; display:flex; flex-direction:column; gap:10px; font-size:13px; line-height:1.4">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="text-align:center">
+            <div style="font-family:var(--font-heading); font-weight:600; font-size:20px">{{ c.company_name }}</div>
+            <div style="color:var(--ink-2)">{{ c.company_address }}</div>
+            <div style="color:var(--ink-2)">Tel. {{ c.company_phone }} · RFC {{ c.company_rfc }}</div>
+          </div>
+          <div style="border-top:1px dashed var(--color-divider); padding-top:8px; display:flex; justify-content:space-between; color:var(--ink-2)"><span>V-20261011-0048</span><span>11/10/2026 14:52</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px; border-top:1px dashed var(--color-divider); padding-top:8px; font-variant-numeric:tabular-nums">
+            <div style="display:flex; justify-content:space-between"><span>1 Cemento gris 50 kg</span><span>$259.00</span></div>
+            <div style="display:flex; justify-content:space-between"><span>1 Brocha 3" cerda natural</span><span>$54.00</span></div>
+            <div style="display:flex; justify-content:space-between"><span>1 Cinta de aislar 19 mm</span><span>$18.00</span></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px; border-top:1px dashed var(--color-divider); padding-top:8px; font-variant-numeric:tabular-nums">
+            <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>Subtotal</span><span>$331.00</span></div>
+            <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>IVA {{ c.default_tax_rate }}%</span><span>{{ taxPreview }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-family:var(--font-heading); font-weight:600; font-size:18px"><span>TOTAL</span><span>{{ totalPreview }}</span></div>
+          </div>
+          <div style="border-top:1px dashed var(--color-divider); padding-top:8px; text-align:center; color:var(--ink-2)">{{ c.ticket_footer }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isAudit }}">
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <div class="field"><label>Acción</label><select class="input" style="width:180px"><option>Todas</option><option>Login</option><option>Crear</option><option>Actualizar</option><option>Eliminar</option><option>Cancelar</option></select></div>
+      <div class="field"><label>Entidad</label><select class="input" style="width:180px"><option>Todas</option><option>Venta</option><option>Producto</option><option>Usuario</option><option>Inventario</option><option>Orden de compra</option><option>Respaldo</option><option>Configuración</option></select></div>
+    </div>
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Detalles</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ audit }}" as="a" hint-placeholder-count="8">
+              <tr>
+                <td style="color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums">{{ a.date }}</td>
+                <td>{{ a.user }}</td>
+                <td><span class="tag" style="background:{{ a.tagBg }}; color:{{ a.tagFg }}">{{ a.action }}</span></td>
+                <td>{{ a.entity }}</td>
+                <td style="color:var(--ink-2)">{{ a.detail }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ isBackups }}">
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) auto; border:1px solid var(--color-divider); align-items:center">
+      <div style="padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Último respaldo</div><div style="font-family:var(--font-heading); font-weight:600; font-size:24px">Hoy 03:00</div></div>
+      <div style="padding:14px 18px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Programación</div><div style="font-family:var(--font-heading); font-weight:600; font-size:24px">Diario, 03:00</div></div>
+      <div style="padding:14px 18px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Respaldos guardados</div><div style="font-family:var(--font-heading); font-weight:600; font-size:24px">{{ backupCount }}</div></div>
+      <div style="padding:14px 18px; border-left:1px solid var(--color-divider)">
+        <button class="btn btn-primary" onClick="{{ createBackup }}" style="height:40px; padding:0 16px; font-size:15px"><lucide-icon name="database-backup" size="16"></lucide-icon>Crear respaldo ahora</button>
+      </div>
+    </div>
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Archivo</th><th style="text-align:right">Tamaño</th><th>Fecha</th><th>Tipo</th><th></th></tr></thead>
+          <tbody>
+            <sc-for list="{{ backups }}" as="b" hint-placeholder-count="5">
+              <tr>
+                <td style="font-weight:500; font-variant-numeric:tabular-nums">{{ b.file }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2)">{{ b.size }}</td>
+                <td style="color:var(--ink-2); white-space:nowrap">{{ b.date }}</td>
+                <td><span class="tag tag-neutral">{{ b.kind }}</span></td>
+                <td style="text-align:right; white-space:nowrap">
+                  <button class="btn btn-ghost" style="font-size:14px">Descargar</button>
+                  <button class="btn btn-ghost" style="font-size:14px">Restaurar</button>
+                  <button class="btn btn-ghost" style="font-size:14px; color:var(--bad)">Eliminar</button>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const GROUPS = [
+  { title: "Datos del negocio", desc: "Aparecen en el encabezado de cada ticket.", fields: [
+    ["company_name", "Nombre de la empresa", "Mi Negocio", "1 / -1"], ["company_address", "Dirección", "Calle 123, Col. Centro", "1 / -1"],
+    ["company_phone", "Teléfono", "(123) 456-7890", "auto"], ["company_rfc", "RFC", "XAXX010101000", "auto"]] },
+  { title: "Ventas", desc: "Valores por defecto para nuevos productos y tickets.", fields: [
+    ["default_tax_rate", "IVA por defecto (%)", "16.00", "auto"], ["ticket_footer", "Pie de ticket", "Gracias por su compra", "auto"]] },
+  { title: "Marca en la barra lateral", desc: "Nombre y subtítulo que ve el equipo en el sistema.", fields: [
+    ["brand_name", "Nombre del local", "Ej. Ferretería El Clavo", "auto"], ["brand_subtitle", "Subtítulo / lema", "Ej. Sucursal Centro", "auto"]] },
+];
+const AUDIT_TONE = { Login: ["var(--line-soft)", "var(--ink-2)"], Crear: ["var(--ok-tint)", "var(--ok)"], Actualizar: ["var(--acc-tint)", "var(--acc-text)"], Eliminar: ["var(--bad-tint)", "var(--bad)"], Cancelar: ["var(--warn-tint)", "var(--warn)"] };
+
+class Component extends DCLogic {
+  state = {
+    tab: "general", saved: false, extra: 0,
+    c: { company_name: "Ferretería El Clavo", company_address: "Av. Juárez 418, Col. Centro, León, Gto.", company_phone: "(477) 713 2280", company_rfc: "FEC140512HG3", default_tax_rate: "16", ticket_footer: "Gracias por su compra. Cambios con ticket en 15 días.", brand_name: "Ferretería", brand_subtitle: "VRNTAS POS" },
+  };
+  renderVals() {
+    const s = this.state;
+    const tax = 331 * ((Number(s.c.default_tax_rate) || 0) / 100);
+    const tabs = [["general", "General", "settings"], ["audit", "Auditoría", "scroll-text"], ["backups", "Respaldos", "database"]].map(([id, label, icon]) => ({
+      label, icon, pick: () => this.setState({ tab: id }), line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    const base = [
+      ["pos_backup_20261011_0300.dump", "18.4 MB", "11 oct 2026, 03:00", "Automático"],
+      ["pos_backup_20261010_0300.dump", "18.3 MB", "10 oct 2026, 03:00", "Automático"],
+      ["pos_backup_20261009_1842.dump", "18.2 MB", "09 oct 2026, 18:42", "Manual"],
+      ["pos_backup_20261009_0300.dump", "18.1 MB", "09 oct 2026, 03:00", "Automático"],
+      ["pos_backup_20261008_0300.dump", "18.0 MB", "08 oct 2026, 03:00", "Automático"],
+    ];
+    const extra = Array.from({ length: s.extra }, (_, i) => [`pos_backup_manual_${String(i + 1).padStart(2, "0")}.dump`, "18.4 MB", "Ahora", "Manual"]).reverse();
+    return {
+      tabs, isGeneral: s.tab === "general", isAudit: s.tab === "audit", isBackups: s.tab === "backups",
+      c: s.c,
+      groups: GROUPS.map((g) => ({ ...g, fields: g.fields.map(([k, label, placeholder, span]) => ({ label, placeholder, span, value: s.c[k], change: (e) => this.setState((st) => ({ c: { ...st.c, [k]: e.target.value }, saved: false })) })) })),
+      taxPreview: mx(tax), totalPreview: mx(331 + tax),
+      save: () => this.setState({ saved: true }), saved: s.saved,
+      audit: [
+        ["11 oct 14:06", "Laura Méndez", "Cancelar", "Venta", "V-20261011-0044 · Cliente se arrepintió"],
+        ["11 oct 12:30", "Laura Méndez", "Actualizar", "Producto", "PIN-V19 · precio $1,599.00 → $1,649.00"],
+        ["11 oct 09:15", "Laura Méndez", "Login", "Usuario", "lmendez · Caja 1"],
+        ["11 oct 08:47", "Ana Ruiz", "Login", "Usuario", "aruiz · Caja 2"],
+        ["11 oct 08:02", "Jorge Pérez", "Crear", "Inventario", "Apertura de caja · fondo $1,500.00"],
+        ["10 oct 19:30", "Laura Méndez", "Crear", "Inventario", "Conteo mensual octubre 2026"],
+        ["10 oct 11:12", "Administrador", "Crear", "Orden de compra", "OC-2026-0031 · Distribuidora Ferretera del Bajío"],
+        ["09 oct 18:42", "Administrador", "Crear", "Respaldo", "pos_backup_20261009_1842.dump"],
+        ["08 oct 21:00", "Administrador", "Eliminar", "Usuario", "mtorres desactivado"],
+      ].map(([date, user, action, entity, detail]) => ({ date, user, action, entity, detail, tagBg: AUDIT_TONE[action][0], tagFg: AUDIT_TONE[action][1] })),
+      backups: [...extra, ...base].map(([file, size, date, kind]) => ({ file, size, date, kind })),
+      backupCount: 5 + s.extra,
+      createBackup: () => this.setState({ extra: s.extra + 1 }),
+    };
+  }
+}
+</script>
+</body>
+</html>

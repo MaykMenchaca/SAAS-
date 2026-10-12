@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Reportes</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">Del {{ fromLabel }} al {{ toLabel }}</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap">
+      <div style="display:flex; border:1px solid var(--color-divider)">
+        <sc-for list="{{ presets }}" as="c" hint-placeholder-count="4">
+          <button onClick="{{ c.pick }}" style="height:36px; padding:0 12px; border:0; border-left:{{ c.sep }}; background:{{ c.bg }}; color:{{ c.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ c.label }}</button>
+        </sc-for>
+      </div>
+      <div class="field"><label>Desde</label><input class="input" type="date" value="2026-09-28" style="min-height:36px"></div>
+      <div class="field"><label>Hasta</label><input class="input" type="date" value="2026-10-11" style="min-height:36px"></div>
+      <button class="btn btn-secondary" style="height:36px"><lucide-icon name="download" size="16"></lucide-icon>Exportar CSV</button>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+      <button onClick="{{ t.pick }}" style="display:flex; align-items:center; gap:8px; height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer"><lucide-icon name="{{ t.icon }}" size="17"></lucide-icon>{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isVentas }}" hint-placeholder-val="{{ true }}">
+    <div class="blueprint" style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:1px; background:var(--color-divider)">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+        <div style="background:var(--color-bg); padding:16px 18px; display:flex; flex-direction:column; gap:6px">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:14px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2)">{{ k.label }}</span>
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:38px; line-height:1; font-variant-numeric:tabular-nums; color:{{ k.color }}">{{ k.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:24px; align-items:start">
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--color-divider)"><h2 style="margin:0; font-size:21px">Ingreso diario</h2><span style="font-size:13px; color:var(--ink-2)">Máximo {{ maxDay }}</span></header>
+        <div style="display:grid; grid-template-columns:repeat(14, minmax(0,1fr)); gap:6px; align-items:end; height:240px; padding:20px 18px 0">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="14">
+            <div title="{{ d.full }}" style="height:{{ d.h }}; background:{{ d.color }}"></div>
+          </sc-for>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(14, minmax(0,1fr)); gap:6px; padding:8px 18px 14px; border-top:1px solid var(--color-divider)">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="14">
+            <span style="font-size:12px; text-align:center; color:var(--ink-2); font-variant-numeric:tabular-nums">{{ d.label }}</span>
+          </sc-for>
+        </div>
+      </section>
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="padding:2px 8px 8px; max-height:340px; overflow:auto">
+          <table class="table">
+            <thead><tr><th>Fecha</th><th style="text-align:right">Ventas</th><th style="text-align:right">Ingreso</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ daysDesc }}" as="d" hint-placeholder-count="10">
+                <tr><td>{{ d.date }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ d.count }}</td><td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ d.full }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isTop }}">
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="padding:2px 8px 8px; overflow:auto">
+        <table class="table">
+          <thead><tr><th style="width:40px">#</th><th>Producto</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Ventas</th><th style="width:28%">Participación</th><th style="text-align:right">Ingreso</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ top }}" as="t" hint-placeholder-count="8">
+              <tr>
+                <td style="font-family:var(--font-heading); font-weight:600; font-size:16px; color:var(--color-accent)">{{ t.rank }}</td>
+                <td><div style="font-weight:500">{{ t.name }}</div><div style="font-size:12px; color:var(--ink-2)">{{ t.sku }}</div></td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ t.qty }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ t.tickets }}</td>
+                <td><div style="height:6px; background:var(--line-soft)"><div style="height:100%; width:{{ t.w }}; background:var(--color-accent)"></div></div></td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ t.revenue }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ isVal }}">
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Valuación de inventario a costo promedio</h2>
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:28px; font-variant-numeric:tabular-nums">{{ valTotal }}</span>
+      </header>
+      <div style="padding:2px 8px 8px; overflow:auto">
+        <table class="table">
+          <thead><tr><th>SKU</th><th>Producto</th><th style="text-align:right">Stock</th><th style="text-align:right">Costo prom.</th><th style="text-align:right">Valuación</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ val }}" as="v" hint-placeholder-count="10">
+              <tr><td style="color:var(--ink-2); letter-spacing:.04em">{{ v.sku }}</td><td style="font-weight:500">{{ v.name }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ v.stock }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ v.cost }}</td><td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ v.value }}</td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ isMargin }}">
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Margen bruto por producto</h2>
+        <span style="font-size:14px; color:var(--ink-2)">Margen total <span style="font-family:var(--font-heading); font-weight:600; font-size:24px; color:var(--color-text); font-variant-numeric:tabular-nums">{{ marginTotal }}</span></span>
+      </header>
+      <div style="padding:2px 8px 8px; overflow:auto">
+        <table class="table">
+          <thead><tr><th>Producto</th><th style="text-align:right">Cant.</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Costo</th><th style="text-align:right">Margen</th><th style="text-align:right">%</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ margin }}" as="m" hint-placeholder-count="8">
+              <tr><td style="font-weight:500">{{ m.name }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.qty }}</td><td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.revenue }}</td><td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2)">{{ m.cost }}</td><td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ m.margin }}</td><td style="text-align:right; font-variant-numeric:tabular-nums; color:{{ m.color }}">{{ m.pct }}</td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const P = [
+  ["CEM-50", "Cemento gris 50 kg", "pz", 205, 259, 41, 64, 51],
+  ["CAB-12", "Cable THW cal. 12", "m", 9.4, 16.5, 312.5, 820, 74],
+  ["PIN-V19", "Pintura vinílica blanca 19 L", "pz", 1180, 1649, 5, 7, 7],
+  ["TOR-6X1", "Tornillo tablaroca 6×1\" (caja 100)", "cja", 42.5, 68, 3, 112, 63],
+  ["LED-9W", "Foco LED 9 W luz blanca", "pz", 22, 39, 7, 168, 88],
+  ["MAR-016", "Martillo uña curva 16 oz", "pz", 128, 189, 24, 26, 25],
+  ["LLP-10", "Llave perica 10\"", "pz", 165, 239, 11, 18, 18],
+  ["CIN-AIS", "Cinta de aislar negra 19 mm", "pz", 9.8, 18, 86, 214, 131],
+  ["BRO-3", "Brocha 3\" cerda natural", "pz", 31, 54, 18, 49, 41],
+  ["TAQ-14", "Taquete plástico ¼\" (bolsa 100)", "pz", 19, 35, 52, 77, 60],
+];
+const DAILY = [12840, 14210, 9980, 11760, 13020, 16480, 15110, 11240.5, 9876, 12410.25, 13980, 15620.75, 18240.4, 14382.5];
+const COUNTS = [41, 46, 33, 39, 42, 54, 49, 37, 32, 41, 45, 51, 59, 48];
+
+class Component extends DCLogic {
+  state = { tab: "ventas", preset: "14 días" };
+  renderVals() {
+    const s = this.state;
+    const end = new Date(2026, 9, 11);
+    const max = Math.max(...DAILY);
+    const days = DAILY.map((v, i) => {
+      const d = new Date(end); d.setDate(end.getDate() - (13 - i));
+      return { label: d.getDate(), date: d.toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "short" }).replace(/\./g, ""),
+        full: mx(v), count: COUNTS[i], h: Math.round((v / max) * 100) + "%", color: i === 13 ? "var(--color-accent)" : "var(--bar)" };
+    });
+    const revenue = DAILY.reduce((a, b) => a + b, 0), tickets = COUNTS.reduce((a, b) => a + b, 0);
+    const byRev = [...P].sort((a, b) => b[4] * b[6] - a[4] * a[6]);
+    const topRev = byRev[0][4] * byRev[0][6];
+    const tabs = [["ventas", "Ventas", "receipt-text"], ["top", "Top productos", "trending-up"], ["val", "Valuación", "package"], ["margin", "Margen", "circle-dollar-sign"]].map(([id, label, icon]) => ({
+      label, icon, pick: () => this.setState({ tab: id }), line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    const marginRows = byRev.map(([sku, name, unit, cost, price, , qty]) => {
+      const rev = price * qty, c = cost * qty, m = rev - c, pct = (m / rev) * 100;
+      return { name, qty: `${qty} ${unit}`, revenue: mx(rev), cost: mx(c), margin: mx(m), pct: pct.toFixed(1) + "%", color: pct < 25 ? "var(--warn)" : "var(--color-text)" };
+    });
+    const totM = byRev.reduce((a, p) => a + (p[4] - p[3]) * p[6], 0), totR = byRev.reduce((a, p) => a + p[4] * p[6], 0);
+    return {
+      fromLabel: "28 sep", toLabel: "11 oct 2026",
+      presets: ["7 días", "14 días", "Este mes", "Este año"].map((l, i) => ({ label: l, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ preset: l }), bg: s.preset === l ? "var(--color-accent)" : "transparent", fg: s.preset === l ? "var(--on-acc)" : "var(--color-text)" })),
+      tabs, isVentas: s.tab === "ventas", isTop: s.tab === "top", isVal: s.tab === "val", isMargin: s.tab === "margin",
+      kpis: [
+        { label: "Ventas totales", value: tickets.toLocaleString("es-MX"), color: "var(--color-text)" },
+        { label: "Ingreso total", value: mx(revenue), color: "var(--color-text)" },
+        { label: "Ticket promedio", value: mx(revenue / tickets), color: "var(--color-text)" },
+        { label: "Canceladas", value: "9", color: "var(--bad)" },
+      ],
+      days, daysDesc: [...days].reverse(), maxDay: mx(max),
+      top: byRev.map(([sku, name, unit, , price, , qty, t], i) => ({ rank: i + 1, sku, name, qty: `${qty} ${unit}`, tickets: t, revenue: mx(price * qty), w: Math.round(((price * qty) / topRev) * 100) + "%" })),
+      val: P.map(([sku, name, unit, cost, , stock]) => ({ sku, name, stock: `${stock} ${unit}`, cost: mx(cost), value: mx(cost * stock) })),
+      valTotal: mx(P.reduce((a, p) => a + p[3] * p[5], 0)),
+      margin: marginRows, marginTotal: ((totM / totR) * 100).toFixed(1) + "%",
+    };
+  }
+}
+</script>
+</body>
+</html>

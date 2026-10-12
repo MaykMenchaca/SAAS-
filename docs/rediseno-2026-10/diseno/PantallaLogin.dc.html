@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="min-height:100%; height:100%; display:grid; grid-template-columns:minmax(0,1.15fr) minmax(420px,1fr); background:var(--color-bg); color:var(--color-text); font-family:var(--font-body)">
+  <section style="position:relative; display:flex; flex-direction:column; justify-content:space-between; padding:48px 56px; border-right:1px solid var(--color-divider); background-image:linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px); background-size:48px 48px; overflow:hidden">
+    <div style="display:flex; align-items:center; gap:12px">
+      <div style="width:38px; height:38px; display:grid; place-items:center; background:var(--color-accent); color:var(--on-acc); font-family:var(--font-heading); font-weight:600; font-size:22px">V</div>
+      <div style="font-family:var(--font-heading); font-weight:600; font-size:20px">Ferretería</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:28px; max-width:620px">
+      <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--acc-text)">Acceso a caja local</div>
+      <h1 style="margin:0; font-size:120px; line-height:.86; letter-spacing:-.02em">VRNTAS<br><span style="color:var(--color-accent)">POS</span></h1>
+      <p style="margin:0; font-size:18px; color:var(--ink-2); max-width:480px; text-wrap:pretty">Gestión de ventas, inventario y compras en una sola herramienta. Opera en red local sin depender de internet.</p>
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider); background:var(--color-bg)">
+        <div style="padding:16px; display:flex; flex-direction:column; gap:8px">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:28px; color:var(--color-accent); line-height:1">01</span>
+          <span style="font-size:14px">Opera 100% en red local, sin internet requerido</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:8px; border-left:1px solid var(--color-divider)">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:28px; color:var(--color-accent); line-height:1">02</span>
+          <span style="font-size:14px">Inventario en tiempo real durante cada venta</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:8px; border-left:1px solid var(--color-divider)">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:28px; color:var(--color-accent); line-height:1">03</span>
+          <span style="font-size:14px">Corte de caja con conteo por denominaciones</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-2)">
+      <span style="width:8px; height:8px; border-radius:50%; background:var(--ok)"></span>
+      Servidor local en línea · 192.168.1.10
+    </div>
+  </section>
+
+  <section style="display:grid; place-items:center; padding:48px">
+    <form onSubmit="{{ submit }}" style="width:100%; max-width:380px; display:flex; flex-direction:column; gap:20px">
+      <div>
+        <h2 style="margin:0; font-size:40px; line-height:1">Iniciar sesión</h2>
+        <p style="margin:8px 0 0; color:var(--ink-2)">Ingresa con tu usuario para abrir caja.</p>
+      </div>
+      <div class="field">
+        <label for="u">Usuario</label>
+        <input id="u" class="input" autoComplete="username" placeholder="admin" value="{{ user }}" onChange="{{ setUser }}" style="min-height:44px; font-size:16px">
+      </div>
+      <div class="field">
+        <label for="p">Contraseña</label>
+        <input id="p" class="input" type="password" autoComplete="current-password" placeholder="••••••••" value="{{ pass }}" onChange="{{ setPass }}" style="min-height:44px; font-size:16px">
+      </div>
+      <sc-if value="{{ hasError }}">
+        <div style="padding:10px 12px; border:1px solid var(--bad); color:var(--bad); background:var(--bad-tint); font-size:14px">Usuario o contraseña incorrectos.</div>
+      </sc-if>
+      <button type="submit" class="btn btn-primary blueprint" style="height:48px; font-size:17px; margin-top:4px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <lucide-icon name="log-in" size="18"></lucide-icon>Entrar al sistema
+      </button>
+      <p style="margin:0; font-size:13px; color:var(--ink-2)">¿Olvidaste tu contraseña? Pide al administrador que la restablezca desde Usuarios.</p>
+    </form>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { user: "", pass: "", error: false };
+  renderVals() {
+    return {
+      user: this.state.user,
+      pass: this.state.pass,
+      hasError: this.state.error,
+      setUser: (e) => this.setState({ user: e.target.value, error: false }),
+      setPass: (e) => this.setState({ pass: e.target.value, error: false }),
+      submit: (e) => {
+        e.preventDefault();
+        if (!this.state.user.trim() || !this.state.pass) { this.setState({ error: true }); return; }
+        this.props.onLogin?.();
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:24px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Dashboard</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2); white-space:nowrap">{{ today }} · Resumen operativo</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <button class="btn btn-secondary" onClick="{{ goCompras }}" style="height:36px"><lucide-icon name="truck" size="16"></lucide-icon>Nueva compra</button>
+      <button class="btn btn-secondary" onClick="{{ goDev }}" style="height:36px"><lucide-icon name="corner-down-left" size="16"></lucide-icon>Devolución</button>
+      <button class="btn btn-secondary" onClick="{{ goReportes }}" style="height:36px"><lucide-icon name="chart-column" size="16"></lucide-icon>Reportes</button>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:0; flex-wrap:wrap; border:1px solid var(--color-divider)">
+    <div style="display:flex; align-items:center; gap:12px; padding:14px 18px; flex:1; min-width:260px">
+      <span style="width:10px; height:10px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 4px var(--ok-tint)"></span>
+      <div>
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:17px; color:var(--ok)">Turno abierto</div>
+        <div style="font-size:13px; color:var(--ink-2)">Caja 1 · Cajero: <span style="color:var(--color-text); font-weight:500">Jorge Pérez</span> · desde 08:02</div>
+      </div>
+    </div>
+    <div style="padding:14px 20px; border-left:1px solid var(--color-divider)">
+      <div style="font-family:var(--font-heading); font-weight:600; font-size:22px; font-variant-numeric:tabular-nums; line-height:1.1">$14,382.50</div>
+      <div style="font-size:12px; color:var(--ink-2)">Vendido en turno</div>
+    </div>
+    <div style="padding:14px 20px; border-left:1px solid var(--color-divider)">
+      <div style="font-family:var(--font-heading); font-weight:600; font-size:22px; font-variant-numeric:tabular-nums; line-height:1.1">48</div>
+      <div style="font-size:12px; color:var(--ink-2)">Transacciones</div>
+    </div>
+    <div style="padding:14px 18px; margin-left:auto">
+      <button class="btn btn-secondary" onClick="{{ goCorte }}" style="height:36px"><lucide-icon name="calculator" size="16"></lucide-icon>Cerrar turno</button>
+    </div>
+  </div>
+
+  <div class="blueprint" style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:1px; background:var(--color-divider)">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+      <div style="background:var(--color-bg); padding:18px 20px 16px; display:flex; flex-direction:column; gap:10px; min-width:0">
+        <div style="display:flex; align-items:center; justify-content:space-between; color:var(--ink-2)">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0">{{ k.label }}</span>
+        </div>
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:clamp(28px, 2.6vw, 44px); line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:0; color:{{ k.valueColor }}">{{ k.value }}</div>
+        <div style="font-size:13px; color:{{ k.noteColor }}">{{ k.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:24px">
+    <section class="blueprint" style="display:flex; flex-direction:column; min-width:0">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Rendimiento semanal</h2>
+        <span style="font-size:13px; color:var(--ink-2)">Ventas diarias · últimos 7 días</span>
+      </header>
+      <div style="display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:14px; align-items:end; height:220px; padding:22px 18px 0">
+        <sc-for list="{{ week }}" as="d" hint-placeholder-count="7">
+          <div style="height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; gap:6px; min-width:0">
+            <span style="font-size:12px; text-align:center; color:{{ d.labelColor }}; font-variant-numeric:tabular-nums; white-space:nowrap">{{ d.short }}</span>
+            <div title="{{ d.full }}" style="height:{{ d.h }}; background:{{ d.color }}"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:14px; padding:8px 18px 0; border-top:1px solid var(--color-divider); margin:0 0 0">
+        <sc-for list="{{ week }}" as="d" hint-placeholder-count="7">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.06em; text-align:center; color:{{ d.labelColor }}">{{ d.day }}</span>
+        </sc-for>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:12px; padding:14px 18px; margin-top:auto; font-size:13px; color:var(--ink-2)">
+        <span>Promedio diario <span style="color:var(--color-text); font-weight:500; font-variant-numeric:tabular-nums">{{ avg }}</span></span>
+        <span>Total semana <span style="color:var(--color-text); font-family:var(--font-heading); font-weight:600; font-size:18px; font-variant-numeric:tabular-nums">{{ weekTotal }}</span></span>
+      </div>
+    </section>
+
+    <section class="blueprint" style="display:flex; flex-direction:column; min-width:0">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Stock crítico</h2>
+        <button class="btn btn-ghost" onClick="{{ goInv }}" style="font-size:14px">Ver inventario<lucide-icon name="arrow-right" size="14"></lucide-icon></button>
+      </header>
+      <div style="display:flex; flex-direction:column">
+        <sc-for list="{{ lowStock }}" as="p" hint-placeholder-count="5">
+          <div style="display:flex; align-items:center; gap:12px; padding:11px 18px; border-bottom:1px solid var(--line-soft)">
+            <div style="flex:1; min-width:0">
+              <div style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.name }}</div>
+              <div style="font-size:12px; color:var(--ink-2); letter-spacing:.04em">{{ p.sku }}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--font-heading); font-weight:600; font-size:18px; color:{{ p.color }}; font-variant-numeric:tabular-nums">{{ p.qty }}</div>
+              <div style="font-size:12px; color:var(--ink-2)">mín. {{ p.min }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:24px">
+    <section class="blueprint" style="display:flex; flex-direction:column; min-width:0">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Últimas ventas</h2>
+        <button class="btn btn-ghost" onClick="{{ goVentas }}" style="font-size:14px">Historial completo<lucide-icon name="arrow-right" size="14"></lucide-icon></button>
+      </header>
+      <div style="padding:4px 10px 8px; overflow:auto">
+        <table class="table">
+          <thead><tr><th>Folio</th><th>Hora</th><th>Cajero</th><th>Método</th><th style="text-align:right">Total</th><th>Estado</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ sales }}" as="s" hint-placeholder-count="5">
+              <tr>
+                <td style="color:var(--acc-text); font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap">{{ s.folio }}</td>
+                <td style="font-variant-numeric:tabular-nums; color:var(--ink-2)">{{ s.time }}</td>
+                <td>{{ s.cashier }}</td>
+                <td style="color:var(--ink-2)">{{ s.method }}</td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ s.total }}</td>
+                <td><span class="tag" style="background:{{ s.tagBg }}; color:{{ s.tagFg }}">{{ s.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="blueprint" style="display:flex; flex-direction:column; min-width:0">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:21px">Más vendidos</h2>
+        <span style="font-size:13px; color:var(--ink-2)">Octubre</span>
+      </header>
+      <div style="display:flex; flex-direction:column; padding:6px 0">
+        <sc-for list="{{ top }}" as="t" hint-placeholder-count="5">
+          <div style="display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 18px">
+            <span style="font-family:var(--font-heading); font-weight:600; font-size:18px; color:var(--color-accent)">{{ t.rank }}</span>
+            <div style="min-width:0; display:flex; flex-direction:column; gap:5px">
+              <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.name }}</span>
+              <div style="height:4px; background:var(--line-soft)"><div style="height:100%; width:{{ t.w }}; background:var(--color-accent)"></div></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-variant-numeric:tabular-nums; font-weight:500">{{ t.revenue }}</div>
+              <div style="font-size:12px; color:var(--ink-2)">{{ t.qty }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const TONES = {
+  ok: ["var(--ok-tint)", "var(--ok)"],
+  bad: ["var(--bad-tint)", "var(--bad)"],
+};
+class Component extends DCLogic {
+  nav(id) { return () => this.props.navigate?.(id); }
+  renderVals() {
+    const now = new Date();
+    const today = now.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+    const vals = [11240.5, 9876, 12410.25, 13980, 15620.75, 18240.4, 14382.5];
+    const max = Math.max(...vals);
+    const week = vals.map((v, i) => {
+      const d = new Date(now); d.setDate(now.getDate() - (6 - i));
+      const isToday = i === 6;
+      return {
+        day: d.toLocaleDateString("es-MX", { weekday: "short" }).replace(".", "").toUpperCase() + " " + d.getDate(),
+        short: "$" + (v / 1000).toFixed(1) + "k",
+        full: mx(v),
+        h: Math.round((v / max) * 100) + "%",
+        color: isToday ? "var(--color-accent)" : "var(--bar)",
+        labelColor: isToday ? "var(--color-text)" : "var(--ink-2)",
+      };
+    });
+    const total = vals.reduce((a, b) => a + b, 0);
+    const sales = [
+      ["V-20261011-0048", "14:52", "Jorge Pérez", "Efectivo", 389, "Completada"],
+      ["V-20261011-0047", "14:40", "Ana Ruiz", "Tarjeta", 1649, "Completada"],
+      ["V-20261011-0046", "14:31", "Jorge Pérez", "Efectivo", 72.5, "Completada"],
+      ["V-20261011-0045", "14:18", "Jorge Pérez", "Transferencia", 2310, "Completada"],
+      ["V-20261011-0044", "14:05", "Ana Ruiz", "Efectivo", 156, "Cancelada"],
+    ].map(([folio, time, cashier, method, t, status]) => {
+      const [bg, fg] = status === "Cancelada" ? TONES.bad : TONES.ok;
+      return { folio, time, cashier, method, total: mx(t), status, tagBg: bg, tagFg: fg };
+    });
+    const topRaw = [
+      ["Cemento gris 50 kg", "64 pz", 16576],
+      ["Cable THW cal. 12", "820 m", 13530],
+      ["Pintura vinílica blanca 19 L", "7 pz", 11543],
+      ["Tornillo tablaroca 6×1\" (caja 100)", "112 cja", 7616],
+      ["Foco LED 9 W luz blanca", "168 pz", 6552],
+    ];
+    const top = topRaw.map(([name, qty, r], i) => ({ rank: String(i + 1).padStart(2, "0"), name, qty, revenue: mx(r), w: Math.round((r / topRaw[0][2]) * 100) + "%" }));
+    const lowStock = [
+      ["Tubo PVC hidráulico ½\" × 6 m", "PVC-12", "0 pz", 8, true],
+      ["Tornillo tablaroca 6×1\" (caja 100)", "TOR-6X1", "3 cja", 10, true],
+      ["Disco de corte 4½\" metal", "DIS-45", "4 pz", 15, true],
+      ["Foco LED 9 W luz blanca", "LED-9W", "7 pz", 12, false],
+      ["Pegamento PVC 250 ml", "PEG-PVC", "9 pz", 10, false],
+    ].map(([name, sku, qty, min, crit]) => ({ name, sku, qty, min, color: crit ? "var(--bad)" : "var(--warn)" }));
+    return {
+      today: today.charAt(0).toUpperCase() + today.slice(1),
+      kpis: [
+        { label: "Ventas hoy", icon: "circle-dollar-sign", value: "$14,382.50", note: "+12.4% vs. mismo día semana pasada", noteColor: "var(--ok)", valueColor: "var(--color-text)" },
+        { label: "Tickets hoy", icon: "receipt-text", value: "48", note: "Ticket promedio $299.64", noteColor: "var(--ink-2)", valueColor: "var(--color-text)" },
+        { label: "Stock bajo", icon: "triangle-alert", value: "7", note: "1 producto agotado", noteColor: "var(--warn)", valueColor: "var(--warn)" },
+        { label: "Ventas del mes", icon: "trending-up", value: "$286,940", note: "+8.1% vs. septiembre", noteColor: "var(--ok)", valueColor: "var(--color-text)" },
+      ],
+      week, avg: mx(total / 7), weekTotal: mx(total),
+      sales, top, lowStock,
+      goCompras: this.nav("compras"), goDev: this.nav("devoluciones"), goReportes: this.nav("reportes"),
+      goCorte: this.nav("corte"), goInv: this.nav("inventario"), goVentas: this.nav("ventas"),
+    };
+  }
+}
+</script>
+</body>
+</html>
