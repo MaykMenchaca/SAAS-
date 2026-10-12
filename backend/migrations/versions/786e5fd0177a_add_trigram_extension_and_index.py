@@ -25,4 +25,5 @@ def upgrade():
 
 def downgrade():
     op.execute("DROP INDEX IF EXISTS idx_products_name_trgm")
-    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
+    # La extensión se deja instalada: es de toda la base y puede tener otros dependientes
+    # (otros esquemas, índices creados a mano); borrarla hacía fallar el downgrade (OPS-32)

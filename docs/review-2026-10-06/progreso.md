@@ -89,6 +89,7 @@ Este archivo lo actualiza el orquestador (`/orquestador-correccion`). Es la fuen
 - [~] **Re-revisión completa** · 4 de 6 revisores (backend, frontend, seguridad, operación) → `re-revision.md` · **qa-funcional y visual pendientes** (requieren sesión en el navegador)
 - [x] Correcciones de la re-revisión (Críticos y Altos) · commits 1a65567 (FE-103), ab5108f (OPS-25/26/27), 8a03021 (FE-100/BE-100), 7f8f45f (FE-102), bd31b61 (FE-101), c1d2d82 (BE-103/BE-102) · tests: `test_revision_final.py`, `protected-route.test.tsx`
 - [x] Medios baratos de la re-revisión · commits 59f5e1f (SEC-100), 3d9b88a (SEC-103, FE-104, FE-105) · tests: `test_ticket_no_inyecta_comandos_escpos_desde_los_datos`, `payments-cents.test.ts`, `useSyncQueue.test.ts` (5 nuevos) · suite 443 passed, Vitest 25 passed
+- [x] Migraciones probadas de verdad (OPS-32, BE-110) · rama `fix/fase-6-claude` · tests: `test_migraciones.py` (1: cadena completa desde cero, `flask db check` sin diferencias con los modelos, downgrade a base y upgrade) · índice `uq_categories_name_ci` en su forma canónica de PostgreSQL y downgrade de `786e5fd0177a` que ya no borra `pg_trgm` · 446 tests backend passed
 - [ ] Medios y Bajos restantes de la re-revisión (BE-101, FE-106, FE-107, OPS-28..32, SEC-101/102/104 y Bajos) · ver `re-revision.md`
 
 ## Contratos de API

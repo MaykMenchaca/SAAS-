@@ -8,7 +8,8 @@ class Category(db.Model):
     __tablename__ = "categories"
     __table_args__ = (
         # Nombres únicos sin distinguir mayúsculas ni espacios (H-54)
-        db.Index("uq_categories_name_ci", db.text("lower(trim(name))"), unique=True),
+        # Forma canónica con la que PostgreSQL guarda trim(name): así `flask db check` no ve diferencias
+        db.Index("uq_categories_name_ci", db.text("lower(TRIM(BOTH FROM name))"), unique=True),
     )
 
     id = db.Column(db.Integer, primary_key=True)
