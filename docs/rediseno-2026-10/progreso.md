@@ -12,12 +12,12 @@
 - [x] **Gate 0** · APROBADO (2026-10-12): línea base verde, entorno de revisión con 3 roles verificados por API y equivalencias escritas
 
 ## Fase 1: Fundaciones
-- [ ] 1.1 Tokens Industry en claro y oscuro (acento 700)
-- [ ] 1.2 Barlow / Barlow Condensed locales + escala tipográfica
-- [ ] 1.3 Lucide con trazo 1.5
-- [ ] 1.4 Primitivas `.blueprint`/`<Corners/>`, foco, selección
-- [ ] 1.5 Script de contraste + verificación
-- [ ] **Gate 1**
+- [x] 1.1 Tokens Industry en claro y oscuro · `index.css` reescrito: tokens nuevos como fuente de verdad (`bg`, `surface`, `text`, `divider`, `ink-2/3`, `line-soft`, `accent` + rampa 100-900, `acc-text/tint`, `on-acc`, `ok/warn/bad` + `-tint`, `overlay`, `field-border`) y los nombres viejos como **alias** (`primary`, `danger`, `neutral-*`…, a borrar en 8.3). Acento de relleno `#416180`. Esquinas rectas (`--radius-* : 0px`) y sombras tintadas. Sidebar y barra de total del POS conservan su azul marino heredado hasta las fases 3 y 4. `tools/verify_design.py` ahora exige los tokens nuevos
+- [x] 1.2 Barlow / Barlow Condensed locales · `@fontsource` (solo subconjunto latino: Barlow 400/500/700 y Condensed 400/600, ~24 KB cada uno), importados en `main.tsx`; Google Fonts eliminado de `index.html` (0 peticiones externas verificadas en el navegador). Títulos h1-h6 en Condensed 600; cuerpo 15 px en escritorio y 16 px en móvil. `font-mono` ahora es Barlow con cifras tabulares
+- [x] 1.3 Lucide con trazo 1.5 · regla global `svg.lucide { stroke-width: 1.5 }` (gana al atributo del SVG, no hay que tocar los ~200 usos)
+- [x] 1.4 Primitivas · `.blueprint` y `.corner` en `@layer components` (las utilidades de Tailwind pueden sobrescribirlas), componente `<Corners/>` exportado desde `components/ui`, `:focus-visible` con borde de acento de 2 px, `::selection`, inputs numéricos sin flechas, scrollbars con los tokens
+- [x] 1.5 Medidor de contraste + verificación · `tools/contrast_check.py` resuelve hex, oklch y color-mix desde `index.css` y mide 20 pares × 2 temas = **40/40 cumplen**. Encontró 2 fallos reales en los colores del prototipo (éxito 4.35:1 y advertencia 4.28:1 sobre su tinte) → se oscurecieron (`ok` L 0.46, `warn` L 0.47). Nuevo token `field-border` (≥3:1) para bordes de inputs: la línea `divider` (1.38:1) queda solo decorativa. Verificado en el navegador (claro y oscuro, fuentes locales, radio 0, acento correcto)
+- [x] **Gate 1** · APROBADO (2026-10-12): tests nuevos `test_rediseno_fase1.py` (6), Vitest 29 passed, build OK (chunk mayor 455.7 kB sin cambio), contraste 40/40, `verify_design.py` OK. Pendiente de fases siguientes: el menú lateral oscuro heredado (fase 3) y los componentes con aspecto viejo sobre los tokens nuevos (fase 2)
 
 ## Fase 2: Componentes base
 - [ ] 2.1 Button
@@ -96,3 +96,5 @@
 | 2026-10-12 | Ejecutor | Claude (esta sesión) |
 
 ## Hallazgos nuevos
+- (1.5) Los colores `ok` y `warn` del prototipo no cumplen 4.5:1 sobre sus tintes en claro; se ajustaron. Conviene avisar a quien mantenga el diseño en Claude Design.
+- (1.1) Los avisos de WebSocket (`ws://localhost:3000`) en consola vienen del recargador en caliente de Vite dentro del panel del navegador, no de la app.

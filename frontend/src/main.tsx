@@ -1,6 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+// Fuentes locales (el POS opera en LAN sin internet): solo el subconjunto latino cubre acentos y ñ
+import "@fontsource/barlow/latin-400.css";
+import "@fontsource/barlow/latin-500.css";
+import "@fontsource/barlow/latin-700.css";
+import "@fontsource/barlow-condensed/latin-400.css";
+import "@fontsource/barlow-condensed/latin-600.css";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(

@@ -3,6 +3,7 @@ export { Badge } from "./badge";
 export { Breadcrumb } from "./breadcrumb";
 export { Button } from "./button";
 export { Card } from "./card";
+export { Corners } from "./corners";
 export { EmptyState } from "./empty-state";
 export { ErrorState } from "./error-state";
 export { FilterChip } from "./filter-chip";
