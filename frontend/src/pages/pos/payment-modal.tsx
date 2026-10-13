@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { invalidateAfterSale } from "../../api/invalidate";
 import type { CreateSalePayload, PaymentInput, Sale, SaleItemInput } from "../../api/sales";
+import { isMaintenanceError } from "../../api/backup";
 import { createSale, quoteSale } from "../../api/sales";
 import { Button, Input, Modal, Segmented } from "../../components/ui";
 import { cn } from "../../lib/cn";
@@ -160,7 +161,7 @@ export function PaymentModal({ defaultMethod, onClose, onSuccess, sessionId, tot
           // H-03: Solo pasar a offline ante errores de red reales (!err.response o timeout).
           // Si el servidor respondió con 4xx o 5xx, NO pasar a offline:
           // mantener modal abierto, mostrar error del servidor y conservar el carrito.
-          const isHttpError = err instanceof AxiosError && Boolean(err.response);
+          const isHttpError = err instanceof AxiosError && Boolean(err.response) && !isMaintenanceError(err); // 503 por restauración: la venta se encola
           if (isHttpError) {
             const serverMsg = err.response?.data?.error ?? "Error al procesar la venta en el servidor.";
             toast.error(serverMsg);
