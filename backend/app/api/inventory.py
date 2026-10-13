@@ -1,11 +1,13 @@
 """Inventory API — stock consultation, adjustments, movement history, and physical counts."""
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
+from marshmallow import ValidationError
 
 from app.extensions import db
 from app.models.inventory import InventoryCount, Stock
 from app.models.product import Product
 from app.schemas.inventory import (
+    ADJUST_REASONS,
     InventoryCountCaptureSchema,
     InventoryCountCreateSchema,
     InventoryCountItemSchema,
@@ -87,17 +89,37 @@ def low_stock():
     return jsonify(paginate(query, stocks_schema)), 200
 
 
+@inventory_bp.route("/adjust-reasons", methods=["GET"])
+@require_permission("inventario:ver")
+def list_adjust_reasons():
+    """Catálogo cerrado de motivos para ajustar el stock."""
+    return jsonify([{"value": k, "label": v} for k, v in ADJUST_REASONS.items()]), 200
+
+
 @inventory_bp.route("/adjust", methods=["POST"])
 @require_permission("inventario:ajustar")
 def adjust_stock():
     """Perform a manual stock adjustment (set to exact quantity)."""
-    data = adjust_schema.load(request.get_json(silent=True) or {})
+    try:
+        data = adjust_schema.load(request.get_json(silent=True) or {})
+    except ValidationError as err:
+        # Un motivo fuera del catálogo es un error de solicitud (400); el resto sigue el manejo global
+        if "reason" in err.messages:
+            return jsonify({"error": "; ".join(err.messages["reason"])}), 400
+        raise
 
     product = db.session.get(Product, data["product_id"])
     if not product:
         return jsonify({"error": "Producto no encontrado"}), 404
 
     user_id = int(get_jwt_identity())
+
+    reason = data.get("reason")
+    notes = data.get("notes")
+    if reason:
+        # El motivo queda legible en el movimiento (notes) y como código en la auditoría
+        label = ADJUST_REASONS[reason]
+        notes = f"Motivo: {label}. {notes}" if notes else f"Motivo: {label}"
 
     stock = InventoryService.move_stock(
         product_id=data["product_id"],
@@ -106,7 +128,7 @@ def adjust_stock():
         reference_type="ajuste_manual",
         reference_id=0,
         user_id=user_id,
-        notes=data.get("notes"),
+        notes=notes,
     )
 
     from app.services.audit_service import log_action
@@ -118,6 +140,7 @@ def adjust_stock():
             "product_id": stock.product_id,
             "product_name": product.name,
             "new_stock": str(stock.quantity),
+            "reason": reason,
             "notes": data.get("notes"),
         },
         user_id=user_id,
@@ -129,6 +152,7 @@ def adjust_stock():
         "product_id": stock.product_id,
         "new_stock": str(stock.quantity),
         "movement_type": "ajuste",
+        "reason": reason,
     }), 200
 
 

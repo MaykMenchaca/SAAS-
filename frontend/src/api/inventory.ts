@@ -28,9 +28,21 @@ export type StockMovement = {
   created_at: string;
 };
 
+/** Catálogo cerrado de motivos de ajuste (mismos códigos que valida el backend). */
+export const ADJUST_REASONS = [
+  { value: "merma_dano", label: "Merma o daño" },
+  { value: "error_captura", label: "Error de captura" },
+  { value: "devolucion_proveedor", label: "Devolución a proveedor" },
+  { value: "uso_interno", label: "Uso interno" },
+  { value: "otro", label: "Otro" },
+] as const;
+
+export type AdjustReason = (typeof ADJUST_REASONS)[number]["value"];
+
 export type StockAdjustPayload = {
   product_id: number;
   quantity: string;
+  reason?: AdjustReason;
   notes?: string;
 };
 
@@ -60,7 +72,7 @@ export async function getLowStock(params: { page?: number; perPage?: number } = 
 }
 
 export async function adjustStock(payload: StockAdjustPayload) {
-  const response = await apiClient.post<{ product_id: number; new_stock: string; movement_type: string }>(
+  const response = await apiClient.post<{ product_id: number; new_stock: string; movement_type: string; reason: AdjustReason | null }>(
     "/inventory/adjust",
     payload,
   );

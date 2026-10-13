@@ -59,6 +59,16 @@ class StockMovementSchema(Schema):
         return obj.user.username if obj.user else None
 
 
+# Catálogo cerrado de motivos de ajuste manual (código -> etiqueta en español)
+ADJUST_REASONS = {
+    "merma_dano": "Merma o daño",
+    "error_captura": "Error de captura",
+    "devolucion_proveedor": "Devolución a proveedor",
+    "uso_interno": "Uso interno",
+    "otro": "Otro",
+}
+
+
 class StockAdjustSchema(Schema):
     """Schema for manual stock adjustment input."""
     class Meta:
@@ -70,6 +80,14 @@ class StockAdjustSchema(Schema):
         required=True,
         places=3,
         validate=validate.Range(min=0),
+    )
+    reason = fields.Str(
+        load_default=None,
+        allow_none=True,
+        validate=validate.OneOf(
+            list(ADJUST_REASONS),
+            error="Motivo de ajuste no válido. Opciones: " + ", ".join(ADJUST_REASONS),
+        ),
     )
     notes = fields.Str(load_default=None, allow_none=True)
 
