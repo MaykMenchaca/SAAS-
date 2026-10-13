@@ -7,14 +7,15 @@ type ToggleProps = {
   onChange: (checked: boolean) => void;
 };
 
+/** Interruptor Industry: pista y pulgar cuadrados, activo relleno de acento. */
 export function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
   return (
-    <label className={cn("inline-flex min-h-11 cursor-pointer items-center gap-3", disabled && "cursor-not-allowed opacity-55")}>
+    <label className={cn("inline-flex min-h-11 cursor-pointer items-center gap-3", disabled && "cursor-not-allowed opacity-45")}>
       <button
         aria-checked={checked}
         className={cn(
-          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary/50",
-          checked ? "bg-primary" : "bg-neutral-border-strong",
+          "relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-150",
+          checked ? "border-accent bg-accent" : "border-field-border bg-transparent",
         )}
         disabled={disabled}
         onClick={() => onChange(!checked)}
@@ -24,12 +25,12 @@ export function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
         <span
           aria-hidden="true"
           className={cn(
-            "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150",
-            checked ? "translate-x-5" : "translate-x-0",
+            "pointer-events-none inline-block h-4 w-4 transition-transform duration-150",
+            checked ? "translate-x-6 bg-on-acc" : "translate-x-1 bg-ink-2",
           )}
         />
       </button>
-      <span className="text-sm font-medium text-neutral-text-primary">{label}</span>
+      <span className="text-sm font-medium text-text">{label}</span>
     </label>
   );
 }

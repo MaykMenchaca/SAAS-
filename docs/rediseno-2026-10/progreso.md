@@ -20,15 +20,15 @@
 - [x] **Gate 1** · APROBADO (2026-10-12): tests nuevos `test_rediseno_fase1.py` (6), Vitest 29 passed, build OK (chunk mayor 455.7 kB sin cambio), contraste 40/40, `verify_design.py` OK. Pendiente de fases siguientes: el menú lateral oscuro heredado (fase 3) y los componentes con aspecto viejo sobre los tokens nuevos (fase 2)
 
 ## Fase 2: Componentes base
-- [ ] 2.1 Button
-- [ ] 2.2 Input, Select, Field, Toggle, Segmented
-- [ ] 2.3 Tag/Badge + Kbd
-- [ ] 2.4 Panel blueprint (Card)
-- [ ] 2.5 Table
-- [ ] 2.6 Modal/Dialog
-- [ ] 2.7 Toast, Empty, Error, Skeleton, Pagination, Avatar, Tooltip
-- [ ] 2.8 Catálogo `/_ui` (solo desarrollo)
-- [ ] **Gate 2**
+- [x] 2.1 Button · acento de relleno con hover/active de la rampa (en oscuro "presionado" va al extremo claro, con la variante `dark:` ligada a `html.dark`), secundario/ghost/danger/icon, tamaños `sm`/`md`/`lg` (md conserva los 44 px táctiles), prop `frame` (marcas `+`), Barlow Condensed 600, deshabilitado al 45 %
+- [x] 2.2 Input, Select, Toggle y **Segmented** (nuevo) · campos con relleno `surface` y borde `field-border` (≥3:1), foco con borde de acento, `text-base` (sin zoom en iOS). **Mejora de accesibilidad:** el error se enlaza con `aria-invalid` y `aria-describedby` (antes solo estaba dentro del `<label>`). Segmented es un `radiogroup` con flechas del teclado, salta opciones deshabilitadas y solo la activa entra en el orden de tabulación. Toggle cuadrado
+- [x] 2.3 Badge + **Kbd** (nuevo) · tintes translúcidos con texto del mismo tono (todos ≥4.5:1), tonos `accent`/`outline` nuevos, `info` se muestra como acento; Kbd para atajos
+- [x] 2.4 Card como panel blueprint · transparente, borde fino, sin sombra ni relleno; prop `frame` para las marcas de registro
+- [x] 2.5 Table · marco de línea fina, encabezado en mayúsculas pequeñas, sin zebra, hover con tinte; se mantiene el indicador de scroll horizontal (tapas con el color de fondo). Nuevo `tableNumClass` para columnas de montos
+- [x] 2.6 Modal · panel blueprint con marcas `+`, fondo `overlay`, `shadow-lg`, título en Condensed. Foco atrapado, Esc y restauración del foco intactos (verificado en el navegador)
+- [x] 2.7 Toast, EmptyState, ErrorState, Skeleton, Pagination, Avatar, Tooltip, FilterChip, PageHeader, Breadcrumb · todos con los tokens nuevos y esquinas rectas. PageHeader usa el título de 38 px del diseño (`text-page`); Avatar es un cuadrado de línea con iniciales; FilterChip es el chip de categoría del POS (`aria-pressed`)
+- [x] 2.8 Catálogo `/_ui` · `pages/ui-catalog.tsx` con todas las variantes y un interruptor de tema; la ruta solo existe si `import.meta.env.DEV` (verificado: el build de producción no emite el chunk ni el texto). **Auditoría de contraste real:** script en el navegador que calcula el fondo efectivo de cada texto renderizado → claro 95/95, oscuro 99/99 (con el diálogo abierto), 0 fallos
+- [x] **Gate 2** · APROBADO (2026-10-12): Vitest **61 passed** (29 + 32 nuevos de componentes), `tsc` y build OK (JS 456.0 kB, +0.3 kB), tests de repo `test_rediseno_fase2.py` (7) + fase 1 (6) en verde, contraste 40/40 de tokens y 0 fallos en el catálogo. Revisadas pantallas reales (Productos y su modal) con los componentes nuevos
 
 ## Fase 3: Shell
 - [ ] 3.1 Sidebar expandido
@@ -96,5 +96,7 @@
 | 2026-10-12 | Ejecutor | Claude (esta sesión) |
 
 ## Hallazgos nuevos
+- (2.8) El panel del navegador integrado estira las transiciones de color: una auditoría de contraste lanzada justo tras cambiar de tema midió colores a medias (falsos fallos). Para medir hay que esperar ≥1.5 s tras el cambio. No es un bug del código.
+- (2.2) Los mensajes de error de `Input`/`Select` siguen dentro del `<label>` (así estaba); ahora además están enlazados con `aria-describedby`. Si el ruido para lectores de pantalla molesta, se puede mover fuera del label en una fase posterior.
 - (1.5) Los colores `ok` y `warn` del prototipo no cumplen 4.5:1 sobre sus tintes en claro; se ajustaron. Conviene avisar a quien mantenga el diseño en Claude Design.
 - (1.1) Los avisos de WebSocket (`ws://localhost:3000`) en consola vienen del recargador en caliente de Vite dentro del panel del navegador, no de la app.

@@ -30,6 +30,10 @@ const ReturnsPage = lazy(() => import("./pages/returns").then((m) => ({ default:
 const SalesHistoryPage = lazy(() => import("./pages/sales-history").then((m) => ({ default: m.SalesHistoryPage })));
 const SettingsPage = lazy(() => import("./pages/settings").then((m) => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import("./pages/users").then((m) => ({ default: m.UsersPage })));
+// Catálogo de componentes: solo en desarrollo (Vite elimina esta rama y su chunk en producción)
+const UiCatalogPage = import.meta.env.DEV
+  ? lazy(() => import("./pages/ui-catalog").then((m) => ({ default: m.UiCatalogPage })))
+  : null;
 
 function PageLoader() {
   return (
@@ -64,6 +68,7 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<LoginPage />} path="/login" />
+              {UiCatalogPage ? <Route element={<UiCatalogPage />} path="/_ui" /> : null}
               <Route element={<ChangePasswordRoute />} path="/cambiar-contrasena" />
               <Route
                 element={

@@ -22,9 +22,9 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center" role="status">
       {icon ? (
-        <span className="text-neutral-text-muted">{icon}</span>
+        <span className="text-ink-2">{icon}</span>
       ) : null}
-      <p className="text-sm text-neutral-text-secondary">{message}</p>
+      <p className="text-sm text-ink-2">{message}</p>
       {actionLabel && actionHref ? (
         <Link to={actionHref}>
           <Button variant="secondary">{actionLabel}</Button>

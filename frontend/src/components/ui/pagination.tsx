@@ -30,7 +30,8 @@ function pageRange(current: number, total: number): (number | "...")[] {
 }
 
 const btnBase =
-  "relative inline-flex h-8 min-w-8 before:absolute before:inset-[-6px] before:content-[''] items-center justify-center rounded-md border text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-40 disabled:pointer-events-none";
+  "relative inline-flex h-8 min-w-8 before:absolute before:inset-[-6px] before:content-[''] items-center justify-center border text-sm font-medium transition-colors disabled:opacity-45 disabled:pointer-events-none";
+const btnIdle = "border-divider bg-transparent text-ink-2 hover:bg-line-soft hover:text-text";
 
 export function Pagination({ onPageChange, page, totalPages }: PaginationProps) {
   if (totalPages <= 1) return null;
@@ -41,7 +42,7 @@ export function Pagination({ onPageChange, page, totalPages }: PaginationProps) 
     <nav aria-label="Paginación" className="flex items-center gap-1">
       <button
         aria-label="Anterior"
-        className={cn(btnBase, "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:bg-neutral-surface-raised")}
+        className={cn(btnBase, btnIdle)}
         disabled={page <= 1}
         onClick={() => onPageChange(page - 1)}
         type="button"
@@ -51,17 +52,13 @@ export function Pagination({ onPageChange, page, totalPages }: PaginationProps) 
 
       {pages.map((p, i) =>
         p === "..." ? (
-          <span className="px-1 text-xs text-neutral-text-muted" key={`e${i}`}>
+          <span className="px-1 text-sm text-ink-2" key={`e${i}`}>
             ...
           </span>
         ) : (
           <button
-            className={cn(
-              btnBase,
-              p === page
-                ? "border-primary bg-primary text-on-primary"
-                : "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:bg-neutral-surface-raised",
-            )}
+            aria-current={p === page ? "page" : undefined}
+            className={cn(btnBase, p === page ? "border-accent bg-accent text-on-acc" : btnIdle)}
             key={p}
             onClick={() => onPageChange(p)}
             type="button"
@@ -73,7 +70,7 @@ export function Pagination({ onPageChange, page, totalPages }: PaginationProps) 
 
       <button
         aria-label="Siguiente"
-        className={cn(btnBase, "border-neutral-border bg-neutral-surface text-neutral-text-secondary hover:bg-neutral-surface-raised")}
+        className={cn(btnBase, btnIdle)}
         disabled={page >= totalPages}
         onClick={() => onPageChange(page + 1)}
         type="button"

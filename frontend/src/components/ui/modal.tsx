@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "./button";
+import { Corners } from "./corners";
 import { cn } from "../../lib/cn";
 
 type ModalProps = {
@@ -122,28 +123,29 @@ export function Modal({ children, footer, onClose, open, size = "md", title }: M
     >
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-black/55 fade-in"
+        className="absolute inset-0 bg-overlay fade-in"
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel: objeto blueprint (borde fino + marcas "+") con la elevación más alta */}
       <section
         className={cn(
-          "relative flex max-h-[90vh] w-full flex-col rounded-lg border border-neutral-border bg-neutral-surface text-neutral-text-primary",
+          "blueprint relative flex max-h-[90vh] w-full flex-col bg-bg text-text shadow-lg",
           "scale-in",
           sizeClasses[size],
         )}
         ref={panelRef}
         tabIndex={-1}
       >
-        <header className="flex shrink-0 min-h-14 items-center justify-between border-b border-neutral-border px-4">
-          <h2 className="text-base font-semibold text-neutral-text-primary" id={titleId}>{title}</h2>
+        <Corners />
+        <header className="flex shrink-0 min-h-14 items-center justify-between border-b border-divider px-5">
+          <h2 className="text-2xl" id={titleId}>{title}</h2>
           <Button aria-label="Cerrar" className="h-11 w-11 px-0" onClick={onClose} variant="ghost">
             <X aria-hidden="true" size={18} />
           </Button>
         </header>
-        <div className="min-h-0 overflow-x-hidden overflow-y-auto p-4">{children}</div>
-        {footer ? <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-neutral-border bg-neutral-bg/45 p-4">{footer}</footer> : null}
+        <div className="min-h-0 overflow-x-hidden overflow-y-auto p-5">{children}</div>
+        {footer ? <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-divider p-4">{footer}</footer> : null}
       </section>
     </div>
   );

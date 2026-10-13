@@ -14,8 +14,8 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center" role="alert">
-      <AlertTriangle aria-hidden="true" className="text-danger" size={36} />
-      <p className="text-sm font-medium text-neutral-text-secondary">{message}</p>
+      <AlertTriangle aria-hidden="true" className="text-bad" size={36} />
+      <p className="text-sm font-medium text-ink-2">{message}</p>
       {onRetry ? (
         <Button onClick={onRetry} variant="secondary">
           Reintentar

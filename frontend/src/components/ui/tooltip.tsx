@@ -46,7 +46,7 @@ export function Tooltip({ children, content, delay = 400, side = "top" }: Toolti
       {visible ? (
         <span
           className={cn(
-            "pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-neutral-text-primary px-2.5 py-1.5 text-xs font-medium text-neutral-bg shadow-lg",
+            "pointer-events-none absolute z-50 whitespace-nowrap bg-text px-2.5 py-1.5 text-xs font-medium text-bg shadow-lg",
             "fade-in",
             sideClasses[side],
           )}

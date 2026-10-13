@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* La variante `dark:` sigue la clase `html.dark` del interruptor de tema (no la preferencia del sistema) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ══════════════════════════════════════════════════════════════════════════
    Sistema de diseño "Industry" (rediseño 2026-10) — acero sobre fondo técnico,
    Barlow Condensed + Barlow, esquinas rectas, líneas finas y marcas "+".
@@ -103,6 +106,10 @@
   --font-sans: "Barlow", system-ui, -apple-system, sans-serif;
   /* `font-mono` se usa para cifras (SKU, montos): Barlow con tabular-nums, no monoespaciada */
   --font-mono: "Barlow", system-ui, -apple-system, sans-serif;
+
+  /* Título de página del diseño (38 px, interlineado 1): utilidad `text-page` */
+  --text-page: 2.375rem;
+  --text-page--line-height: 1;
 
   /* ── Esquinas rectas: todo el sistema es de línea (los círculos usan rounded-full) ── */
   --radius-sm: 0px;

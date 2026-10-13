@@ -10,8 +10,8 @@ export interface PageHeaderProps {
 }
 
 /**
- * Standard accessible PageHeader following MASTER design hierarchy.
- * Scales h1 to 24px (text-2xl) on mobile / 30px (text-3xl) on large screens.
+ * Encabezado de página Industry: título en Barlow Condensed de 38 px en escritorio (30 px en móvil)
+ * con interlineado 1, y subtítulo en texto secundario. Es el único h1 de cada pantalla.
  */
 export function PageHeader({
   title,
@@ -28,11 +28,11 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 flex-1">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl truncate">
+        <h1 className="truncate text-3xl text-text lg:text-page">
           {title}
         </h1>
         {subtitle ? (
-          <p className="mt-1 text-xs text-neutral-text-secondary lg:text-sm">
+          <p className="mt-1.5 text-sm text-ink-2 lg:text-base">
             {subtitle}
           </p>
         ) : null}

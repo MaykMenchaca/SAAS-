@@ -5,7 +5,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden="true"
-      className={cn("animate-pulse rounded-md bg-neutral-border/50", className)}
+      className={cn("animate-pulse bg-divider", className)}
     />
   );
 }
@@ -16,7 +16,7 @@ export function SkeletonKPI({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "rounded-lg border border-neutral-border bg-neutral-surface p-4",
+        "border border-divider p-4",
         className,
       )}
     >
@@ -36,9 +36,9 @@ export function SkeletonTable({
   rows?: number;
 }) {
   return (
-    <div aria-hidden="true" className="overflow-hidden rounded-lg border border-neutral-border bg-neutral-surface">
+    <div aria-hidden="true" className="overflow-hidden border border-divider">
       {/* Header row */}
-      <div className="flex gap-4 border-b border-neutral-border-strong bg-neutral-bg px-3 py-3">
+      <div className="flex gap-4 border-b border-divider px-3 py-3">
         {Array.from({ length: cols }).map((_, c) => (
           <Skeleton className="h-3 flex-1" key={`h${c}`} />
         ))}
@@ -47,7 +47,7 @@ export function SkeletonTable({
       {/* Data rows */}
       {Array.from({ length: rows }).map((_, r) => (
         <div
-          className="flex gap-4 border-b border-neutral-border px-3 py-3 last:border-b-0"
+          className="flex gap-4 border-b border-line-soft px-3 py-3 last:border-b-0"
           key={`r${r}`}
         >
           {Array.from({ length: cols }).map((_, c) => (
