@@ -158,9 +158,15 @@ describe("Formularios", () => {
   it("Input: etiqueta asociada, borde de 3:1 y mensaje de error", () => {
     render(<Input error="Campo obligatorio" label="Usuario" name="usuario" />);
     const input = screen.getByLabelText(/Usuario/);
-    expect(input.className).toContain("border-field-border");
+    // con error el borde rojo REEMPLAZA al borde normal (cn resuelve el conflicto: gana la última clase)
     expect(input.className).toContain("border-bad");
+    expect(input.className).not.toContain("border-field-border");
     expect(screen.getByText("Campo obligatorio").className).toContain("text-bad");
+  });
+
+  it("Input sin error usa el borde de 3:1", () => {
+    render(<Input label="Nombre" name="nombre" />);
+    expect(screen.getByLabelText("Nombre").className).toContain("border-field-border");
   });
 
   it("Input enlaza el error con aria-invalid y aria-describedby", () => {

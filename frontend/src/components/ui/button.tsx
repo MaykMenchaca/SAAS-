@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "../../lib/cn";
 import { Corners } from "./corners";
@@ -6,7 +6,8 @@ import { Corners } from "./corners";
 type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon";
 type ButtonSize = "sm" | "md" | "lg";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+// ComponentProps incluye `ref` (React 19: es una prop más y llega al <button> por el spread)
+type ButtonProps = ComponentProps<"button"> & {
   /** Marcas de registro "+" en las esquinas: solo para la acción principal de una pantalla. */
   frame?: boolean;
   icon?: ReactNode;

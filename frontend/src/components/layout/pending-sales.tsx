@@ -125,18 +125,18 @@ function PendingSalesModal({
     >
       <div className="grid gap-5">
         <section className="grid gap-2">
-          <h3 className="text-sm font-semibold text-neutral-text-primary">Pendientes de enviar ({pending.length})</h3>
+          <h3 className="text-sm font-semibold text-text">Pendientes de enviar ({pending.length})</h3>
           {pending.length === 0 ? (
-            <p className="text-sm text-neutral-text-secondary">No hay ventas pendientes.</p>
+            <p className="text-sm text-ink-2">No hay ventas pendientes.</p>
           ) : (
             <ul className="grid gap-1.5">
               {pending.map((item) => (
                 <li
-                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-border px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-3 border border-divider px-3 py-2 text-sm"
                   key={queuedSaleId(item)}
                 >
-                  <span className="text-neutral-text-secondary">{formatQueuedAt(item.queuedAt)}</span>
-                  <span className="text-neutral-text-secondary">{item.sale.items.length} artículo(s)</span>
+                  <span className="text-ink-2">{formatQueuedAt(item.queuedAt)}</span>
+                  <span className="text-ink-2">{item.sale.items.length} artículo(s)</span>
                   <span className="font-mono font-semibold">{item.total ? formatCurrency(item.total) : "—"}</span>
                 </li>
               ))}
@@ -146,18 +146,18 @@ function PendingSalesModal({
 
         {rejected.length > 0 ? (
           <section className="grid gap-2">
-            <h3 className="text-sm font-semibold text-danger">Rechazadas por el servidor ({rejected.length})</h3>
-            <p className="text-sm text-neutral-text-secondary">
+            <h3 className="text-sm font-semibold text-bad">Rechazadas por el servidor ({rejected.length})</h3>
+            <p className="text-sm text-ink-2">
               Estas ventas no se registraron. Verifica el motivo, vuelve a capturarlas si corresponde y descártalas.
             </p>
             <ul className="grid gap-2">
               {rejected.map((item) => (
                 <li
-                  className="grid gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm"
+                  className="grid gap-2 border border-bad/30 bg-bad/5 px-3 py-2 text-sm"
                   key={queuedSaleId(item)}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-neutral-text-secondary">Cobrada: {formatQueuedAt(item.queuedAt)}</span>
+                    <span className="text-ink-2">Cobrada: {formatQueuedAt(item.queuedAt)}</span>
                     <span className="font-mono font-semibold">{item.total ? formatCurrency(item.total) : "—"}</span>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -204,7 +204,7 @@ function PendingSalesModal({
           open
           title="¿Reemplazar el carrito actual?"
         >
-          <p className="text-sm text-neutral-text-secondary">
+          <p className="text-sm text-ink-2">
             El carrito tiene {cartLength} artículo(s). Se reemplazarán por los de la venta rechazada.
           </p>
         </Modal>
@@ -226,7 +226,7 @@ function PendingSalesModal({
           open
           title="¿Descartar la venta rechazada?"
         >
-          <p className="text-sm text-neutral-text-secondary">
+          <p className="text-sm text-ink-2">
             Se eliminará de este equipo la venta de {toDiscard.total ? formatCurrency(toDiscard.total) : "monto desconocido"}.
             Esta acción no se puede deshacer.
           </p>

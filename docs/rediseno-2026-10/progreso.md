@@ -31,14 +31,14 @@
 - [x] **Gate 2** · APROBADO (2026-10-12): Vitest **61 passed** (29 + 32 nuevos de componentes), `tsc` y build OK (JS 456.0 kB, +0.3 kB), tests de repo `test_rediseno_fase2.py` (7) + fase 1 (6) en verde, contraste 40/40 de tokens y 0 fallos en el catálogo. Revisadas pantallas reales (Productos y su modal) con los componentes nuevos
 
 ## Fase 3: Shell
-- [ ] 3.1 Sidebar expandido
-- [ ] 3.2 Tarjeta de turno + usuario
-- [ ] 3.3 Sidebar colapsado (automático en el POS)
-- [ ] 3.4 Header
-- [ ] 3.5 Paleta Ctrl K
-- [ ] 3.6 Móvil y tablet
-- [ ] 3.7 Verificación por rol, tema y viewport
-- [ ] **Gate 3**
+- [x] 3.1 Sidebar expandido · `sidebar.tsx` + `nav-list.tsx` + `brand-mark.tsx`: 236 px, marca (cuadro de acero con el icono y color que configura el local), 4 secciones en Barlow Condensed, ítem activo con fondo `acc-tint`, barra interior de 2 px e icono de acento, contadores cuadrados (ámbar para stock bajo, acento para compras). El administrador personaliza la marca desde el logo (ahora un `<button>`). Navegación y permisos en `nav-config.ts` (`filterNav`, `findNavEntry`)
+- [x] 3.2 Tarjeta de turno + usuario · `shift-card.tsx` con datos reales de `/cash-register/active` (misma clave que el POS y las devoluciones, así se refresca al abrir/cerrar caja): "Caja 1 · Turno abierto · Desde 23:01 · Fondo $1,000.00" o "Sin turno abierto"; no consulta sin `caja:ver`. `user-card.tsx`: iniciales en cuadro de línea, nombre, "usuario · rol" y cerrar sesión. **No se implementó** el selector "Ver la app como…" del prototipo
+- [x] 3.3 Sidebar colapsado · 64 px con iconos de 44 px, punto en lugar de contador, separadores entre secciones, punto de turno y cerrar sesión. **Se colapsa solo en `/pos`** (`isPosRoute || manualCollapsed`) y en el resto se puede colapsar a mano (preferencia recordada). Verificado en el navegador: el cajero entra al POS con el menú colapsado
+- [x] 3.4 Header · `topbar.tsx` de 64 px: breadcrumb "Sección / Página", buscador `Ctrl K` (botón ancho desde 1200 px, icono por debajo, como el diseño), "Nueva venta" (oculto en el POS y sin `ventas:crear`), reloj (fecha solo ≥1200 px, cada 15 s), indicador LAN con el ping real y **siempre visible cuando no hay conexión** (en el prototipo se ocultaba), campana y tema. Título de la pestaña `Página · Local`
+- [x] 3.5 Paleta Ctrl K · panel blueprint de 560 px con marcas `+`, buscador de 56 px, filas de 44 px con icono, sección en Condensed, `Kbd` para los atajos y contador; se conservan el filtro por permiso, la búsqueda de productos, el teclado (↑ ↓ Enter Esc, trampa de Tab) y que Esc no vacíe el carrito del POS. Campana y pendientes migrados con `tools/migrate_tokens.py` (herramienta nueva y reutilizable para las fases 4-7)
+- [x] 3.6 Móvil y tablet · `mobile-drawer.tsx`: panel de 280 px con la misma navegación, tarjeta de turno y usuario; ahora **Esc lo cierra**, el foco entra en "Cerrar menú" y navegar o cerrar sesión lo cierra. Verificado a 768 y 375 px (6 pantallas sin desborde horizontal por el shell)
+- [x] 3.7 Verificación · cajero (5 secciones, sin Dashboard/Usuarios/Reportes/Configuración), admin y gerente por permisos; claro y oscuro; 1280/768/375 px; Ctrl K con navegación real. **Contraste real del shell: 29 textos del menú + 9 del encabezado = 0 fallos en claro y oscuro** (con las animaciones terminadas antes de medir)
+- [x] **Gate 3** · APROBADO (2026-10-12): Vitest **95 passed** (+34: 24 del shell, 9 de `cn`, 1 de Input), `test_rediseno_fase1/2/3.py` (21), `tsc` y build OK, contraste 40/40, `verify_design.py` OK. `app-shell.tsx` pasa de 921 a ~110 líneas repartidas en 9 archivos pequeños
 
 ## Fase 4: Punto de venta ⚠️
 - [ ] 4.1 Sin sesión: unirse o abrir caja
@@ -96,6 +96,10 @@
 | 2026-10-12 | Ejecutor | Claude (esta sesión) |
 
 ## Hallazgos nuevos
+- (3.x) **Corrección sistémica en `cn`**: `cn` solo concatenaba clases, así que un `px-0`/`text-xs`/`min-h-0` pasado por una pantalla perdía contra el `px-4`/`text-base`/`min-h-11` base del componente por el orden del CSS (ya pasaba en la app original: la "×" de los modales y el cierre de sesión quedaban con el icono aplastado). Ahora usa `tailwind-merge` configurado con los tokens del tema (`text-ink-2`, `text-page`…): gana la última clase. Costo: +25 kB de JS (+9.7 kB gzip). Puede cambiar el aspecto de pantallas viejas que dependían del conflicto; se revisan una a una en las fases 4-7
+- (3.7) El Dashboard desborda a 375 px (contenido de 382 px): ya conocido, se corrige al rediseñar la pantalla en 5.2
+- (3.5) `components/auth/require-permission.tsx` (`AccessDenied`) y `error-boundary.tsx` siguen con nombres de color viejos: se migran en 8.3 con el resto de alias
+- (3.7) Para auditar contraste en el navegador integrado hay que terminar las animaciones (`document.getAnimations().forEach(a => a.finish())`) antes de medir
 - (2.8) El panel del navegador integrado estira las transiciones de color: una auditoría de contraste lanzada justo tras cambiar de tema midió colores a medias (falsos fallos). Para medir hay que esperar ≥1.5 s tras el cambio. No es un bug del código.
 - (2.2) Los mensajes de error de `Input`/`Select` siguen dentro del `<label>` (así estaba); ahora además están enlazados con `aria-describedby`. Si el ruido para lectores de pantalla molesta, se puede mover fuera del label en una fase posterior.
 - (1.5) Los colores `ok` y `warn` del prototipo no cumplen 4.5:1 sobre sus tintes en claro; se ajustaron. Conviene avisar a quien mantenga el diseño en Claude Design.

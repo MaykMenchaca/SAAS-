@@ -26,6 +26,7 @@ import { useThemeStore } from "../../stores/theme-store";
 import { useCan } from "../auth/require-permission";
 import { useCommandPalette } from "./command-palette-context";
 import { qk } from "../../api/query-keys";
+import { Corners, Kbd } from "../ui";
 
 type CommandSection = "pages" | "products" | "actions";
 
@@ -274,7 +275,7 @@ export function CommandPalette() {
       {/* Overlay */}
       <button
         aria-label="Cerrar paleta"
-        className="absolute inset-0 bg-black/40 fade-in"
+        className="absolute inset-0 bg-overlay fade-in"
         onClick={() => setOpen(false)}
         tabIndex={-1}
         type="button"
@@ -282,28 +283,27 @@ export function CommandPalette() {
 
       {/* Panel */}
       <div
-        className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-neutral-border bg-neutral-surface shadow-2xl scale-in"
+        className="blueprint relative z-10 w-full max-w-[560px] bg-bg text-text shadow-lg scale-in"
         ref={panelRef}
       >
+        <Corners />
         <h2 className="sr-only" id={titleId}>Paleta de comandos</h2>
 
-        {/* Search */}
-        <div className="flex items-center gap-2 border-b border-neutral-border px-4 py-3">
-          <Search aria-hidden="true" className="text-neutral-text-secondary shrink-0" size={18} />
+        {/* Búsqueda */}
+        <div className="flex h-14 items-center gap-2.5 border-b border-divider px-4">
+          <Search aria-hidden="true" className="shrink-0 text-ink-2" size={18} />
           <input
             aria-autocomplete="list"
             aria-controls="command-palette-list"
             aria-label="Buscar comandos, páginas y productos"
-            className="min-w-0 flex-1 bg-transparent text-sm text-neutral-text-primary placeholder:text-neutral-text-muted outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[1.0625rem] text-text outline-none placeholder:text-ink-2"
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar páginas, productos o acciones..."
+            placeholder="Buscar páginas, productos o acciones…"
             ref={inputRef}
             type="text"
             value={query}
           />
-          <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-neutral-text-secondary">
-            Esc
-          </kbd>
+          <Kbd aria-hidden="true">Esc</Kbd>
         </div>
 
         {/* Results */}
@@ -315,7 +315,7 @@ export function CommandPalette() {
           role="listbox"
         >
           {filtered.length === 0 ? (
-            <div className="py-12 text-center text-xs text-neutral-text-secondary">
+            <div className="py-12 text-center text-xs text-ink-2">
               {productsQuery.isLoading
                 ? "Buscando..."
                 : query.trim()
@@ -328,7 +328,7 @@ export function CommandPalette() {
               if (items.length === 0) return null;
               return (
                 <div className="py-1" key={section}>
-                  <div className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-neutral-text-muted">
+                  <div className="px-4 pb-1 pt-2 font-heading text-[0.8125rem] font-semibold uppercase tracking-[0.1em] text-ink-2">
                     {SECTION_LABELS[section]}
                   </div>
                   <div className="grid gap-0.5">
@@ -339,10 +339,10 @@ export function CommandPalette() {
                         <button
                           aria-selected={isSelected}
                           className={cn(
-                            "flex w-full items-center gap-3 px-4 py-2 text-left text-sm outline-none transition-colors duration-100 ease-[var(--ease-out-strong)]",
+                            "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-[0.9375rem] outline-none transition-colors duration-100 ease-[var(--ease-out-strong)]",
                             isSelected
-                              ? "bg-primary/10 text-neutral-text-primary"
-                              : "text-neutral-text-primary hover:bg-neutral-surface-raised",
+                              ? "bg-acc-tint text-text"
+                              : "text-text hover:bg-line-soft",
                           )}
                           data-cmd-index={globalIndex}
                           id={`cmd-${cmd.id}`}
@@ -355,16 +355,12 @@ export function CommandPalette() {
                           role="option"
                           type="button"
                         >
-                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-primary-text" : "text-neutral-text-secondary")} size={16} />
-                          <span className="flex-1 truncate font-medium">{cmd.label}</span>
+                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-accent" : "text-ink-2")} size={17} />
+                          <span className="flex-1 truncate">{cmd.label}</span>
                           {cmd.hint ? (
-                            <span className="shrink-0 font-mono text-xs text-neutral-text-muted">{cmd.hint}</span>
+                            <span className="shrink-0 text-[0.8125rem] text-ink-2">{cmd.hint}</span>
                           ) : null}
-                          {cmd.shortcut ? (
-                            <kbd className="shrink-0 rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-xs font-semibold text-neutral-text-secondary">
-                              {cmd.shortcut}
-                            </kbd>
-                          ) : null}
+                          {cmd.shortcut ? <Kbd className="shrink-0">{cmd.shortcut}</Kbd> : null}
                         </button>
                       );
                     })}
@@ -376,15 +372,15 @@ export function CommandPalette() {
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center justify-between border-t border-neutral-border bg-neutral-bg/40 px-4 py-2 text-xs text-neutral-text-secondary">
+        <div className="flex items-center justify-between border-t border-divider px-4 py-2 text-[0.8125rem] text-ink-2">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↑</kbd>
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↓</kbd>
+              <Kbd aria-hidden="true">↑</Kbd>
+              <Kbd aria-hidden="true">↓</Kbd>
               navegar
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↵</kbd>
+              <Kbd aria-hidden="true">↵</Kbd>
               ejecutar
             </span>
           </div>

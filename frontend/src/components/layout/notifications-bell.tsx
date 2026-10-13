@@ -1,4 +1,4 @@
-﻿import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Bell, CloudOff, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -59,7 +59,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={total > 0 ? `${total} alertas pendientes` : "Sin alertas"}
-        className="relative flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center text-neutral-text-secondary bg-neutral-surface hover:bg-neutral-bg hover:text-neutral-text-primary rounded-md border border-neutral-border transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-strong)] active:scale-95 shadow-sm"
+        className="relative flex min-h-11 w-11 items-center justify-center border border-divider text-ink-2 transition-colors duration-150 hover:bg-line-soft hover:text-text lg:min-h-9 lg:w-9"
         onClick={() => setOpen((v) => !v)}
         ref={buttonRef}
         type="button"
@@ -68,7 +68,7 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
         {total > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -top-1 -right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-danger text-on-danger text-xs font-bold leading-none border border-neutral-surface"
+            className="absolute -right-1.5 -top-1.5 inline-grid h-[18px] min-w-[18px] place-items-center bg-bad px-1 text-xs font-medium leading-none text-on-bad"
           >
             {total > 9 ? "9+" : total}
           </span>
@@ -78,23 +78,23 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
       {open ? (
         <div
           aria-label="Notificaciones"
-          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-neutral-border bg-neutral-surface p-3 shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] border border-divider bg-bg p-3 shadow-lg"
           id={panelId}
           role="dialog"
         >
-          <h2 className="mb-2 text-sm font-semibold text-neutral-text-primary">Notificaciones</h2>
+          <h2 className="mb-2 text-lg">Notificaciones</h2>
           {total === 0 ? (
-            <p className="py-4 text-center text-sm text-neutral-text-secondary">Todo en orden. No hay alertas.</p>
+            <p className="py-4 text-center text-sm text-ink-2">Todo en orden. No hay alertas.</p>
           ) : (
             <ul className="grid gap-2">
               {badges.lowStock > 0 ? (
-                <li className="rounded-md border border-warning/30 bg-warning/5 p-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text-primary">
-                    <AlertTriangle aria-hidden="true" className="text-warning" size={15} />
+                <li className="border border-warn bg-warn-tint p-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <AlertTriangle aria-hidden="true" className="text-warn" size={15} />
                     {badges.lowStock === 1 ? "1 producto con stock bajo" : `${badges.lowStock} productos con stock bajo`}
                   </div>
                   {lowStockItems.length > 0 ? (
-                    <ul className="mt-1 grid gap-0.5 pl-6 text-xs text-neutral-text-secondary">
+                    <ul className="mt-1 grid gap-0.5 pl-6 text-xs text-ink-2">
                       {lowStockItems.map((item) => (
                         <li key={item.product_id}>
                           {item.product_name} · {Number(item.quantity)} / mín. {Number(item.min_stock)}
@@ -103,32 +103,32 @@ export function NotificationsBell({ badges }: { badges: SidebarBadges }) {
                     </ul>
                   ) : null}
                   {canInventory ? (
-                    <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary-text" onClick={() => setOpen(false)} to="/inventario">
+                    <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-acc-text" onClick={() => setOpen(false)} to="/inventario">
                       Ver inventario
                     </Link>
                   ) : null}
                 </li>
               ) : null}
               {badges.pendingPurchases > 0 ? (
-                <li className="rounded-md border border-neutral-border p-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text-primary">
-                    <Truck aria-hidden="true" className="text-info" size={15} />
+                <li className="border border-divider p-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <Truck aria-hidden="true" className="text-accent" size={15} />
                     {badges.pendingPurchases === 1
                       ? "1 orden de compra pendiente"
                       : `${badges.pendingPurchases} órdenes de compra pendientes`}
                   </div>
-                  <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-primary-text" onClick={() => setOpen(false)} to="/compras">
+                  <Link className="mt-1 inline-flex min-h-8 items-center pl-6 text-xs font-semibold text-acc-text" onClick={() => setOpen(false)} to="/compras">
                     Ver compras
                   </Link>
                 </li>
               ) : null}
               {pendingSales + rejectedSales > 0 ? (
-                <li className="rounded-md border border-danger/30 bg-danger/5 p-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-text-primary">
-                    <CloudOff aria-hidden="true" className="text-danger" size={15} />
+                <li className="border border-bad bg-bad-tint p-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <CloudOff aria-hidden="true" className="text-bad" size={15} />
                     Ventas sin sincronizar
                   </div>
-                  <p className="pl-6 text-xs text-neutral-text-secondary">
+                  <p className="pl-6 text-xs text-ink-2">
                     {pendingSales} pendientes · {rejectedSales} rechazadas. Revísalas en el indicador del encabezado.
                   </p>
                 </li>
