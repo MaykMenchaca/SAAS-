@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 import { Banknote, Barcode, CreditCard, Delete, Droplet, Hammer, Landmark, Minus, Nut, Paintbrush, Plus, Printer, Search, ShoppingCart, Trash2, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { isMaintenanceError } from "../api/backup";
 import type { Product } from "../api/products";
 import { fetchPosCatalog, getProductByCode, listCategories, listProducts } from "../api/products";
 import { previewSaleTicket, printResultMessage, printSaleTicket } from "../api/printing";
@@ -972,7 +973,8 @@ function PaymentModal({
           // H-03: Solo pasar a offline ante errores de red reales (!err.response o timeout).
           // Si el servidor respondió con 4xx o 5xx, NO pasar a offline:
           // mantener modal abierto, mostrar error del servidor y conservar el carrito.
-          const isHttpError = err instanceof AxiosError && Boolean(err.response);
+          // Un 503 de mantenimiento (restaurando un respaldo) equivale a "sin servidor": se encola.
+          const isHttpError = err instanceof AxiosError && Boolean(err.response) && !isMaintenanceError(err);
           if (isHttpError) {
             const serverMsg =
               err.response?.data?.error ?? "Error al procesar la venta en el servidor.";

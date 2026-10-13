@@ -22,6 +22,7 @@ import {
   tableRowClass,
 } from "../../components/ui";
 import { formatBytes, formatDateTime } from "./format";
+import { RestoreDialog } from "./restore-dialog";
 
 function apiError(error: unknown, fallback: string) {
   return error instanceof AxiosError ? error.response?.data?.error ?? fallback : fallback;
@@ -39,6 +40,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function BackupsTab() {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState<BackupEntry | null>(null);
 
   const backupsQuery = useQuery({
     queryKey: qk.backups(),
@@ -152,6 +154,14 @@ export function BackupsTab() {
                         Descargar
                       </Button>
                       <Button
+                        aria-label={`Restaurar ${backup.filename}`}
+                        onClick={() => setRestoring(backup)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Restaurar
+                      </Button>
+                      <Button
                         aria-label={`Eliminar ${backup.filename}`}
                         className="text-bad"
                         onClick={() => setConfirmDelete(backup.filename)}
@@ -168,6 +178,8 @@ export function BackupsTab() {
           </Table>
         )}
       </Card>
+
+      {restoring ? <RestoreDialog backup={restoring} onClose={() => setRestoring(null)} /> : null}
 
       {confirmDelete ? (
         <Modal
