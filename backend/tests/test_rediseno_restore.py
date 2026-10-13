@@ -216,7 +216,7 @@ def test_fallo_a_mitad_de_la_restauracion_deja_la_base_como_antes(client, db, ai
 
     with patch.object(restore_service, "_run_migrations", side_effect=RuntimeError("migración rota")):
         resp = _restaurar(client, admin_token, nombre)
-        assert resp.status_code == 202
+        assert resp.status_code == 202, resp.get_json()
         status = _esperar_fin()
 
     assert status["state"] == restore_service.STATE_ERROR
@@ -249,7 +249,8 @@ def test_falla_pg_restore_y_se_recupera_el_previo(client, db, aislado, admin_tok
         return real(cmd, *args, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", falla_la_primera)
-    assert _restaurar(client, admin_token, nombre).status_code == 202
+    resp = _restaurar(client, admin_token, nombre)
+    assert resp.status_code == 202, resp.get_json()
     status = _esperar_fin()
 
     assert status["state"] == restore_service.STATE_ERROR
@@ -265,7 +266,8 @@ def test_si_tambien_falla_la_reversion_se_informa_el_archivo_previo(client, db, 
     monkeypatch.setattr(
         restore_service, "_pg_restore", MagicMock(side_effect=RuntimeError("pg_restore falló"))
     )
-    assert _restaurar(client, admin_token, nombre).status_code == 202
+    resp = _restaurar(client, admin_token, nombre)
+    assert resp.status_code == 202, resp.get_json()
     status = _esperar_fin()
     assert status["state"] == restore_service.STATE_ERROR
     assert "pre-restore-" in status["message"]
