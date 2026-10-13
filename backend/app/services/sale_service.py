@@ -393,6 +393,7 @@ class SaleService:
         items: list,
         session_id: int | None = None,
         refund_method: str = "efectivo",
+        restock: bool = True,
     ) -> SaleReturn:
         """Process a return (partial or full) for a sale.
 
@@ -403,6 +404,7 @@ class SaleService:
             items: List of dicts with sale_item_id and quantity to return.
             session_id: Optional CashRegisterSession id to track cash refunds.
             refund_method: Refund method ('efectivo', 'tarjeta', 'transferencia').
+            restock: Si es False (producto dañado) no se reingresa stock; el reembolso se calcula igual.
 
         Returns:
             The SaleReturn object.
@@ -504,6 +506,7 @@ class SaleService:
             user_id=user_id,
             session_id=session_id,
             refund_method=refund_method,
+            restocked=bool(restock),
             reason=reason,
             refund_total=Decimal("0"),
         )
@@ -513,9 +516,10 @@ class SaleService:
         refund_total = Decimal("0")
 
         # Bloqueo del stock en orden de producto antes de reingresar (OPS-09)
-        InventoryService.lock_stock(
-            item.product_id for item in sale.items if item.id in grouped_quantities
-        )
+        if restock:
+            InventoryService.lock_stock(
+                item.product_id for item in sale.items if item.id in grouped_quantities
+            )
         for si_id, qty in grouped_quantities.items():
             sale_item = db.session.get(SaleItem, si_id)
             # Calculate proportional refund
@@ -532,15 +536,16 @@ class SaleService:
             )
             db.session.add(return_item)
 
-            # Return inventory
-            InventoryService.move_stock(
-                product_id=sale_item.product_id,
-                quantity=qty,
-                movement_type="entrada",
-                reference_type="devolucion",
-                reference_id=sale_return.id,
-                user_id=user_id,
-            )
+            # Return inventory (solo si el artículo vuelve a estar disponible para vender)
+            if restock:
+                InventoryService.move_stock(
+                    product_id=sale_item.product_id,
+                    quantity=qty,
+                    movement_type="entrada",
+                    reference_type="devolucion",
+                    reference_id=sale_return.id,
+                    user_id=user_id,
+                )
 
             refund_total += line_refund
 
@@ -567,6 +572,7 @@ class SaleService:
                 "folio": sale.folio,
                 "refund_total": str(refund_total),
                 "refund_method": refund_method,
+                "restock": bool(restock),
                 "session_id": session_id,
                 "reason": reason,
             },
