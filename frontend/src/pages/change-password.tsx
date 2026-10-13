@@ -51,15 +51,15 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-neutral-bg p-4">
-      <Card className="grid w-full max-w-md gap-5 p-6">
+    <main className="grid min-h-screen place-items-center bg-bg p-4">
+      <Card className="grid w-full max-w-md gap-5 p-6" frame>
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
+          <div className="grid h-11 w-11 shrink-0 place-items-center border border-divider bg-acc-tint text-acc-text">
             <KeyRound aria-hidden="true" size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-neutral-text-primary">Cambia tu contraseña</h1>
-            <p className="text-sm text-neutral-text-secondary">
+            <h1 className="text-3xl leading-none">Cambia tu contraseña</h1>
+            <p className="mt-1.5 text-sm text-ink-2">
               {user?.full_name ? `${user.full_name}, ` : ""}por seguridad debes elegir una contraseña nueva antes de continuar.
             </p>
           </div>
@@ -95,7 +95,7 @@ export function ChangePasswordPage() {
           />
 
           {error ? (
-            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger-text" role="alert">
+            <div className="border border-bad bg-bad-tint px-3 py-2.5 text-sm text-bad" role="alert">
               {error}
             </div>
           ) : null}
