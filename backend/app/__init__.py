@@ -26,6 +26,9 @@ def create_app(config_class=Config):
     from app.api import register_blueprints
     register_blueprints(application)
 
+    from app.utils.maintenance import register_maintenance
+    register_maintenance(application)
+
     from app.utils.errors import register_error_handlers
     register_error_handlers(application)
 

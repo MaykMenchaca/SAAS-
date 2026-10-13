@@ -1,8 +1,10 @@
 """Backup API — create and list database backups."""
-from flask import Blueprint, jsonify, send_from_directory
+from flask import Blueprint, jsonify, request, send_from_directory
 
-from app.services import backup_service
+from app.services import backup_service, restore_service
 from app.services.audit_service import log_action
+from flask_jwt_extended import current_user
+
 from app.utils.decorators import require_role
 
 backup_bp = Blueprint("backup", __name__)
@@ -98,3 +100,36 @@ def download_backup(filename):
     )
 
     return send_from_directory(filepath.parent, filepath.name, as_attachment=True)
+
+
+@backup_bp.route("/restore-status", methods=["GET"])
+def restore_status():
+    """Estado de la restauración. Público y sin tocar la base: durante la restauración la base
+    se está reemplazando y las sesiones no se pueden validar. Solo expone estado y mensaje."""
+    status = restore_service.get_status()
+    keys = ("state", "message", "step", "filename", "started_at", "finished_at")
+    return jsonify({k: status.get(k) for k in keys}), 200
+
+
+@backup_bp.route("/<filename>/restore", methods=["POST"])
+@require_role("admin")
+def restore_backup(filename):
+    """Restaura un respaldo (ver ``restore_service``). Exige escribir ``RESTAURAR <archivo>``."""
+    body = request.get_json(silent=True) or {}
+    if body.get("confirm") != f"RESTAURAR {filename}":
+        return jsonify({
+            "error": f"Confirmación inválida. Escribe exactamente: RESTAURAR {filename}",
+            "code": "confirmation_required",
+        }), 400
+
+    actor = {"user_id": current_user.id, "username": current_user.username}
+    try:
+        status = restore_service.start_restore(filename, actor)
+    except (ValueError, FileNotFoundError):
+        return jsonify({"error": "El archivo no es un respaldo válido."}), 400
+    except restore_service.RestoreBusyError as e:
+        return jsonify({"error": str(e)}), 409
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(status), 202

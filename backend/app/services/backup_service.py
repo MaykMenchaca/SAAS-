@@ -46,7 +46,7 @@ def _get_usb_backup_dir() -> Path | None:
     return target_dir
 
 
-def _parse_db_url() -> dict:
+def parse_db_url() -> dict:
     """Parse DATABASE_URL into components for pg_dump."""
     url = current_app.config["SQLALCHEMY_DATABASE_URI"]
     parsed = urlparse(url)
@@ -103,8 +103,13 @@ def _get_pg_restore_path() -> str:
     return "pg_restore"
 
 
-def create_backup() -> dict:
+def create_backup(prefix: str | None = None) -> dict:
     """Create a database backup using pg_dump.
+
+    Args:
+        prefix: si se da, el archivo se llama ``<prefix>-<fecha>.dump`` (p. ej. ``pre-restore``)
+            en vez de ``backup_<base>_<fecha>.dump``. Esos archivos no entran a la lista ni a la
+            política de retención de los respaldos normales.
 
     Returns:
         Dict with filename, path, size, and created_at.
@@ -113,10 +118,17 @@ def create_backup() -> dict:
         RuntimeError: If pg_dump fails.
     """
     backup_dir = _get_backup_dir()
-    db_info = _parse_db_url()
+    db_info = parse_db_url()
 
     timestamp = local_now().strftime("%Y%m%d_%H%M%S")
-    filename = f"backup_{db_info['dbname']}_{timestamp}.dump"
+    if prefix:
+        filename = f"{prefix}-{timestamp}.dump"
+        counter = 1
+        while (backup_dir / filename).exists():
+            counter += 1
+            filename = f"{prefix}-{timestamp}-{counter}.dump"
+    else:
+        filename = f"backup_{db_info['dbname']}_{timestamp}.dump"
     filepath = backup_dir / filename
 
     env = os.environ.copy()
@@ -131,8 +143,12 @@ def create_backup() -> dict:
         "-U", db_info["user"],
         "-F", "c",  # custom format (compressed)
         "-f", str(filepath),
-        db_info["dbname"],
     ]
+    # Solo para pruebas aisladas: limita el respaldo (y por tanto la restauración) a un esquema.
+    only_schema = current_app.config.get("BACKUP_PG_SCHEMA")
+    if only_schema:
+        cmd += ["-n", only_schema]
+    cmd.append(db_info["dbname"])
 
     try:
         result = subprocess.run(
