@@ -330,6 +330,26 @@ def verify_backup(filename: str) -> dict:
     }
 
 
+def resolve_listed_backup(filename: str) -> Path:
+    """Devuelve la ruta de un respaldo, validando el nombre contra la lista real.
+
+    Raises:
+        ValueError: el nombre trae rutas o caracteres de directorio.
+        FileNotFoundError: el nombre no corresponde a un respaldo listado.
+    """
+    if (
+        not filename
+        or filename != Path(filename).name
+        or "/" in filename
+        or "\\" in filename
+        or filename in (".", "..")
+    ):
+        raise ValueError("Nombre de archivo invalido")
+    if filename not in {b["filename"] for b in list_backups()}:
+        raise FileNotFoundError("Backup no encontrado")
+    return _resolve_backup_path(filename)
+
+
 def _resolve_backup_path(filename: str) -> Path:
     """Resolve a backup filename while preventing path traversal."""
     backup_dir = _get_backup_dir()

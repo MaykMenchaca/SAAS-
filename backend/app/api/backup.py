@@ -1,5 +1,5 @@
 """Backup API — create and list database backups."""
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, send_from_directory
 
 from app.services import backup_service
 from app.services.audit_service import log_action
@@ -77,3 +77,24 @@ def verify_backup(filename):
     )
 
     return jsonify(result), 200
+
+
+@backup_bp.route("/<filename>/download", methods=["GET"])
+@require_role("admin")
+def download_backup(filename):
+    """Descarga un respaldo. El nombre se valida contra la lista de respaldos (sin rutas)."""
+    try:
+        filepath = backup_service.resolve_listed_backup(filename)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+
+    log_action(
+        action="download",
+        entity_type="backup",
+        details={"filename": filepath.name},
+        commit=True,  # acción sobre archivos, sin transacción de BD que la confirme
+    )
+
+    return send_from_directory(filepath.parent, filepath.name, as_attachment=True)
