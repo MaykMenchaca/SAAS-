@@ -1,8 +1,9 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { AxiosError } from "axios";
+
 import type { Supplier, SupplierCreatePayload } from "../../api/purchases";
 import { Button, Input, Modal } from "../../components/ui";
+import { apiErrorMessage } from "./helpers";
 
 export function SupplierFormModal({
   error,
@@ -48,11 +49,7 @@ export function SupplierFormModal({
     });
   }
 
-  const errorMessage = error
-    ? error instanceof AxiosError
-      ? error.response?.data?.error ?? "No se pudo guardar."
-      : "No se pudo guardar."
-    : "";
+  const errorMessage = apiErrorMessage(error, "No se pudo guardar.");
 
   return (
     <Modal
@@ -62,7 +59,7 @@ export function SupplierFormModal({
             Cancelar
           </Button>
           <Button disabled={!form.name.trim() || isLoading} form="supplier-form" type="submit">
-            {isLoading ? "Guardando" : "Guardar"}
+            {isLoading ? "Guardando..." : "Guardar"}
           </Button>
         </>
       }
@@ -92,10 +89,16 @@ export function SupplierFormModal({
         </div>
         <Input label="Email" name="email" onChange={(e) => setField("email", e.target.value)} type="email" value={form.email} />
         <Input label="Dirección" name="address" onChange={(e) => setField("address", e.target.value)} value={form.address} />
-        <Input label="Condiciones de pago" name="payment_terms" onChange={(e) => setField("payment_terms", e.target.value)} value={form.payment_terms} />
+        <Input
+          label="Condiciones de pago"
+          name="payment_terms"
+          onChange={(e) => setField("payment_terms", e.target.value)}
+          placeholder="Ej. Crédito 30 días, Contado"
+          value={form.payment_terms}
+        />
 
         {errorMessage ? (
-          <div className="border border-bad/30 bg-bad/10 px-3 py-2 text-sm font-medium text-bad" role="alert">{errorMessage}</div>
+          <div className="border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">{errorMessage}</div>
         ) : null}
       </form>
     </Modal>

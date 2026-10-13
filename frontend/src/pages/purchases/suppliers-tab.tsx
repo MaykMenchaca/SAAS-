@@ -1,16 +1,27 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, Pencil, Trash2 } from "lucide-react";
 
 import type { Supplier, SupplierUpdatePayload } from "../../api/purchases";
 import { createSupplier, deactivateSupplier, listSuppliers, updateSupplier } from "../../api/purchases";
-import { Badge, Button, Card, EmptyState, ErrorState, Modal, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
 import { qk } from "../../api/query-keys";
+import { useCan } from "../../components/auth/require-permission";
+import { Badge, Button, Card, EmptyState, ErrorState, Modal, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
+import { apiErrorMessage } from "./helpers";
 import { SupplierFormModal } from "./supplier-form-modal";
 
-export function SuppliersTab() {
+type SuppliersTabProps = {
+  /** El botón "Nuevo proveedor" vive en el encabezado de la página. */
+  onCloseCreate: () => void;
+  onRequestCreate: () => void;
+  showCreate: boolean;
+};
+
+/** Proveedores: contacto, teléfono, email y condiciones de pago. */
+export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: SuppliersTabProps) {
   const queryClient = useQueryClient();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const can = useCan();
+  const canEdit = can("compras:editar");
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [confirmDeactivateSupplierId, setConfirmDeactivateSupplierId] = useState<number | null>(null);
 
@@ -23,13 +34,12 @@ export function SuppliersTab() {
     mutationFn: createSupplier,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
-      setIsModalOpen(false);
+      onCloseCreate();
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: SupplierUpdatePayload }) =>
-      updateSupplier(id, payload),
+    mutationFn: ({ id, payload }: { id: number; payload: SupplierUpdatePayload }) => updateSupplier(id, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
       setEditingSupplier(null);
@@ -47,96 +57,102 @@ export function SuppliersTab() {
 
   return (
     <div className="grid gap-3">
-      <div className="flex justify-end">
-        <Button icon={<Plus aria-hidden="true" size={18} />} onClick={() => setIsModalOpen(true)}>
-          Nuevo proveedor
-        </Button>
-      </div>
-
       {suppliersQuery.isLoading ? (
-        <SkeletonTable rows={6} cols={4} />
+        <SkeletonTable cols={6} rows={6} />
       ) : suppliersQuery.isError ? (
-        <ErrorState onRetry={() => void suppliersQuery.refetch()} />
+        <ErrorState message="No se pudieron cargar los proveedores." onRetry={() => void suppliersQuery.refetch()} />
       ) : suppliers.length === 0 ? (
         <EmptyState
+          actionLabel={can("compras:crear") ? "Nuevo proveedor" : undefined}
           icon={<Building2 size={32} />}
-          message="Sin proveedores registrados."
-          actionLabel="Nuevo proveedor"
-          onAction={() => setIsModalOpen(true)}
+          message="Aún no hay proveedores registrados."
+          onAction={onRequestCreate}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <Table>
-            <caption className="sr-only">Tabla de proveedores</caption>
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Proveedor</th>
-                <th className={tableHeadClass}>Contacto</th>
-                <th className={tableHeadClass}>Teléfono</th>
-                <th className={tableHeadClass}>Email</th>
-                <th className={tableHeadClass}>Estado</th>
-                <th className={tableHeadClass}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {suppliers.map((supplier) => (
-                <tr className={tableRowClass} key={supplier.id}>
-                  <td className={tableCellClass}>
-                    <div className="font-semibold text-text">{supplier.name}</div>
-                    {supplier.rfc ? (
-                      <div className="font-mono text-xs text-ink-2">RFC: {supplier.rfc}</div>
-                    ) : supplier.address ? (
-                      <div className="text-xs text-ink-2">{supplier.address}</div>
-                    ) : null}
-                  </td>
-                  <td className={`${tableCellClass} text-sm`}>{supplier.contact_name ?? "—"}</td>
-                  <td className={`${tableCellClass} font-mono text-sm`}>{supplier.phone ?? "—"}</td>
-                  <td className={`${tableCellClass} text-sm`}>{supplier.email ?? "—"}</td>
-                  <td className={tableCellClass}>
-                    <Badge tone={supplier.is_active ? "success" : "danger"}>
-                      {supplier.is_active ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </td>
-                  <td className={tableCellClass}>
-                    <div className="flex gap-1.5">
-                      <Tooltip content="Editar">
-                        <Button
-                          aria-label={`Editar ${supplier.name}`}
-                          className="h-11 w-11 px-0"
-                          onClick={() => setEditingSupplier(supplier)}
-                          variant="secondary"
-                        >
-                          <Pencil aria-hidden="true" size={17} />
-                        </Button>
-                      </Tooltip>
-                      {supplier.is_active ? (
-                        <Tooltip content="Desactivar">
-                          <Button
-                            aria-label={`Desactivar ${supplier.name}`}
-                            className="h-11 w-11 px-0 hover:text-bad hover:bg-bad/10"
-                            disabled={deactivateMutation.isPending}
-                            onClick={() => setConfirmDeactivateSupplierId(supplier.id)}
-                            variant="ghost"
-                          >
-                            <Trash2 aria-hidden="true" size={17} />
-                          </Button>
-                        </Tooltip>
-                      ) : null}
-                    </div>
-                  </td>
+        <Card frame>
+          <div className="p-2">
+            <Table>
+              <caption className="sr-only">Tabla de proveedores</caption>
+              <thead>
+                <tr>
+                  <th className={tableHeadClass}>Proveedor</th>
+                  <th className={tableHeadClass}>Contacto</th>
+                  <th className={tableHeadClass}>Teléfono</th>
+                  <th className={tableHeadClass}>Email</th>
+                  <th className={tableHeadClass}>Condiciones</th>
+                  <th className={tableHeadClass}>Estado</th>
+                  {canEdit ? (
+                    <th className={tableHeadClass}>
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  ) : null}
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {suppliers.map((supplier) => (
+                  <tr className={tableRowClass} key={supplier.id}>
+                    <td className={tableCellClass}>
+                      <div className="font-medium">{supplier.name}</div>
+                      {supplier.rfc ? (
+                        <div className="font-mono text-xs tracking-wide text-ink-2">{supplier.rfc}</div>
+                      ) : supplier.address ? (
+                        <div className="text-xs text-ink-2">{supplier.address}</div>
+                      ) : null}
+                    </td>
+                    <td className={tableCellClass}>{supplier.contact_name ?? "—"}</td>
+                    <td className={`${tableCellClass} whitespace-nowrap tabular-nums text-ink-2`}>{supplier.phone ?? "—"}</td>
+                    <td className={`${tableCellClass} text-ink-2`}>{supplier.email ?? "—"}</td>
+                    <td className={tableCellClass}>{supplier.payment_terms ?? "—"}</td>
+                    <td className={tableCellClass}>
+                      <Badge tone={supplier.is_active ? "success" : "danger"}>
+                        {supplier.is_active ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </td>
+                    {canEdit ? (
+                      <td className={tableCellClass}>
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Tooltip content="Editar">
+                            <Button
+                              aria-label={`Editar ${supplier.name}`}
+                              onClick={() => setEditingSupplier(supplier)}
+                              variant="icon"
+                            >
+                              <Pencil aria-hidden="true" size={16} />
+                            </Button>
+                          </Tooltip>
+                          {supplier.is_active ? (
+                            <Tooltip content="Desactivar">
+                              <Button
+                                aria-label={`Desactivar ${supplier.name}`}
+                                className="hover:text-bad"
+                                disabled={deactivateMutation.isPending}
+                                onClick={() => {
+                                  deactivateMutation.reset();
+                                  setConfirmDeactivateSupplierId(supplier.id);
+                                }}
+                                variant="icon"
+                              >
+                                <Trash2 aria-hidden="true" size={16} />
+                              </Button>
+                            </Tooltip>
+                          ) : null}
+                        </div>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
         </Card>
       )}
 
-      {isModalOpen ? (
+      {showCreate ? (
         <SupplierFormModal
           error={createMutation.error}
           isLoading={createMutation.isPending}
           onClose={() => {
-            setIsModalOpen(false);
+            onCloseCreate();
             createMutation.reset();
           }}
           onSubmit={(payload) => createMutation.mutate(payload)}
@@ -183,6 +199,11 @@ export function SuppliersTab() {
           <p className="text-sm text-ink-2">
             El proveedor será desactivado y ya no aparecerá en las órdenes de compra nuevas.
           </p>
+          {deactivateMutation.error ? (
+            <div className="mt-3 border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">
+              {apiErrorMessage(deactivateMutation.error, "No se pudo desactivar el proveedor.")}
+            </div>
+          ) : null}
         </Modal>
       ) : null}
     </div>
