@@ -3,10 +3,24 @@ import type { PaginatedResponse } from "./products";
 
 // ── Types ──────────────────────────────────────────────────────────
 
+export type Permission = {
+  code: string;
+  module: string;
+  description: string | null;
+};
+
 export type Role = {
   id: number;
   name: string;
   description: string | null;
+  /** Permisos concedidos al rol (para la matriz «Permisos por rol»). */
+  permissions?: Permission[];
+};
+
+export type ResetPasswordResult = {
+  user: User;
+  /** Se entrega una sola vez: el servidor no la vuelve a mostrar. */
+  temporary_password: string;
 };
 
 export type User = {
@@ -17,6 +31,7 @@ export type User = {
   role: string;
   role_id: number;
   is_active: boolean;
+  must_change_password?: boolean;
   last_login_at: string | null;
   created_at: string;
 };
@@ -80,5 +95,16 @@ export async function deactivateUser(userId: number) {
 
 export async function listRoles() {
   const response = await apiClient.get<Role[]>("/users/roles");
+  return response.data;
+}
+
+/** Catálogo completo de permisos (el total contra el que se mide cada rol). */
+export async function listPermissions() {
+  const response = await apiClient.get<Permission[]>("/users/permissions");
+  return response.data;
+}
+
+export async function resetUserPassword(userId: number) {
+  const response = await apiClient.post<ResetPasswordResult>(`/users/${userId}/reset-password`);
   return response.data;
 }

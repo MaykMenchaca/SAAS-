@@ -1,8 +1,11 @@
+import secrets
+import string
+
 from marshmallow import ValidationError
 from sqlalchemy import or_
 
 from app.extensions import db
-from app.models.user import Role, User
+from app.models.user import Permission, Role, User
 from app.utils.decorators import with_rollback
 
 
@@ -29,6 +32,10 @@ class UserService:
     @staticmethod
     def list_roles():
         return Role.query.filter_by(is_active=True).order_by(Role.name.asc()).all()
+
+    @staticmethod
+    def list_permissions():
+        return Permission.query.order_by(Permission.module.asc(), Permission.code.asc()).all()
 
     @staticmethod
     def get_user(user_id, include_inactive=True):
@@ -170,6 +177,47 @@ class UserService:
 
         db.session.commit()
         return user
+
+    @staticmethod
+    def generate_temporary_password(length=14):
+        """Contraseña aleatoria legible (sin caracteres ambiguos) con al menos un dígito."""
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+        while True:
+            candidate = "".join(secrets.choice(alphabet) for _ in range(length))
+            if any(c.isdigit() for c in candidate) and any(c.islower() for c in candidate) and any(c.isupper() for c in candidate):
+                return candidate
+
+    @staticmethod
+    @with_rollback
+    def reset_password(user, current_user_id=None):
+        """Fija una contraseña temporal; devuelve (usuario, contraseña). Se muestra una sola vez."""
+        if not user.is_active:
+            raise ValueError("No se puede restablecer la contraseña de un usuario inactivo")
+
+        if current_user_id and user.id == current_user_id:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError(
+                        "No puedes restablecer tu propia contraseña siendo el único administrador activo"
+                    )
+
+        temporary = UserService.generate_temporary_password()
+        user.set_password(temporary)  # incrementa token_version: revoca sus sesiones
+        user.must_change_password = True
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="restablecer_contrasena",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            new_value={"must_change_password": True, "password": "[RESET]"},
+        )
+
+        db.session.commit()
+        return user, temporary
 
     @staticmethod
     def _validate_role(role_id):
