@@ -12,6 +12,8 @@ export type CartItem = {
   tax_rate: string;
   discount_percent: string;
   unit_abbreviation: string;
+  /** La unidad admite cantidades fraccionarias (kg, m, lt): habilita pasos de 0.5 y atajos de peso/medida. */
+  allows_fractions?: boolean;
 };
 
 export type QueuedOfflineSale = {
@@ -179,6 +181,7 @@ export const usePosStore = create<PosState>()(
                 unit_price: item.unit_price,
                 tax_rate: item.tax_rate,
                 unit_abbreviation: item.unit_abbreviation,
+                allows_fractions: item.allows_fractions,
                 quantity: item.quantity ?? 1,
                 discount_percent: item.discount_percent ?? "0.00",
               },

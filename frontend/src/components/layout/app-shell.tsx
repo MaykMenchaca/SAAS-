@@ -97,7 +97,8 @@ export function AppShell() {
           pageTitle={pageTitle}
           sectionLabel={entry?.section}
         />
-        <main className="flex-1 p-4 lg:p-6" id="main-content">
+        {/* El POS ocupa todo el ancho y alto disponibles (sin el relleno de las demás pantallas) */}
+        <main className={cn("flex-1", isPosRoute ? "p-0" : "p-4 lg:p-6")} id="main-content">
           <Outlet />
         </main>
       </div>

@@ -212,8 +212,13 @@ body {
   body { font-size: 0.9375rem; }
 }
 
-* {
-  border-color: var(--color-divider);
+/* Color de borde por defecto. Va en `@layer base` para que las utilidades de Tailwind (`border-accent`,
+   `border-bad`, `border-transparent`, `border-field-border`…) puedan sobrescribirlo: el CSS SIN capa le gana
+   siempre a las capas, y antes esta regla anulaba todos los colores de borde. */
+@layer base {
+  * {
+    border-color: var(--color-divider);
+  }
 }
 
 /* Títulos: Barlow Condensed 600, interlineado compacto (Industry) */

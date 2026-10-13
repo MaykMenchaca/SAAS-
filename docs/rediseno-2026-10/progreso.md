@@ -40,19 +40,29 @@
 - [x] 3.7 Verificación · cajero (5 secciones, sin Dashboard/Usuarios/Reportes/Configuración), admin y gerente por permisos; claro y oscuro; 1280/768/375 px; Ctrl K con navegación real. **Contraste real del shell: 29 textos del menú + 9 del encabezado = 0 fallos en claro y oscuro** (con las animaciones terminadas antes de medir)
 - [x] **Gate 3** · APROBADO (2026-10-12): Vitest **95 passed** (+34: 24 del shell, 9 de `cn`, 1 de Input), `test_rediseno_fase1/2/3.py` (21), `tsc` y build OK, contraste 40/40, `verify_design.py` OK. `app-shell.tsx` pasa de 921 a ~110 líneas repartidas en 9 archivos pequeños
 
-## Fase 4: Punto de venta ⚠️
-- [ ] 4.1 Sin sesión: unirse o abrir caja
-- [ ] 4.2 Búsqueda y escaneo + feedback
-- [ ] 4.3 Categorías
-- [ ] 4.4 Cuadrícula de productos
-- [ ] 4.5 Ticket lateral (fracciones y descuento con permiso)
-- [ ] 4.6 Totales del quote + métodos + Cobrar
-- [ ] 4.7 Modal de cobro: teclado y pagos divididos
-- [ ] 4.8 Venta completada + F8
-- [ ] 4.9 Offline, sincronización y rechazadas
-- [ ] 4.10 Barra de atajos
-- [ ] 4.11 Verificación de dinero (vitest, Playwright, navegador)
+## Fase 4: Punto de venta ✅ (pendiente Gate 4)
+- [x] 4.1 Sin sesión: unirse o abrir caja
+- [x] 4.2 Búsqueda y escaneo + feedback
+- [x] 4.3 Categorías
+- [x] 4.4 Cuadrícula de productos
+- [x] 4.5 Ticket lateral (fracciones y descuento con permiso)
+- [x] 4.6 Totales del quote + métodos + Cobrar
+- [x] 4.7 Modal de cobro: teclado y pagos divididos
+- [x] 4.8 Venta completada + F8
+- [x] 4.9 Offline, sincronización y rechazadas
+- [x] 4.10 Barra de atajos
+- [x] 4.11 Verificación de dinero (vitest, Playwright, navegador)
 - [ ] **Gate 4**
+
+**Verificación:** `vitest` 191 pasan (POS: payment-math, cart-helpers, ticket-panel, payment-modal, pos-screens), `tsc` limpio, contraste 44/44, verify_design OK, `test_rediseno_fase4.py` 7 pasan. En navegador: cobro con cambio, doble clic = 1 venta, stock correcto en servidor, búsqueda/F2/Enter, tema oscuro.
+
+**Hallazgos de la fase (para el resumen final):**
+- Bug de Fase 1: `* {border-color}` sin capa anulaba utilidades de borde (field-border no se aplicaba en fases 1-3); movido a `@layer base`.
+- tailwind-merge en `cn` suma ~25 kB de JS.
+- `font-mono` = Barlow (no monoespaciada): los tickets usan un stack monoespaciado explícito.
+- Tinte translúcido sobre `bg-divider` rompía contraste: ahora se apoya en fondo opaco (`TINT_ON_BG`).
+- "Lector de código activo" es indicador fijo, no detecta hardware.
+- Pendiente de revisión visual: 768/375 px del POS y modo offline real (cubierto por tests).
 
 ## Fase 5: Pantallas operativas
 - [ ] 5.1 Login (+ cambio de contraseña y 404)

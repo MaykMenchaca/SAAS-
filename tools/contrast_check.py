@@ -25,6 +25,9 @@ PAIRS = [
     ("Texto de acento", "acc-text", "bg", TEXT),
     ("Texto de acento sobre tinte", "acc-text", "acc-tint/bg", TEXT),
     ("Texto principal sobre tinte de acento", "text", "acc-tint/bg", TEXT),
+    # Elementos seleccionados o en hover (producto en el ticket, ítem activo): el texto secundario también va sobre el tinte
+    ("Texto secundario sobre tinte de acento", "ink-2", "acc-tint/bg", TEXT),
+    ("Texto secundario sobre hover suave", "ink-2", "line-soft/bg", TEXT),
     ("Botón primario (texto sobre acento)", "on-acc", "accent", TEXT),
     ("Botón primario en hover", "on-acc", "accent-hover", TEXT),
     ("Botón de peligro", "on-bad", "bad", TEXT),

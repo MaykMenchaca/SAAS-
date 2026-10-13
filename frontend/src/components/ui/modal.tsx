@@ -11,13 +11,15 @@ type ModalProps = {
   footer?: ReactNode;
   onClose: () => void;
   open: boolean;
-  size?: "md" | "lg" | "xl";
+  /** `wide` (880 px) es el ancho del diálogo de cobro del POS. */
+  size?: "md" | "lg" | "wide" | "xl";
   title: string;
 };
 
 const sizeClasses = {
   md: "max-w-lg",
   lg: "max-w-3xl",
+  wide: "max-w-[880px]",
   xl: "max-w-5xl",
 };
 
