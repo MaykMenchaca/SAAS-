@@ -58,8 +58,15 @@ class UserUpdateSchema(Schema):
     is_active = fields.Bool()
 
 
+class PermissionSchema(Schema):
+    code = fields.Str(dump_only=True)
+    module = fields.Str(dump_only=True)
+    description = fields.Str(dump_only=True, allow_none=True)
+
+
 class RoleSchema(Schema):
     id = fields.Int(dump_only=True)
+    permissions = fields.Nested(PermissionSchema, many=True, dump_only=True)
     name = fields.Str(dump_only=True)
     description = fields.Str(dump_only=True, allow_none=True)
     is_active = fields.Bool(dump_only=True)

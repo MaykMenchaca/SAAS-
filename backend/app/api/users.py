@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
-from app.schemas.user import RoleSchema, UserCreateSchema, UserSchema, UserUpdateSchema
+from app.schemas.user import PermissionSchema, RoleSchema, UserCreateSchema, UserSchema, UserUpdateSchema
 from app.services.user_service import UserService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
@@ -13,6 +13,7 @@ users_schema = UserSchema(many=True)
 user_create_schema = UserCreateSchema()
 user_update_schema = UserUpdateSchema()
 roles_schema = RoleSchema(many=True)
+permissions_schema = PermissionSchema(many=True)
 
 
 @users_bp.route("/", methods=["GET"])
@@ -31,6 +32,12 @@ def list_users():
 @require_permission("usuarios:ver")
 def list_roles():
     return jsonify(roles_schema.dump(UserService.list_roles())), 200
+
+
+@users_bp.route("/permissions", methods=["GET"])
+@require_permission("usuarios:ver")
+def list_permissions():
+    return jsonify(permissions_schema.dump(UserService.list_permissions())), 200
 
 
 @users_bp.route("/<int:user_id>", methods=["GET"])
@@ -79,3 +86,20 @@ def deactivate_user(user_id):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(user_schema.dump(user)), 200
+
+
+@users_bp.route("/<int:user_id>/reset-password", methods=["POST"])
+@require_permission("usuarios:editar")
+def reset_password(user_id):
+    user = UserService.get_user(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    current_user_id = int(get_jwt_identity())
+    try:
+        user, temporary = UserService.reset_password(user, current_user_id=current_user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    response = jsonify({"user": user_schema.dump(user), "temporary_password": temporary})
+    response.headers["Cache-Control"] = "no-store"
+    return response, 200
