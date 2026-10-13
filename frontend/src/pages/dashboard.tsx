@@ -1,48 +1,58 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BarChart3, Calculator, CircleDollarSign, CornerDownLeft, ReceiptText, ShoppingCart, TrendingUp, Truck } from "lucide-react";
-import { Link } from "react-router-dom";
+import { BarChart3, CornerDownLeft, ShoppingCart, Truck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 import { apiClient } from "../api/client";
 import { getLowStock } from "../api/inventory";
-import type { OpenSessionSummary } from "../api/reports";
+import { qk } from "../api/query-keys";
+import type { SalesReport } from "../api/reports";
 import { fetchDashboardSummary } from "../api/reports";
 import { listSales, saleStatusMeta } from "../api/sales";
-import { Badge, Button, Card, ErrorState, PageHeader, SkeletonKPI, SkeletonTable } from "../components/ui";
+import { useCan } from "../components/auth/require-permission";
+import {
+  Badge,
+  Button,
+  Corners,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonKPI,
+  SkeletonTable,
+  Table,
+  tableCellClass,
+  tableHeadClass,
+  tableNumClass,
+  tableRowClass,
+} from "../components/ui";
 import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency, formatStock } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
-import { qk } from "../api/query-keys";
-import type { SalesReport } from "../api/reports";
-import { useCan } from "../components/auth/require-permission";
+import { formatDelta } from "./dashboard/delta";
+import { Panel } from "./dashboard/panel";
+import { ShiftPanel } from "./dashboard/shift-panel";
+import { buildWeek, WeeklyChart } from "./dashboard/weekly-chart";
 
 async function fetchWeeklySales() {
   const now = new Date();
-  const fromStr = localISODate(addLocalDays(now, -6));
-  const toStr = localISODate(now);
-
   const response = await apiClient.get<SalesReport>("/reports/sales", {
-    params: { from: fromStr, to: toStr },
+    params: { from: localISODate(addLocalDays(now, -6)), to: localISODate(now) },
   });
   return response.data;
 }
 
-function rankingClass(index: number): string {
-  if (index === 0) return "bg-warning/15 text-warning border-warning/20";
-  if (index === 1) return "bg-neutral-border/60 text-neutral-text-secondary border-neutral-border";
-  if (index === 2) return "bg-warning/10 text-warning/70 border-warning/10";
-  return "bg-primary/10 text-primary-text border-primary/20";
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Variación contra el periodo anterior; null si no hay base de comparación (H-27). */
-function formatDelta(current: number, previous: number, kind: "percent" | "count"): string | null {
-  if (!previous) return null;
-  const diff = current - previous;
-  const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
-  if (kind === "count") return `${sign}${Math.abs(diff)} vs ayer`;
-  return `${sign}${Math.abs((diff / previous) * 100).toFixed(1)}%`;
+function saleTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
+
+type Kpi = { label: string; value: string; note: string | null; noteClass: string; valueClass?: string };
 
 export function DashboardPage() {
   const can = useCan();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
   const dashboardQuery = useQuery({
@@ -74,375 +84,177 @@ export function DashboardPage() {
   const data = dashboardQuery.data;
   const lowStockItems = lowStockQuery.data?.items ?? [];
   const recentSales = salesQuery.data?.items ?? [];
+  const week = buildWeek(weeklySalesQuery.data?.daily);
+  const topProducts = data?.top_products ?? [];
+  const topMax = Math.max(...topProducts.map((p) => Number(p.revenue) || 0), 1);
+  const today = capitalize(new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }));
+  const monthName = capitalize(new Date().toLocaleDateString("es-MX", { month: "long" }));
 
-  // Generate last 7 days list
-  const today = new Date();
-  const last7Days = Array.from({ length: 7 }).map((_, i) => addLocalDays(today, i - 6));
+  const deltaClass = (delta: string | null) => (delta?.startsWith("−") ? "text-bad" : "text-ok");
+  const dayDelta = formatDelta(Number(data?.revenue_today ?? 0), Number(data?.revenue_prev_day ?? 0), "percent");
+  const ticketsDelta = formatDelta(data?.sales_today ?? 0, data?.sales_prev_day ?? 0, "count");
+  const monthDelta = formatDelta(Number(data?.revenue_month ?? 0), Number(data?.revenue_prev_month ?? 0), "percent");
+  const lowCount = data?.low_stock_count ?? 0;
 
-  const dailyReportData = weeklySalesQuery.data?.daily ?? [];
-
-  const chartData = last7Days.map((dateObj) => {
-    const dateStr = localISODate(dateObj);
-    const match = dailyReportData.find((d) => d.date === dateStr);
-    const dayLabel = dateObj.toLocaleDateString("es-MX", { weekday: "short" }).toUpperCase().replace(".", "");
-    return {
-      label: dayLabel,
-      value: match ? parseFloat(match.revenue) || 0 : 0,
-      date: dateStr,
-    };
-  });
-
-  const chartTotal = chartData.reduce((sum, d) => sum + d.value, 0);
-  const maxChartVal = Math.max(...chartData.map((d) => d.value), 1);
-
-  const kpis = [
+  const kpis: Kpi[] = [
+    { label: "Ventas hoy", value: formatCurrency(data?.revenue_today ?? "0"), note: dayDelta ? `${dayDelta} vs. ayer` : null, noteClass: deltaClass(dayDelta) },
+    { label: "Tickets hoy", value: String(data?.sales_today ?? 0), note: ticketsDelta, noteClass: deltaClass(ticketsDelta) },
     {
-      icon: CircleDollarSign,
-      label: "Ventas hoy",
-      tone: "success" as const,
-      value: formatCurrency(data?.revenue_today ?? "0"),
-      delta: formatDelta(Number(data?.revenue_today ?? 0), Number(data?.revenue_prev_day ?? 0), "percent"),
-    },
-    {
-      icon: ReceiptText,
-      label: "Tickets hoy",
-      tone: "neutral" as const,
-      value: String(data?.sales_today ?? 0),
-      delta: formatDelta(data?.sales_today ?? 0, data?.sales_prev_day ?? 0, "count"),
-    },
-    {
-      icon: AlertTriangle,
       label: "Stock bajo",
-      tone: "warning" as const,
-      value: String(data?.low_stock_count ?? 0),
-      delta: (data?.low_stock_count ?? 0) > 0 ? "alertas" : null,
+      value: String(lowCount),
+      note: lowCount > 0 ? (lowCount === 1 ? "1 alerta" : `${lowCount} alertas`) : null,
+      noteClass: "text-warn",
+      valueClass: lowCount > 0 ? "text-warn" : undefined,
     },
-    {
-      icon: TrendingUp,
-      label: "Ventas mes",
-      tone: "neutral" as const,
-      value: formatCurrency(data?.revenue_month ?? "0"),
-      delta: formatDelta(Number(data?.revenue_month ?? 0), Number(data?.revenue_prev_month ?? 0), "percent"),
-    },
+    { label: "Ventas del mes", value: formatCurrency(data?.revenue_month ?? "0"), note: monthDelta ? `${monthDelta} vs. mes anterior` : null, noteClass: deltaClass(monthDelta) },
   ];
 
-  // maxChartVal already computed dynamically above
-
   return (
-    <div className="grid gap-5">
-      {/* Page Title */}
-      <PageHeader title="Dashboard" subtitle="Resumen operativo del negocio" />
+    <div className="grid min-w-0 gap-6">
+      <PageHeader
+        actions={
+          <>
+            <Button frame icon={<ShoppingCart aria-hidden="true" size={16} />} onClick={() => navigate("/pos")} size="sm">Nueva venta</Button>
+            <Button icon={<Truck aria-hidden="true" size={16} />} onClick={() => navigate("/compras")} size="sm" variant="secondary">Nueva compra</Button>
+            <Button icon={<CornerDownLeft aria-hidden="true" size={16} />} onClick={() => navigate("/devoluciones")} size="sm" variant="secondary">Devolución</Button>
+            <Button icon={<BarChart3 aria-hidden="true" size={16} />} onClick={() => navigate("/reportes")} size="sm" variant="secondary">Reportes</Button>
+          </>
+        }
+        className="mb-0"
+        subtitle={`${today} · Resumen operativo`}
+        title="Dashboard"
+      />
 
       {/* Turno: datos reales de las sesiones abiertas (H-27) */}
-      {data ? <ShiftBanner sessions={data.open_sessions} userId={user?.id} /> : null}
+      {data ? <ShiftPanel sessions={data.open_sessions} userId={user?.id} /> : null}
 
-      {/* Quick Access Shortcuts row */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Link
-          to="/pos"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg bg-primary font-bold text-xs text-on-primary hover:bg-primary-hover shadow-sm transition-colors duration-150 ease-[var(--ease-out-strong)]"
-        >
-          <ShoppingCart size={15} /> Nueva Venta
-        </Link>
-        <Link
-          to="/compras"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
-        >
-          <Truck size={15} /> Nueva Compra
-        </Link>
-        <Link
-          to="/devoluciones"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
-        >
-          <CornerDownLeft size={15} /> Devolución
-        </Link>
-        <Link
-          to="/reportes"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)]"
-        >
-          <BarChart3 size={15} /> Ver Reportes
-        </Link>
-        <Link
-          to="/corte-caja"
-          className="flex items-center justify-center gap-2 h-11 rounded-lg border border-neutral-border bg-neutral-surface font-semibold text-xs text-neutral-text-primary hover:border-primary hover:text-primary-text transition-colors duration-150 ease-[var(--ease-out-strong)] col-span-2 sm:col-span-1"
-        >
-          <Calculator size={15} /> Corte de Caja
-        </Link>
-      </div>
-
-      {/* Error state */}
       {dashboardQuery.isError ? (
         <ErrorState message="No se pudo cargar el dashboard." onRetry={() => void dashboardQuery.refetch()} />
       ) : null}
 
-      {/* KPI cards display */}
       {dashboardQuery.isLoading ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI />
         </section>
       ) : !dashboardQuery.isError ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((kpi) => {
-            const Icon = kpi.icon;
-            const toneClasses = {
-              success: "bg-success/10 text-success border-success/30",
-              neutral: "bg-primary/10 text-primary-text border-primary/20",
-              warning: "bg-warning/10 text-warning border-warning/30",
-            }[kpi.tone];
-
-            return (
-              <Card className="p-4 flex flex-col justify-between min-h-[115px]" key={kpi.label}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded border ${toneClasses}`}>
-                    <Icon aria-hidden="true" size={16} />
-                  </div>
-                  {kpi.delta ? (
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded ${
-                        kpi.delta.startsWith("−")
-                          ? "bg-danger/10 text-danger"
-                          : kpi.tone === "warning"
-                            ? "bg-warning/10 text-warning"
-                            : "bg-success/10 text-success"
-                      }`}
-                    >
-                      {kpi.delta}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex items-baseline justify-between gap-2">
-                  <span className="text-xs font-medium text-neutral-text-secondary">{kpi.label}</span>
-                  <span className="font-mono text-2xl font-bold tracking-tight text-neutral-text-primary lg:text-3xl">{kpi.value}</span>
-                </div>
-              </Card>
-            );
-          })}
+        <section aria-label="Indicadores" className="blueprint grid grid-cols-2 gap-px bg-divider lg:grid-cols-4">
+          <Corners />
+          {kpis.map((kpi) => (
+            <div className="grid min-w-0 content-start gap-2.5 bg-bg px-4 pb-4 pt-4 sm:px-5" key={kpi.label}>
+              <h2 className="truncate font-heading text-sm font-semibold uppercase tracking-wider text-ink-2">{kpi.label}</h2>
+              <p className={`truncate font-heading text-3xl font-semibold leading-none tabular-nums lg:text-4xl ${kpi.valueClass ?? "text-text"}`}>{kpi.value}</p>
+              <p className={`min-h-5 text-sm ${kpi.noteClass}`}>{kpi.note}</p>
+            </div>
+          ))}
         </section>
       ) : null}
 
-      {/* Main split sections grid */}
-      <section className="grid gap-4 lg:grid-cols-[1fr_320px] min-w-0">
-        {/* Weekly sales Bar Chart */}
-        <Card className="p-4 flex flex-col justify-between min-w-0 overflow-hidden">
-          <div>
-            <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Rendimiento Semanal</h2>
-            <p className="text-xs text-neutral-text-muted mt-0.5">Ventas diarias — Últimos 7 días</p>
-          </div>
-
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Panel note="Ventas diarias · últimos 7 días" title="Rendimiento semanal">
           {weeklySalesQuery.isLoading ? (
-            <div className="h-32 flex items-center justify-center text-xs text-neutral-text-secondary animate-pulse">Cargando gráfico...</div>
+            <div className="grid h-56 place-items-center text-sm text-ink-2">Cargando gráfica…</div>
           ) : weeklySalesQuery.isError ? (
-            <div className="h-32 flex items-center justify-center text-xs text-danger">Error al cargar datos</div>
+            <ErrorState message="No se pudo cargar la gráfica semanal." onRetry={() => void weeklySalesQuery.refetch()} />
           ) : (
-            <div className="flex items-end justify-between gap-2 sm:gap-4 h-32 pt-4 shrink-0 border-b border-neutral-border min-w-0 overflow-hidden">
-              {chartData.map((stat) => {
-                const pct = (stat.value / maxChartVal) * 100;
-                return (
-                  <div className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end min-w-0" key={stat.date}>
-                    <div
-                      className="w-full bg-primary/20 hover:bg-primary rounded-t transition-[height,background-color] duration-300 ease-[var(--ease-out-strong)] relative group cursor-default"
-                      style={{ height: `${pct}%` }}
-                    >
-                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-pos-total-bg text-pos-total-text text-xs font-mono font-bold px-1.5 py-0.5 rounded border border-neutral-border/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md z-10">
-                        ${stat.value.toFixed(2)}
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs text-neutral-text-muted mb-1 truncate">{stat.label}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <WeeklyChart days={week} />
           )}
+        </Panel>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-3 text-xs">
-            <div className="flex items-center gap-4 text-xs text-neutral-text-secondary">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded bg-primary" />
-                <span>Ingreso diario</span>
-              </div>
-              <div className="text-xs text-neutral-text-muted">
-                Promedio: ${(chartTotal / 7).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div className="text-left sm:text-right">
-              <span className="text-xs text-neutral-text-muted mr-1.5">Total semana:</span>
-              <span className="font-mono font-bold text-neutral-text-primary">
-                ${chartTotal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Critical Stock list */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
-            <div>
-              <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Stock Crítico</h2>
-              <p className="text-xs text-neutral-text-muted mt-0.5">Productos bajo el mínimo</p>
-            </div>
-            <Link className="text-xs font-bold text-primary-text hover:underline" to="/inventario">Ver todo</Link>
-          </div>
-
-          {lowStockItems.length === 0 ? (
-            <div className="py-8 text-center text-xs text-neutral-text-secondary">Inventario completo y saludable</div>
+        <Panel link={{ label: "Ver inventario", to: "/inventario" }} title="Stock crítico">
+          {lowStockQuery.isError ? (
+            <ErrorState message="No se pudo cargar el stock crítico." onRetry={() => void lowStockQuery.refetch()} />
+          ) : lowStockItems.length === 0 ? (
+            <EmptyState message={can("inventario:ver") ? "Inventario completo y saludable" : "Sin acceso al inventario"} />
           ) : (
-            <div className="divide-y divide-neutral-border max-h-[160px] overflow-y-auto pr-1">
+            <ul>
               {lowStockItems.slice(0, 5).map((item) => {
                 const qty = Number(item.quantity);
                 const min = Number(item.min_stock);
-                const isCritical = qty <= min * 0.3; // Very low
-
+                const isCritical = qty <= min * 0.3;
                 return (
-                  <div className="py-2 flex items-center justify-between gap-3 text-xs" key={item.id}>
+                  <li className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5 sm:px-5" key={item.id}>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-neutral-text-primary truncate">{item.product_name}</div>
-                      <div className="font-mono text-xs text-neutral-text-muted uppercase mt-0.5">{item.sku}</div>
+                      <p className="truncate font-medium">{item.product_name}</p>
+                      <p className="truncate text-xs uppercase tracking-wide text-ink-2">{item.sku}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className={`font-mono font-bold ${isCritical ? "text-danger" : "text-warning"}`}>
+                    <div className="shrink-0 text-right">
+                      <p className={`font-heading text-lg font-semibold tabular-nums ${isCritical ? "text-bad" : "text-warn"}`}>
                         {formatStock(qty)} {item.unit_abbreviation}
-                      </div>
-                      <div className="text-xs text-neutral-text-muted">Mín: {formatStock(min)}</div>
+                      </p>
+                      <p className="text-xs text-ink-2">mín. {formatStock(min)}</p>
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-        </Card>
-      </section>
+        </Panel>
+      </div>
 
-      {/* Bottom Row: Recent Sales & Top Products list */}
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        {/* Recent Sales table */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3 border-b border-neutral-border pb-2">
-            <div>
-              <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Últimas Ventas</h2>
-              <p className="text-xs text-neutral-text-muted mt-0.5">Historial de tickets recientes</p>
-            </div>
-            <Link className="text-xs font-bold text-primary-text hover:underline" to="/ventas">Historial completo</Link>
-          </div>
-
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <Panel link={{ label: "Historial completo", to: "/ventas" }} title="Últimas ventas">
           {salesQuery.isLoading ? (
-            <SkeletonTable cols={4} rows={3} />
+            <div className="p-3"><SkeletonTable cols={4} rows={3} /></div>
+          ) : salesQuery.isError ? (
+            <ErrorState message="No se pudieron cargar las ventas." onRetry={() => void salesQuery.refetch()} />
           ) : recentSales.length === 0 ? (
-            <div className="py-8 text-center text-xs text-neutral-text-secondary">Sin transacciones registradas</div>
+            <EmptyState message="Sin transacciones registradas" />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="p-2 sm:p-3">
+              <Table>
                 <thead>
-                  <tr className="border-b border-neutral-border text-neutral-text-muted uppercase text-xs tracking-wider bg-neutral-bg">
-                    <th className="py-2 px-3">Folio</th>
-                    <th className="py-2 px-3">Cajero</th>
-                    <th className="py-2 px-3">Estado</th>
-                    <th className="py-2 px-3 text-right">Total</th>
+                  <tr>
+                    <th className={tableHeadClass}>Folio</th>
+                    <th className={tableHeadClass}>Hora</th>
+                    <th className={tableHeadClass}>Cajero</th>
+                    <th className={`${tableHeadClass} ${tableNumClass}`}>Total</th>
+                    <th className={tableHeadClass}>Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-border">
-                  {recentSales.slice(0, 5).map((sale) => (
-                    <tr className="hover:bg-neutral-surface-raised/50" key={sale.id}>
-                      <td className="py-2 px-3 font-mono font-bold text-primary-text">#{sale.folio}</td>
-                      <td className="py-2 px-3 text-neutral-text-secondary">{sale.username}</td>
-                      <td className="py-2 px-3">
-                        <Badge tone={saleStatusMeta(sale.status).tone}>
-                          {saleStatusMeta(sale.status).label}
-                        </Badge>
-                      </td>
-                      <td className="py-2 px-3 font-mono font-bold text-neutral-text-primary text-right">${Number(sale.total).toFixed(2)}</td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {recentSales.slice(0, 5).map((sale) => {
+                    const meta = saleStatusMeta(sale.status);
+                    return (
+                      <tr className={tableRowClass} key={sale.id}>
+                        <td className={`${tableCellClass} whitespace-nowrap font-medium tabular-nums text-acc-text`}>{sale.folio}</td>
+                        <td className={`${tableCellClass} tabular-nums text-ink-2`}>{saleTime(sale.created_at)}</td>
+                        <td className={tableCellClass}>{sale.username}</td>
+                        <td className={`${tableCellClass} ${tableNumClass} font-medium`}>{formatCurrency(sale.total)}</td>
+                        <td className={tableCellClass}><Badge tone={meta.tone}>{meta.label}</Badge></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
-        </Card>
+        </Panel>
 
-        {/* Top Products rank */}
-        <Card className="p-4">
-          <div>
-            <h2 className="text-xs font-bold uppercase text-neutral-text-secondary tracking-widest">Productos más vendidos</h2>
-            <p className="text-xs text-neutral-text-muted mt-0.5">Top del período mensual</p>
-          </div>
-
+        <Panel note={monthName} title="Más vendidos">
           {dashboardQuery.isLoading ? (
-            <div className="mt-4"><SkeletonTable cols={2} rows={3} /></div>
-          ) : (data?.top_products?.length ?? 0) === 0 ? (
-            <div className="py-8 text-center text-xs text-neutral-text-secondary mt-4">Sin ventas este mes</div>
+            <div className="p-3"><SkeletonTable cols={2} rows={3} /></div>
+          ) : topProducts.length === 0 ? (
+            <EmptyState message="Sin ventas este mes" />
           ) : (
-            <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1">
-              {data!.top_products.map((product, index) => (
-                <div
-                  className="flex items-center justify-between rounded-md border border-neutral-border p-2.5 transition-colors hover:bg-neutral-surface-raised/40"
-                  key={product.name}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold border ${rankingClass(index)}`}>
-                      {index + 1}
-                    </span>
-                    <span className="text-xs font-bold text-neutral-text-primary truncate">{product.name}</span>
+            <ol className="py-1.5">
+              {topProducts.map((product, index) => (
+                <li className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-2.5 sm:px-5" key={product.name}>
+                  <span className="font-heading text-lg font-semibold text-acc-text">{String(index + 1).padStart(2, "0")}</span>
+                  <div className="grid min-w-0 gap-1.5">
+                    <span className="truncate font-medium">{product.name}</span>
+                    <div aria-hidden="true" className="h-1 bg-line-soft">
+                      <div className="h-full bg-accent" style={{ width: `${Math.round(((Number(product.revenue) || 0) / topMax) * 100)}%` }} />
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-mono text-xs font-bold text-neutral-text-primary">${Number(product.revenue).toFixed(2)}</div>
-                    <div className="text-xs text-neutral-text-muted">{formatStock(product.quantity)} {Number(product.quantity) === 1 ? "ud" : "uds"}</div>
+                  <div className="text-right">
+                    <p className="font-medium tabular-nums">{formatCurrency(product.revenue)}</p>
+                    <p className="text-xs text-ink-2">{formatStock(product.quantity)} {Number(product.quantity) === 1 ? "ud" : "uds"}</p>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           )}
-        </Card>
-      </section>
-    </div>
-  );
-}
-
-function ShiftBanner({ sessions, userId }: { sessions: OpenSessionSummary[]; userId?: number }) {
-  const own = sessions.find((s) => s.user_id === userId) ?? sessions[0];
-  const others = sessions.length - (own ? 1 : 0);
-
-  if (!own) {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-neutral-text-muted shrink-0" />
-          <div>
-            <div className="text-xs font-bold text-neutral-text-primary">Sin turno abierto</div>
-            <div className="text-xs text-neutral-text-secondary">Ninguna caja tiene una sesión abierta.</div>
-          </div>
-        </div>
-        <Link to="/pos">
-          <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Abrir caja</Button>
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-neutral-border bg-neutral-surface p-4 shadow-xs">
-      <div className="flex items-center gap-3">
-        <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse shadow-[0_0_0_3px_rgba(5,150,105,0.15)] shrink-0" />
-        <div>
-          <div className="text-xs font-bold text-success">Turno abierto · {own.register}</div>
-          <div className="text-xs text-neutral-text-secondary">
-            Cajero: <span className="font-semibold">{own.user}</span>
-            {others > 0 ? ` · ${others === 1 ? "1 caja más abierta" : `${others} cajas más abiertas`}` : ""}
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-6">
-        <div className="text-right">
-          <div className="font-mono text-sm font-semibold text-neutral-text-primary">{formatCurrency(own.revenue)}</div>
-          <div className="text-xs text-neutral-text-muted">Vendido en turno</div>
-        </div>
-        <div className="w-px h-8 bg-neutral-border" />
-        <div className="text-right">
-          <div className="font-mono text-sm font-semibold text-neutral-text-primary">{own.count}</div>
-          <div className="text-xs text-neutral-text-muted">{own.count === 1 ? "Transacción" : "Transacciones"}</div>
-        </div>
-        <div className="w-px h-8 bg-neutral-border" />
-        <Link to="/corte-caja">
-          <Button className="min-h-0 h-8 py-1 px-3 text-xs" variant="secondary">Cerrar turno</Button>
-        </Link>
+        </Panel>
       </div>
     </div>
   );
