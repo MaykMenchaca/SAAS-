@@ -84,6 +84,11 @@ export type SaleListItem = {
   status: string;
   created_at: string;
   username: string;
+  user_id?: number;
+  /** Suma de cantidades de la venta (texto decimal). */
+  items_count?: string;
+  /** Métodos de pago usados, p. ej. ["efectivo", "tarjeta"]. */
+  payment_methods?: string[];
 };
 
 export type SaleItemInput = {
@@ -248,10 +253,50 @@ export async function cancelSale(saleId: number, reason: string) {
   return response.data;
 }
 
-export async function listSales(page = 1, perPage = 20, filters: { folio?: string; status?: string } = {}) {
+export type SaleFilters = {
+  folio?: string;
+  status?: string;
+  /** Cajero (id de usuario). */
+  userId?: number | null;
+  /** AAAA-MM-DD, día local, inclusive. */
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export async function listSales(page = 1, perPage = 20, filters: SaleFilters = {}) {
   const response = await apiClient.get<PaginatedResponse<SaleListItem>>("/sales/", {
-    params: { page, per_page: perPage, folio: filters.folio || undefined, status: filters.status || undefined },
+    params: {
+      page,
+      per_page: perPage,
+      folio: filters.folio || undefined,
+      status: filters.status || undefined,
+      user_id: filters.userId || undefined,
+      date_from: filters.dateFrom || undefined,
+      date_to: filters.dateTo || undefined,
+    },
   });
+  return response.data;
+}
+
+/** Todas las ventas que cumplen los filtros (páginas de 100), para exportar a CSV. */
+export async function listAllSales(filters: SaleFilters = {}) {
+  const items: SaleListItem[] = [];
+  let page = 1;
+  let pages = 1;
+  do {
+    const data = await listSales(page, 100, filters);
+    items.push(...data.items);
+    pages = data.pages;
+    page += 1;
+  } while (page <= pages);
+  return items;
+}
+
+export type SaleCashier = { id: number; username: string };
+
+/** Usuarios que han registrado ventas (opciones del filtro por cajero). */
+export async function listSaleCashiers() {
+  const response = await apiClient.get<SaleCashier[]>("/sales/cashiers");
   return response.data;
 }
 
@@ -283,7 +328,12 @@ export type SaleReturnItem = {
 
 export type SaleReturn = {
   id: number;
+  /** Folio del comprobante: D-AAAAMMDD-NNNN. */
+  folio?: string;
   sale_id: number;
+  /** false = los artículos no volvieron al inventario (producto dañado). */
+  restocked?: boolean;
+  refund_method?: RefundMethod;
   status: string;
   reason: string;
   refund_total: string;
@@ -301,13 +351,14 @@ export async function returnSale(
   saleId: number,
   reason: string,
   items: ReturnItemInput[],
-  options: { sessionId?: number | null; refundMethod?: RefundMethod } = {},
+  options: { sessionId?: number | null; refundMethod?: RefundMethod; restock?: boolean } = {},
 ) {
   const response = await apiClient.post<SaleReturn>(`/sales/${saleId}/return`, {
     reason,
     items,
     session_id: options.sessionId ?? undefined,
     refund_method: options.refundMethod ?? "efectivo",
+    restock: options.restock ?? true,
   });
   return response.data;
 }

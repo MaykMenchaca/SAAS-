@@ -203,6 +203,10 @@ class SaleReturn(db.Model):
         server_default="efectivo",
     )  # efectivo, tarjeta, transferencia
     refund_total = db.Column(db.Numeric(12, 2), nullable=False)
+    # False = producto dañado: el stock no se reingresa, pero el reembolso y el corte no cambian
+    restocked = db.Column(
+        db.Boolean, nullable=False, default=True, server_default=db.true()
+    )
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

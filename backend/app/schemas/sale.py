@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from marshmallow import EXCLUDE, Schema, fields, validate
@@ -210,6 +211,8 @@ class SaleReturnCreateSchema(Schema):
         load_default="efectivo",
         validate=validate.OneOf(["efectivo", "tarjeta", "transferencia"]),
     )
+    # False = producto dañado: no se reingresa stock (el reembolso no cambia)
+    restock = fields.Boolean(load_default=True)
     items = fields.List(
         fields.Nested(SaleReturnItemInputSchema), required=True, validate=validate.Length(min=1)
     )
@@ -225,9 +228,11 @@ class SaleReturnItemSchema(Schema):
 
 class SaleReturnSchema(Schema):
     id = fields.Int(dump_only=True)
+    folio = fields.Method("get_folio")
     sale_id = fields.Int(dump_only=True)
     session_id = fields.Int(dump_only=True, allow_none=True)
     refund_method = fields.Str(dump_only=True)
+    restocked = fields.Bool(dump_only=True)
     status = fields.Method("get_sale_status")
     reason = fields.Str(dump_only=True)
     refund_total = fields.Decimal(as_string=True, places=2, dump_only=True)
@@ -236,6 +241,13 @@ class SaleReturnSchema(Schema):
 
     def get_sale_status(self, obj):
         return obj.sale.status if obj.sale else None
+
+    def get_folio(self, obj):
+        """Folio del comprobante: D-AAAAMMDD-NNNN (fecha local de la devolución, consecutivo = id)."""
+        from app.utils.timeutil import to_local
+
+        created = obj.created_at or datetime.now(timezone.utc)
+        return f"D-{to_local(created):%Y%m%d}-{obj.id:04d}"
 
 
 class SaleListSchema(Schema):
@@ -247,6 +259,15 @@ class SaleListSchema(Schema):
     status = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     username = fields.Method("get_username")
+    user_id = fields.Int(dump_only=True)
+    items_count = fields.Method("get_items_count")
+    payment_methods = fields.Method("get_payment_methods")
 
     def get_username(self, obj):
         return obj.user.username if obj.user else None
+
+    def get_items_count(self, obj):
+        return str(sum((i.quantity for i in obj.items), Decimal("0")))
+
+    def get_payment_methods(self, obj):
+        return sorted({p.method for p in obj.payments})
