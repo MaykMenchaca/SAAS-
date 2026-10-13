@@ -69,4 +69,4 @@ def test_migraciones_desde_cero_coinciden_con_los_modelos(url_esquema_vacio):
     # Ida y vuelta completa: todas las migraciones tienen downgrade que funciona
     _flask_db(url_esquema_vacio, "downgrade", "base")
     _flask_db(url_esquema_vacio, "upgrade")
-    assert "c9d0e1f2a3b4" in _flask_db(url_esquema_vacio, "current")
+    assert "a5b4c3d2e1f0" in _flask_db(url_esquema_vacio, "current")

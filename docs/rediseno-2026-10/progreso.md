@@ -65,30 +65,34 @@
 - Pendiente de revisión visual: 768/375 px del POS y modo offline real (cubierto por tests).
 
 ## Fase 5: Pantallas operativas
-- [ ] 5.1 Login (+ cambio de contraseña y 404)
-- [ ] 5.2 Dashboard
-- [ ] 5.3 Corte de caja
-- [ ] 5.4 Devoluciones (+ backend `restock`)
-- [ ] 5.5 Historial de ventas (+ CSV, filtro por cajero)
-- [ ] **Gate 5**
+- [x] 5.1 Login (+ cambio de contraseña y 404)
+- [x] 5.2 Dashboard
+- [x] 5.3 Corte de caja
+- [x] 5.4 Devoluciones (+ backend `restock`)
+- [x] 5.5 Historial de ventas (+ CSV, filtro por cajero)
+- [x] **Gate 5**
 
 ## Fase 6: Catálogo e inventario
-- [ ] 6.1 Productos
-- [ ] 6.2 Inventario (+ backend motivo de ajuste)
-- [ ] 6.3 Conteo físico
-- [ ] 6.4 Compras
-- [ ] **Gate 6**
+- [x] 6.1 Productos
+- [x] 6.2 Inventario (+ backend motivo de ajuste)
+- [x] 6.3 Conteo físico
+- [x] 6.4 Compras
+- [x] **Gate 6**
 
 ## Fase 7: Administración
-- [ ] 7.1 Usuarios (+ restablecer contraseña, matriz de permisos)
-- [ ] 7.2 Reportes (+ CSV)
-- [ ] 7.3 Configuración (+ descargar respaldo)
-- [ ] 7.4.1 Restaurar: endpoint con confirmación
-- [ ] 7.4.2 Restaurar: protocolo (respaldo previo, mantenimiento, reversión)
-- [ ] 7.4.3 Restaurar: UI en dos pasos
-- [ ] 7.4.4 Restaurar: tests
-- [ ] 7.4.5 Restaurar: documentación
-- [ ] **Gate 7**
+- [x] 7.1 Usuarios (+ restablecer contraseña, matriz de permisos)
+- [x] 7.2 Reportes (+ CSV)
+- [x] 7.3 Configuración (+ descargar respaldo)
+- [x] 7.4.1 Restaurar: endpoint con confirmación
+- [x] 7.4.2 Restaurar: protocolo (respaldo previo, mantenimiento, reversión)
+- [x] 7.4.3 Restaurar: UI en dos pasos
+- [x] 7.4.4 Restaurar: tests
+- [x] 7.4.5 Restaurar: documentación
+- [x] **Gate 7**
+
+**Integración (ramas r5a..r7b fusionadas en feat/rediseno-industry):** vitest 355 pasan, backend completo sin fallos, build OK, contraste 44/44, una sola cabeza de Alembic (`a5b4c3d2e1f0`).
+Pendiente: revisión visual en navegador de cada pantalla y aprobación de Gates 5, 6 y 7. Simulacro de restauración en base desechable antes de usarla en producción.
+Notas: KPI "Agotados" de Inventario ignora productos sin mínimo y solo lee 100; `/restore-status` es público a propósito; faltan imprimir comprobante de devolución, conteo por categoría y columna de diferencias.
 
 ## Fase 8: Cierre
 - [ ] 8.1 QA visual (`revisor-visual`)
