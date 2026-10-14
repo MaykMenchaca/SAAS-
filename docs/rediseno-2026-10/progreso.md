@@ -40,7 +40,7 @@
 - [x] 3.7 Verificación · cajero (5 secciones, sin Dashboard/Usuarios/Reportes/Configuración), admin y gerente por permisos; claro y oscuro; 1280/768/375 px; Ctrl K con navegación real. **Contraste real del shell: 29 textos del menú + 9 del encabezado = 0 fallos en claro y oscuro** (con las animaciones terminadas antes de medir)
 - [x] **Gate 3** · APROBADO (2026-10-12): Vitest **95 passed** (+34: 24 del shell, 9 de `cn`, 1 de Input), `test_rediseno_fase1/2/3.py` (21), `tsc` y build OK, contraste 40/40, `verify_design.py` OK. `app-shell.tsx` pasa de 921 a ~110 líneas repartidas en 9 archivos pequeños
 
-## Fase 4: Punto de venta ✅ (pendiente Gate 4)
+## Fase 4: Punto de venta ✅ (Gate 4 aprobado)
 - [x] 4.1 Sin sesión: unirse o abrir caja
 - [x] 4.2 Búsqueda y escaneo + feedback
 - [x] 4.3 Categorías
@@ -52,7 +52,7 @@
 - [x] 4.9 Offline, sincronización y rechazadas
 - [x] 4.10 Barra de atajos
 - [x] 4.11 Verificación de dinero (vitest, Playwright, navegador)
-- [ ] **Gate 4**
+- [x] **Gate 4** (aprobado 2026-10-13)
 
 **Verificación:** `vitest` 191 pasan (POS: payment-math, cart-helpers, ticket-panel, payment-modal, pos-screens), `tsc` limpio, contraste 44/44, verify_design OK, `test_rediseno_fase4.py` 7 pasan. En navegador: cobro con cambio, doble clic = 1 venta, stock correcto en servidor, búsqueda/F2/Enter, tema oscuro.
 
@@ -95,10 +95,10 @@ Pendiente: revisión visual en navegador de cada pantalla y aprobación de Gates
 Notas: KPI "Agotados" de Inventario ignora productos sin mínimo y solo lee 100; `/restore-status` es público a propósito; faltan imprimir comprobante de devolución, conteo por categoría y columna de diferencias.
 
 ## Fase 8: Cierre
-- [ ] 8.1 QA visual (`revisor-visual`)
-- [ ] 8.2 QA funcional (`qa-funcional` + Playwright)
-- [ ] 8.3 Limpieza de tokens viejos + MASTER.md + README
-- [ ] 8.4 Push, CI y PR (tras fusionar `fix/fase-6-claude` en `main`)
+- [x] 8.1 QA visual: barrido propio en navegador, 12 rutas, claro/oscuro, 375 px, contraste sin fallos (corregidos desbordes en Compras y Ventas)
+- [x] 8.2 QA funcional: roles admin/gerente/cajero, devolución sin reposición, restablecer contraseña; Vitest 355 y backend completo. Sin Playwright ni agentes revisores
+- [x] 8.3 Alias de index.css y cn.ts eliminados; guía `docs/sistema-de-diseno.md`; README. Sin capturas antes/después
+- [ ] 8.4 Push, CI y PR (HEAD ya contiene fix/fase-6-claude; main es ancestro)
 - [ ] **Gate 8**
 
 ## Decisiones

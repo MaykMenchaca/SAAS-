@@ -92,6 +92,10 @@ El CI (`.github/workflows/ci.yml`) corre en cada push y pull request:
 - el build y Vitest del frontend;
 - `npm audit` y `pip-audit`.
 
+## Diseño
+
+La interfaz usa el sistema "Industry" (acero sobre fondo técnico, Barlow, esquinas rectas, claro y oscuro, contraste WCAG AA verificado). Guía y reglas: [`docs/sistema-de-diseno.md`](docs/sistema-de-diseno.md).
+
 ## Estructura
 
 ```text

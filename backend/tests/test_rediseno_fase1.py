@@ -53,8 +53,11 @@ def test_primitiva_blueprint_y_componente_corners():
     assert "Corners" in _read("frontend", "src", "components", "ui", "index.ts")
 
 
-def test_alias_de_nombres_viejos_apuntan_a_tokens_nuevos():
+def test_los_alias_de_nombres_viejos_ya_no_existen():
+    """Subfase 8.3: los nombres anteriores al rediseño se eliminaron; solo quedan los tokens Industry."""
     css = _read("frontend", "src", "index.css")
-    for old, new in (("--color-primary", "--color-accent"), ("--color-danger", "--color-bad"),
-                     ("--color-neutral-border", "--color-divider"), ("--color-neutral-text-secondary", "--color-ink-2")):
-        assert re.search(re.escape(old) + r":\s*var\(" + re.escape(new) + r"\)", css), f"{old} debe ser alias de {new}"
+    for viejo in ("--color-primary", "--color-danger", "--color-success", "--color-warning", "--color-info",
+                  "--color-neutral-", "--color-sidebar-", "--color-pos-", "--color-outline"):
+        assert viejo not in css, f"{viejo} debía eliminarse en 8.3"
+    for nuevo in ("--color-accent", "--color-bad", "--color-ok", "--color-warn", "--color-divider", "--color-ink-2"):
+        assert nuevo in css
