@@ -61,7 +61,7 @@ jobs:
           sudo apt-get install -y postgresql-client-18
           /usr/lib/postgresql/18/bin/pg_dump --version
           /usr/lib/postgresql/18/bin/pg_restore --version
-      - name: Esquema de pruebas (igual que en local: las pruebas de restauración exigen un esquema lane_*)
+      - name: Esquema de pruebas lane_ci (como en local)
         working-directory: .
         run: PGPASSWORD=postgres /usr/lib/postgresql/18/bin/psql -h localhost -U postgres -d pos_test_db -c "CREATE SCHEMA IF NOT EXISTS lane_ci"
       - name: Pruebas
