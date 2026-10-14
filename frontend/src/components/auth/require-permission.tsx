@@ -29,7 +29,7 @@ export function useCan() {
 export function AccessDenied() {
   return (
     <div className="flex min-h-[360px] flex-col items-center justify-center p-8 text-center animate-fade-in">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-danger/10 text-danger ring-8 ring-danger/5">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center border border-bad bg-bad-tint text-bad">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="28"
@@ -46,8 +46,8 @@ export function AccessDenied() {
           <line x1="12" x2="12.01" y1="16" y2="16" />
         </svg>
       </div>
-      <h2 className="text-xl font-bold text-neutral-text-primary">Acceso Denegado</h2>
-      <p className="mt-1.5 max-w-sm text-sm text-neutral-text-muted">
+      <h2 className="font-heading text-2xl font-semibold uppercase tracking-[0.06em] text-text">Acceso denegado</h2>
+      <p className="mt-1.5 max-w-sm text-sm text-ink-2">
         No tienes permisos suficientes para acceder a este módulo.
       </p>
     </div>

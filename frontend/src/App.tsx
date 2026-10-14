@@ -38,7 +38,7 @@ const UiCatalogPage = import.meta.env.DEV
 function PageLoader() {
   return (
     <div className="flex h-full w-full min-h-[300px] items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
     </div>
   );
 }
