@@ -49,8 +49,22 @@ jobs:
             backend/requirements-dev.txt
       - name: Instalar dependencias
         run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Cliente de PostgreSQL 18 (pg_dump y pg_restore de la misma versión que el servidor)
+        working-directory: .
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          pg_dump --version
       - name: Pruebas
-        run: python -m pytest -q -p no:cacheprovider
+        run: |
+          set -o pipefail
+          python -m pytest -q -p no:cacheprovider -rf 2>&1 | tee pytest.out || {
+            grep -E '^(FAILED|ERROR)' pytest.out | head -20 | while read -r l; do echo "::error::${l:0:400}"; done
+            exit 1
+          }
 
   frontend:
     name: Frontend (build + Vitest)
