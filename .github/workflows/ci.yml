@@ -33,7 +33,7 @@ jobs:
           --health-retries 10
     env:
       # Solo para CI: base efímera del contenedor, no son credenciales reales
-      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_test_db
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_test_db?options=-csearch_path%3Dlane_ci,public
       APP_TIMEZONE: America/Mexico_City
       # pg_dump/pg_restore de la misma versión que el servidor (los de la imagen del runner son más viejos)
       PG_BIN_DIR: /usr/lib/postgresql/18/bin
@@ -61,6 +61,9 @@ jobs:
           sudo apt-get install -y postgresql-client-18
           /usr/lib/postgresql/18/bin/pg_dump --version
           /usr/lib/postgresql/18/bin/pg_restore --version
+      - name: Esquema de pruebas (igual que en local: las pruebas de restauración exigen un esquema lane_*)
+        working-directory: .
+        run: PGPASSWORD=postgres /usr/lib/postgresql/18/bin/psql -h localhost -U postgres -d pos_test_db -c "CREATE SCHEMA IF NOT EXISTS lane_ci"
       - name: Pruebas
         run: |
           python -m pytest -q -p no:cacheprovider -rf > pytest.out 2>&1 && { tail -3 pytest.out; exit 0; }
