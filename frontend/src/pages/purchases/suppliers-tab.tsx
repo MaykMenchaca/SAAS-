@@ -56,7 +56,7 @@ export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: Sup
   const suppliers: Supplier[] = suppliersQuery.data?.items ?? [];
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       {suppliersQuery.isLoading ? (
         <SkeletonTable cols={6} rows={6} />
       ) : suppliersQuery.isError ? (

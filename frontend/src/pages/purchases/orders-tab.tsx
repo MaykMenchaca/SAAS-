@@ -56,7 +56,7 @@ export function OrdersTab({ onCloseCreate, onRequestCreate, showCreate }: Orders
   const selected = orders.find((o) => o.id === selectedId) ?? orders[0];
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <div className="max-w-full overflow-x-auto">
         <Segmented
           aria-label="Filtrar por estado"
@@ -84,7 +84,7 @@ export function OrdersTab({ onCloseCreate, onRequestCreate, showCreate }: Orders
         />
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)]">
-          <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
             <Card frame>
               <div className="p-2">
                 <Table>

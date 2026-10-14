@@ -168,7 +168,7 @@ export function UsersPage() {
   const panelError = getErrorMessage(createMutation.error ?? updateMutation.error);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         actions={
           canCreate ? (

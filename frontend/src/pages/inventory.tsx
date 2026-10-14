@@ -85,7 +85,7 @@ export function InventoryPage() {
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         title="Inventario"
         subtitle="Existencias, ajustes y conteos físicos"
@@ -137,7 +137,7 @@ export function InventoryPage() {
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <div className="grid min-w-0 gap-3">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           {stockQuery.isLoading ? (
             <SkeletonTable cols={5} rows={8} />
           ) : stockQuery.isError ? (

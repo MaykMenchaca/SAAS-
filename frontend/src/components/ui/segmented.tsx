@@ -51,7 +51,7 @@ export function Segmented<T extends string | number>({
   return (
     <div
       aria-label={ariaLabel}
-      className={cn("inline-flex border border-field-border", fullWidth && "flex w-full", className)}
+      className={cn("inline-flex max-w-full overflow-x-auto border border-field-border", fullWidth && "flex w-full", className)}
       onKeyDown={onKeyDown}
       role="radiogroup"
     >
@@ -61,7 +61,7 @@ export function Segmented<T extends string | number>({
           <button
             aria-checked={active}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 px-3 font-medium transition-colors duration-150",
+              "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 font-medium transition-colors duration-150",
               size === "md" ? "min-h-11 text-base" : "min-h-11 text-sm lg:min-h-8",
               fullWidth && "flex-1",
               i > 0 && "border-l border-field-border",

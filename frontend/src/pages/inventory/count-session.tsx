@@ -96,7 +96,7 @@ export function CountSession({ countId, onBack }: CountSessionProps) {
   const pct = totalItems > 0 ? Math.round((countedItems / totalItems) * 100) : 0;
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <div>{backButton}</div>
 
       <Card className="flex flex-col" frame>

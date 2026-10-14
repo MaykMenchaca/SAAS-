@@ -63,7 +63,7 @@ export function SalesHistoryPage() {
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         actions={
           <Button disabled={exporting || Boolean(dateError)} icon={<Download aria-hidden="true" size={16} />} onClick={() => void exportCsv()} variant="secondary">

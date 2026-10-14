@@ -20,7 +20,7 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         subtitle="Datos del negocio, impresoras, auditoría y respaldos"
         title="Configuración"

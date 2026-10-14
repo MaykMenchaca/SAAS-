@@ -110,7 +110,7 @@ export function DashboardPage() {
   ];
 
   return (
-    <div className="grid min-w-0 gap-6">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
       <PageHeader
         actions={
           <>

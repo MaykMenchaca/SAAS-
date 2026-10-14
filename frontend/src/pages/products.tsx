@@ -176,7 +176,7 @@ export function ProductsPage() {
       : "Catálogo, categorías y unidades de medida";
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         title="Productos"
         subtitle={subtitle}
@@ -248,7 +248,7 @@ export function ProductsPage() {
           </div>
 
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
-            <div className="grid min-w-0 gap-3">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
               {productsQuery.isLoading ? (
                 <SkeletonTable cols={6} rows={8} />
               ) : productsQuery.isError ? (

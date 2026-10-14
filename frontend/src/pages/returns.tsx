@@ -74,7 +74,7 @@ export function ReturnsPage() {
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PageHeader
         className="mb-0"
         subtitle="Busca la venta, elige qué regresa el cliente y registra el reembolso."
