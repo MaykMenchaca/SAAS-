@@ -65,14 +65,7 @@ jobs:
         if: always()
         run: |
           python -m pytest -q -p no:cacheprovider -rf tests/test_rediseno_restore.py tests/test_rediseno_backup_download.py > out2.txt 2>&1 && exit 0
-          python -c "
-          import re
-          lines = [l.rstrip() for l in open('out2.txt', encoding='utf-8', errors='replace')]
-          fails = [l for l in lines if l.startswith(('FAILED', 'ERROR'))] or lines[-25:]
-          for l in fails[:30]:
-              print('::error title=pytest::' + re.sub(r'[
-%]', ' ', l)[:380])
-          "
+          python ../.github/scripts/mostrar_fallos.py out2.txt
           exit 1
       - name: "Pruebas 3 - rediseno (resto)"
         if: always()
