@@ -58,14 +58,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client-18
           pg_dump --version
-      - name: Pruebas
-        run: |
-          set -o pipefail
-          python -u -X faulthandler -m pytest -v -p no:cacheprovider -rf 2>&1 | tee pytest.out || {
-            grep -E '^(FAILED|ERROR)' pytest.out | head -20 | while read -r l; do echo "::error::${l:0:400}"; done
-            tail -40 pytest.out | while read -r l; do echo "::warning::${l:0:400}"; done
-            exit 1
-          }
+      - name: "Pruebas 1 - migraciones"
+        if: always()
+        run: python -m pytest -q -p no:cacheprovider tests/test_migraciones.py
+      - name: "Pruebas 2 - respaldo y restauracion"
+        if: always()
+        run: python -m pytest -q -p no:cacheprovider tests/test_rediseno_restore.py tests/test_rediseno_backup_download.py
+      - name: "Pruebas 3 - rediseno (resto)"
+        if: always()
+        run: python -m pytest -q -p no:cacheprovider tests --ignore=tests/test_rediseno_restore.py --ignore=tests/test_rediseno_backup_download.py --ignore=tests/test_migraciones.py -k "rediseno"
+      - name: "Pruebas 4 - el resto"
+        if: always()
+        run: python -m pytest -q -p no:cacheprovider tests --ignore=tests/test_rediseno_restore.py --ignore=tests/test_rediseno_backup_download.py --ignore=tests/test_migraciones.py -k "not rediseno"
 
   frontend:
     name: Frontend (build + Vitest)
