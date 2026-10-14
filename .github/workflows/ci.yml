@@ -61,7 +61,7 @@ jobs:
       - name: Pruebas
         run: |
           set -o pipefail
-          python -m pytest -q -p no:cacheprovider -rf 2>&1 | tee pytest.out || {
+          python -u -X faulthandler -m pytest -v -p no:cacheprovider -rf 2>&1 | tee pytest.out || {
             grep -E '^(FAILED|ERROR)' pytest.out | head -20 | while read -r l; do echo "::error::${l:0:400}"; done
             tail -40 pytest.out | while read -r l; do echo "::warning::${l:0:400}"; done
             exit 1
