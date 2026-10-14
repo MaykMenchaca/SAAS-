@@ -61,9 +61,9 @@ jobs:
           sudo apt-get install -y postgresql-client-18
           /usr/lib/postgresql/18/bin/pg_dump --version
           /usr/lib/postgresql/18/bin/pg_restore --version
-      - name: Esquema de pruebas lane_ci (como en local)
+      - name: Esquema de pruebas lane_ci con pg_trgm en public (como en local)
         working-directory: .
-        run: PGPASSWORD=postgres /usr/lib/postgresql/18/bin/psql -h localhost -U postgres -d pos_test_db -c "CREATE SCHEMA IF NOT EXISTS lane_ci"
+        run: PGPASSWORD=postgres /usr/lib/postgresql/18/bin/psql -h localhost -U postgres -d pos_test_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public" -c "CREATE SCHEMA IF NOT EXISTS lane_ci"
       - name: Pruebas
         run: |
           python -m pytest -q -p no:cacheprovider -rf > pytest.out 2>&1 && { tail -3 pytest.out; exit 0; }
