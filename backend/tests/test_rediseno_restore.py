@@ -6,6 +6,7 @@ el respaldo solo contiene ese esquema y la restauración (--clean) solo puede to
 ``RESTORE_TERMINATE_CONNECTIONS`` va en falso para no cerrar las conexiones de otros agentes; el SQL
 de cierre de conexiones se prueba aparte con una base simulada. Nunca se restaura sobre ``pos_db``.
 """
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -27,7 +28,10 @@ def _auth(token):
 def aislado(app, db, tmp_path):
     """Configura respaldos reales pero limitados al esquema del carril de pruebas."""
     esquema = db.session.execute(db.text("SELECT current_schema()")).scalar()
-    assert esquema.startswith("lane_"), f"Las pruebas de restauración exigen un esquema lane_*, no {esquema!r}"
+    # En local la base de pruebas es compartida: solo esquemas lane_*. En CI (GitHub Actions) la base es un
+    # contenedor efímero propio de la corrida, y su esquema es `public`.
+    en_ci_efimero = os.environ.get("CI") == "true" and esquema == "public"
+    assert esquema.startswith("lane_") or en_ci_efimero, f"Las pruebas de restauración exigen un esquema lane_*, no {esquema!r}"
     db.session.commit()
 
     claves = {
