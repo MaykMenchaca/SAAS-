@@ -17,13 +17,17 @@ def get_config():
 @config_bp.route("/branding", methods=["GET"])
 def get_branding():
     """Get public business branding information."""
-    company_name = config_service.get("business_name") or config_service.get("company_name") or "POS Retail VRNTAS"
+    # Configuración guarda company_*; business_* y los nombres sueltos quedan como respaldo de
+    # instalaciones anteriores. Antes se leía business_* primero y dirección, teléfono y RFC salían vacíos (RF-43)
+    company_name = config_service.first_configured(
+        "company_name", "business_name", default=config_service.get("company_name") or "POS Retail VRNTAS"
+    )
     subtitle = config_service.get("company_subtitle") or "VRNTAS POS"
     logo_icon = config_service.get("company_logo_icon") or "ShoppingCart"
     logo_color = config_service.get("company_logo_color") or "primary"
-    rfc = config_service.get("business_rfc") or config_service.get("rfc") or ""
-    address = config_service.get("business_address") or config_service.get("address") or ""
-    phone = config_service.get("business_phone") or config_service.get("phone") or ""
+    rfc = config_service.first_configured("company_rfc", "business_rfc", "rfc")
+    address = config_service.first_configured("company_address", "business_address", "address")
+    phone = config_service.first_configured("company_phone", "business_phone", "phone")
     logo_url = config_service.get("logo_url") or ""
     return jsonify({
         "business_name": company_name,

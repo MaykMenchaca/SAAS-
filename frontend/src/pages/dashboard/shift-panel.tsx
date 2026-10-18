@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { OpenSessionSummary } from "../../api/reports";
 import { Button } from "../../components/ui";
-import { formatCurrency } from "../../lib/formatters";
+import { formatSignedCurrency, negativeTone } from "../reports/helpers";
 
 function sinceLabel(iso: string | null): string {
   if (!iso) return "";
@@ -43,7 +43,8 @@ export function ShiftPanel({ sessions, userId }: { sessions: OpenSessionSummary[
         </div>
       </div>
       <div className="border-l border-divider px-5 py-3.5">
-        <p className="font-heading text-2xl font-semibold leading-tight tabular-nums">{formatCurrency(own.revenue)}</p>
+        {/* Neto del turno: con solo devoluciones queda en negativo (salida de efectivo) */}
+        <p className={`font-heading text-2xl font-semibold leading-tight tabular-nums ${negativeTone(own.revenue)}`}>{formatSignedCurrency(own.revenue)}</p>
         <p className="text-xs text-ink-2">Vendido en turno</p>
       </div>
       <div className="border-l border-divider px-5 py-3.5">

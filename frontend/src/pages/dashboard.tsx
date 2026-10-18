@@ -28,6 +28,7 @@ import { addLocalDays, localISODate } from "../lib/dates";
 import { formatCurrency, formatStock } from "../lib/formatters";
 import { useAuthStore } from "../stores/auth-store";
 import { formatDelta } from "./dashboard/delta";
+import { formatSignedCurrency, negativeTone } from "./reports/helpers";
 import { Panel } from "./dashboard/panel";
 import { ShiftPanel } from "./dashboard/shift-panel";
 import { buildWeek, WeeklyChart } from "./dashboard/weekly-chart";
@@ -97,7 +98,14 @@ export function DashboardPage() {
   const lowCount = data?.low_stock_count ?? 0;
 
   const kpis: Kpi[] = [
-    { label: "Ventas hoy", value: formatCurrency(data?.revenue_today ?? "0"), note: dayDelta ? `${dayDelta} vs. ayer` : null, noteClass: deltaClass(dayDelta) },
+    // Neto de devoluciones sin recortar: un día con solo reembolsos sale en negativo y en rojo
+    {
+      label: "Ventas hoy",
+      value: formatSignedCurrency(data?.revenue_today ?? "0"),
+      note: dayDelta ? `${dayDelta} vs. ayer` : null,
+      noteClass: deltaClass(dayDelta),
+      valueClass: negativeTone(data?.revenue_today ?? "0") || undefined,
+    },
     { label: "Tickets hoy", value: String(data?.sales_today ?? 0), note: ticketsDelta, noteClass: deltaClass(ticketsDelta) },
     {
       label: "Stock bajo",
@@ -106,7 +114,13 @@ export function DashboardPage() {
       noteClass: "text-warn",
       valueClass: lowCount > 0 ? "text-warn" : undefined,
     },
-    { label: "Ventas del mes", value: formatCurrency(data?.revenue_month ?? "0"), note: monthDelta ? `${monthDelta} vs. mes anterior` : null, noteClass: deltaClass(monthDelta) },
+    {
+      label: "Ventas del mes",
+      value: formatSignedCurrency(data?.revenue_month ?? "0"),
+      note: monthDelta ? `${monthDelta} vs. mes anterior` : null,
+      noteClass: deltaClass(monthDelta),
+      valueClass: negativeTone(data?.revenue_month ?? "0") || undefined,
+    },
   ];
 
   return (
