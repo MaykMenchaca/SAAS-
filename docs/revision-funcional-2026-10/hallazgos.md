@@ -12,7 +12,7 @@
 | Agente QA-C | QA-C-01…19 | API: auth, usuarios, matriz de permisos (91 rutas × 4 roles), reportes, configuración, auditoría, respaldos y restauración (`qa_api_c`) |
 | QA-UI (Claude) | QA-UI-01 | Navegador, esquema `shots` |
 
-Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](anexos/). Este documento fusiona los duplicados: 54 hallazgos crudos quedan en **51 consolidados (RF)**, contando los que salieron en la Fase 0.2. El plan de corrección está en [`plan-correccion.md`](plan-correccion.md); la columna **Fase** indica la subfase que corrige cada hallazgo.
+Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](anexos/). Este documento fusiona los duplicados: 54 hallazgos crudos quedan en **52 consolidados (RF)**, contando los que salieron en la Fase 0.2. El plan de corrección está en [`plan-correccion.md`](plan-correccion.md); la columna **Fase** indica la subfase que corrige cada hallazgo.
 
 **Severidad:** 🔴 Crítico (dinero o inventario incorrecto, pérdida de datos o seguridad) · 🟠 Alto (flujo roto o regla de negocio violada) · 🟡 Medio · ⚪ Bajo
 
@@ -28,7 +28,7 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | Severidad | Cantidad |
 |---|---|
 | 🔴 Crítico | 5 |
-| 🟠 Alto | 4 |
+| 🟠 Alto | 5 |
 | 🟡 Medio | 19 |
 | ⚪ Bajo | 23 |
 
@@ -48,6 +48,7 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | RF-07 | **El costo promedio queda en 0 y diluye las recepciones.** Un producto dado de alta sin `purchase_price` queda con `avg_cost=0`; un PATCH posterior no lo cambia, y el stock cargado por ajuste entra a costo 0. Ejemplo: `avg_cost` 10 en lugar de 40 y valuación de $400 en lugar de $1,600. | `product_service.py:197-199,227`. OC-20261014-0015 | QA-B-02 | 2.2 |
 | RF-08 | **El gerente desactiva y reactiva productos y categorías sin `productos:desactivar`.** `DELETE` le responde 403, pero `PATCH {"is_active":false}` responde 200 y la auditoría lo registra como "editar". | `schemas/product.py:20,119`. Productos 13 y 20, categoría 4 | QA-B-03 | 2.3 |
 | RF-09 | **No se puede dar de alta una segunda caja.** No hay `POST` de cajas ni pantalla para hacerlo; solo `seed.py:196` crea "Caja 1". Con una sola caja, el cajero no puede vender si el admin dejó su turno abierto. El README describe varias cajas en la LAN. | `api/cash_register.py` (solo `PATCH /registers/<id>` y `agent-key`) | QA-UI-01 | 2.4 |
+| RF-52 | **"Algo salió mal" se queda en todas las pestañas.** Un solo `ErrorBoundary` envuelve toda la app (`App.tsx:63`) y no se reinicia al navegar: un error en una página deja el recuadro en todas hasta recargar. Las páginas se cargan con `lazy(() => import(...))` sin reintento: si el servidor se reinició o se actualizó (nuevos nombres de archivos), la siguiente página que se abre falla. En tienda pasaría tras cada actualización con las cajas abiertas. El recuadro no muestra el error real. | Captura del usuario en `/compras` (2026-10-17); `components/layout/error-boundary.tsx`, `App.tsx:16-35` | Usuario | 2.6 |
 
 ## 🟡 Medios
 | ID | Hallazgo | Fuentes | Fase |
