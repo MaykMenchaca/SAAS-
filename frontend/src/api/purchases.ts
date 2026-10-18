@@ -49,7 +49,7 @@ export type PurchaseOrder = {
   supplier_name: string;
   user_id: number;
   username: string;
-  status: "borrador" | "enviada" | "parcial" | "recibida" | "cancelada";
+  status: "borrador" | "enviada" | "parcial" | "recibida" | "cerrada" | "cancelada";
   subtotal: string;
   tax_total: string;
   total: string;
@@ -90,11 +90,23 @@ export type ReceiveItemInput = {
 
 // ── Supplier API ──────────────────────────────────────────────────
 
-/** Proveedores activos paginados (H-45). Por defecto hasta 100, suficiente para los selectores. */
-export async function listSuppliers(params: { page?: number; perPage?: number } = {}) {
+/**
+ * Proveedores paginados (H-45). Por defecto solo activos y hasta 100, suficiente para los selectores;
+ * `includeInactive` trae también los desactivados para poder reactivarlos (RF-21).
+ */
+export async function listSuppliers(params: { page?: number; perPage?: number; includeInactive?: boolean } = {}) {
   const response = await apiClient.get<PaginatedResponse<Supplier>>("/purchases/suppliers", {
-    params: { page: params.page ?? 1, per_page: params.perPage ?? 100 },
+    params: {
+      page: params.page ?? 1,
+      per_page: params.perPage ?? 100,
+      include_inactive: params.includeInactive ? "true" : undefined,
+    },
   });
+  return response.data;
+}
+
+export async function reactivateSupplier(supplierId: number) {
+  const response = await apiClient.post<Supplier>(`/purchases/suppliers/${supplierId}/reactivate`);
   return response.data;
 }
 
@@ -143,6 +155,12 @@ export async function sendOrder(orderId: number) {
 
 export async function cancelOrder(orderId: number) {
   const response = await apiClient.post<PurchaseOrder>(`/purchases/orders/${orderId}/cancel`);
+  return response.data;
+}
+
+/** Cierra una orden parcial: lo recibido se queda y lo pendiente ya no se espera (RF-22). */
+export async function closeOrder(orderId: number, notes?: string) {
+  const response = await apiClient.post<PurchaseOrder>(`/purchases/orders/${orderId}/close`, { notes: notes || undefined });
   return response.data;
 }
 

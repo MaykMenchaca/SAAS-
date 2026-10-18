@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 
 import { invalidateInventory } from "../api/invalidate";
 import type { StockItem } from "../api/inventory";
-import { getLowStock, listStock } from "../api/inventory";
+import { getInventorySummary, listStock } from "../api/inventory";
 import { qk } from "../api/query-keys";
 import { fetchInventoryValuation } from "../api/reports";
 import { useCan } from "../components/auth/require-permission";
@@ -36,14 +36,11 @@ export function InventoryPage() {
     queryFn: () => listStock({ page, search }),
   });
 
-  // Indicadores: total de productos, bajo mínimo y agotados (stock bajo) y valor a costo (valuación)
-  const totalQuery = useQuery({
-    queryKey: qk.stock("total"),
-    queryFn: () => listStock({ page: 1, perPage: 1 }),
-  });
-  const lowStockQuery = useQuery({
-    queryKey: qk.lowStock(),
-    queryFn: () => getLowStock(),
+  // Indicadores: conteos exactos del servidor (RF-23; antes salían de las primeras 100 filas de low-stock)
+  // y valor a costo (valuación)
+  const summaryQuery = useQuery({
+    queryKey: qk.inventorySummary(),
+    queryFn: getInventorySummary,
   });
   const valuationQuery = useQuery({
     queryKey: qk.reportInventoryValuation(),
@@ -63,15 +60,11 @@ export function InventoryPage() {
   // Si el producto elegido está en la lista actual, se usa el dato fresco (tras ajustar)
   const panelItem = selected ? stocks.find((item) => item.id === selected.id) ?? selected : null;
 
-  const lowItems = lowStockQuery.data?.items ?? [];
+  const summary = summaryQuery.data;
   const kpis = [
-    { label: "Productos", value: totalQuery.data ? String(totalQuery.data.total) : "—" },
-    { label: "Bajo mínimo", tone: "warn" as const, value: lowStockQuery.data ? String(lowStockQuery.data.total) : "—" },
-    {
-      label: "Agotados",
-      tone: "bad" as const,
-      value: lowStockQuery.data ? String(lowItems.filter((item) => Number(item.quantity) <= 0).length) : "—",
-    },
+    { label: "Productos", value: summary ? String(summary.total_products) : "—" },
+    { label: "Bajo mínimo", tone: "warn" as const, value: summary ? String(summary.below_min) : "—" },
+    { label: "Agotados", tone: "bad" as const, value: summary ? String(summary.out_of_stock) : "—" },
     {
       label: "Valor a costo",
       value: valuationQuery.data ? formatCurrency(valuationQuery.data.total_valuation) : "—",
@@ -102,7 +95,7 @@ export function InventoryPage() {
 
       <InventoryTabs active="existencias" />
 
-      {totalQuery.isLoading && lowStockQuery.isLoading ? (
+      {summaryQuery.isLoading ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SkeletonKPI />
           <SkeletonKPI />

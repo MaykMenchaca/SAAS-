@@ -340,3 +340,172 @@ def test_rf12_telefono_de_proveedor_largo(client, admin_token, db):
 def test_rf12_limites_negativos_o_cero_no_dan_500(client, admin_token, db, url):
     resp = client.get(url, headers=_auth(admin_token))
     assert resp.status_code == 200
+
+
+# --- RF-21: proveedores desactivados ---
+
+
+def _proveedor(client, token, **datos):
+    return client.post("/api/purchases/suppliers", json={"name": "Aceros del Norte", **datos}, headers=_auth(token))
+
+
+def test_rf21_reactivar_un_proveedor(client, admin_token, db):
+    prov = _proveedor(client, admin_token, rfc="ADN010101AAA").get_json()
+    client.delete(f"/api/purchases/suppliers/{prov['id']}", headers=_auth(admin_token))
+    activos = client.get("/api/purchases/suppliers", headers=_auth(admin_token)).get_json()["items"]
+    assert prov["id"] not in [s["id"] for s in activos]
+    todos = client.get("/api/purchases/suppliers?include_inactive=true", headers=_auth(admin_token)).get_json()["items"]
+    assert [s["is_active"] for s in todos if s["id"] == prov["id"]] == [False]
+
+    resp = client.post(f"/api/purchases/suppliers/{prov['id']}/reactivate", headers=_auth(admin_token))
+    assert resp.status_code == 200
+    assert resp.get_json()["is_active"] is True
+    activos = client.get("/api/purchases/suppliers", headers=_auth(admin_token)).get_json()["items"]
+    assert prov["id"] in [s["id"] for s in activos]
+    assert client.post("/api/purchases/suppliers/9999/reactivate", headers=_auth(admin_token)).status_code == 404
+
+
+def test_rf21_reactivar_exige_permiso(client, regular_user_token, admin_token, db):
+    prov = _proveedor(client, admin_token).get_json()
+    resp = client.post(f"/api/purchases/suppliers/{prov['id']}/reactivate", headers=_auth(regular_user_token))
+    assert resp.status_code == 403
+
+
+def test_rf21_rfc_de_proveedor_inactivo_sugiere_reactivarlo(client, admin_token, db):
+    prov = _proveedor(client, admin_token, rfc="ADN010101AAA").get_json()
+    client.delete(f"/api/purchases/suppliers/{prov['id']}", headers=_auth(admin_token))
+    resp = _proveedor(client, admin_token, name="Otro nombre", rfc="adn010101aaa ")
+    assert resp.status_code == 409
+    body = resp.get_json()
+    assert body["code"] == "supplier_inactive"
+    assert body["supplier_id"] == prov["id"]
+    assert "Reactívalo" in body["error"]
+
+
+def test_rf21_rfc_de_proveedor_activo_da_409_claro(client, admin_token, db):
+    _proveedor(client, admin_token, rfc="ADN010101AAA")
+    resp = _proveedor(client, admin_token, name="Otro", rfc="ADN010101AAA")
+    assert resp.status_code == 409
+    assert resp.get_json()["code"] == "supplier_rfc_exists"
+    assert "Aceros del Norte" in resp.get_json()["error"]
+    otro = _proveedor(client, admin_token, name="Otro", rfc="OTR010101BBB").get_json()
+    resp = client.patch(f"/api/purchases/suppliers/{otro['id']}", json={"rfc": "adn010101aaa"}, headers=_auth(admin_token))
+    assert resp.status_code == 409
+
+
+def test_rf21_el_rfc_se_guarda_normalizado(client, admin_token, db):
+    resp = _proveedor(client, admin_token, rfc=" adn010101aaa ")
+    assert resp.status_code == 201
+    assert resp.get_json()["rfc"] == "ADN010101AAA"
+
+
+def test_rf21_sin_proveedor_inactivo_no_se_usa_en_silencio(client, admin_token, db, kilo):
+    from app.models.purchase import Supplier
+
+    db.session.add(Supplier(name="Sin Proveedor", is_active=False))
+    db.session.commit()
+    p = _producto(db, kilo, "K-1")
+    resp = _oc(client, admin_token, p.id)
+    assert resp.status_code == 400
+    assert "Sin Proveedor" in resp.get_json()["error"]
+
+
+# --- RF-22: cerrar una OC parcial ---
+
+
+def _oc_parcial(client, token, product_id):
+    oc = _oc(client, token, product_id, qty="10").get_json()
+    client.post(f"/api/purchases/orders/{oc['id']}/send", headers=_auth(token))
+    resp = client.post(f"/api/purchases/orders/{oc['id']}/receive",
+                       json={"items": [{"order_item_id": oc["items"][0]["id"], "received_quantity": "4"}]},
+                       headers=_auth(token))
+    assert resp.get_json()["status"] == "parcial"
+    return oc
+
+
+def test_rf22_cerrar_una_oc_parcial(client, admin_token, db, pieza):
+    from app.models.inventory import Stock
+
+    p = _producto(db, pieza, "P-1")
+    oc = _oc_parcial(client, admin_token, p.id)
+    resp = client.post(f"/api/purchases/orders/{oc['id']}/close", json={"notes": "El proveedor ya no surte"},
+                       headers=_auth(admin_token))
+    assert resp.status_code == 200
+    assert resp.get_json()["status"] == "cerrada"
+    # Lo recibido se queda en inventario y ya no se puede recibir más
+    assert Stock.query.filter_by(product_id=p.id).first().quantity == Decimal("4")
+    otra = client.post(f"/api/purchases/orders/{oc['id']}/receive",
+                       json={"items": [{"order_item_id": oc["items"][0]["id"], "received_quantity": "1"}]},
+                       headers=_auth(admin_token))
+    assert otra.status_code == 400
+    # Sale de las pendientes (campana)
+    pendientes = client.get("/api/purchases/orders?status=borrador,enviada,parcial", headers=_auth(admin_token))
+    assert pendientes.get_json()["total"] == 0
+
+
+def test_rf22_solo_se_cierran_ordenes_parciales(client, admin_token, db, pieza):
+    p = _producto(db, pieza, "P-1")
+    oc = _oc(client, admin_token, p.id).get_json()
+    resp = client.post(f"/api/purchases/orders/{oc['id']}/close", headers=_auth(admin_token))
+    assert resp.status_code == 400
+    assert "cancélala" in resp.get_json()["error"].lower()
+
+
+def test_rf22_cancelar_una_parcial_explica_que_pasa_con_lo_recibido(client, admin_token, db, pieza):
+    p = _producto(db, pieza, "P-1")
+    oc = _oc_parcial(client, admin_token, p.id)
+    resp = client.post(f"/api/purchases/orders/{oc['id']}/cancel", headers=_auth(admin_token))
+    assert resp.status_code == 400
+    error = resp.get_json()["error"]
+    assert "no se revierte" in error
+    assert "Cerrar orden" in error
+
+
+# --- RF-23: resumen de inventario y low-stock ---
+
+
+def test_rf23_resumen_de_inventario_con_conteos_exactos(client, regular_user_token, db, pieza):
+    _producto(db, pieza, "A", stock="0")                    # agotado sin mínimo
+    _producto(db, pieza, "B", stock="0", min_stock="5")     # agotado con mínimo
+    _producto(db, pieza, "C", stock="0", min_stock="1")     # agotado con mínimo
+    _producto(db, pieza, "D", stock="2", min_stock="2")     # igual al mínimo: bajo
+    _producto(db, pieza, "E", stock="3", min_stock="5")     # bajo
+    _producto(db, pieza, "F", stock="10")                   # normal sin mínimo
+    _producto(db, pieza, "G", stock="0", activo=False)      # inactivo: no cuenta
+    resp = client.get("/api/inventory/summary", headers=_auth(regular_user_token))
+    assert resp.status_code == 200
+    assert resp.get_json() == {"total_products": 6, "out_of_stock": 3, "below_min": 2}
+
+
+def test_rf23_el_resumen_no_se_limita_a_100(client, admin_token, db, pieza):
+    from app.models.inventory import Stock
+    from app.models.product import Product
+
+    productos = [Product(sku=f"AG-{i}", name=f"Agotado {i}", unit_id=pieza.id, sale_price=Decimal("1")) for i in range(105)]
+    db.session.add_all(productos)
+    db.session.flush()
+    db.session.add_all([Stock(product_id=p.id, quantity=Decimal("0")) for p in productos])
+    db.session.commit()
+    assert client.get("/api/inventory/summary", headers=_auth(admin_token)).get_json()["out_of_stock"] == 105
+
+
+def test_rf23_producto_sin_registro_de_stock_cuenta_como_agotado(client, admin_token, db, pieza):
+    from app.models.product import Product
+
+    db.session.add(Product(sku="SIN-STOCK", name="Sin stock", unit_id=pieza.id, sale_price=Decimal("1")))
+    db.session.commit()
+    assert client.get("/api/inventory/summary", headers=_auth(admin_token)).get_json()["out_of_stock"] == 1
+
+
+def test_rf23_low_stock_incluye_agotados_sin_minimo_y_stock_igual_al_minimo(client, admin_token, db, pieza):
+    a = _producto(db, pieza, "A", stock="0")
+    d = _producto(db, pieza, "D", stock="2", min_stock="2")
+    _producto(db, pieza, "F", stock="10")
+    _producto(db, pieza, "H", stock="3", min_stock="2")
+    resp = client.get("/api/inventory/low-stock", headers=_auth(admin_token)).get_json()
+    assert sorted(i["product_id"] for i in resp["items"]) == sorted([a.id, d.id])
+    assert resp["total"] == 2
+
+
+def test_rf23_resumen_exige_sesion(client, db):
+    assert client.get("/api/inventory/summary").status_code == 401

@@ -10,6 +10,7 @@ export const STATUS_LABELS: Record<string, string> = {
   enviada: "Enviada",
   parcial: "Parcial",
   recibida: "Recibida",
+  cerrada: "Cerrada",
   cancelada: "Cancelada",
 };
 
@@ -33,6 +34,18 @@ export function canReceiveStatus(status: string): boolean {
 /** Se puede cancelar una orden en borrador o enviada (igual que antes del rediseño). */
 export function canCancelStatus(status: string): boolean {
   return status === "borrador" || status === "enviada";
+}
+
+/** Una orden con recepción parcial se cierra sin esperar lo pendiente; ya no se cancela (RF-22). */
+export function canCloseStatus(status: string): boolean {
+  return status === "parcial";
+}
+
+/** Id del proveedor inactivo dueño del RFC, si el alta chocó con él (409 `supplier_inactive`, RF-21). */
+export function inactiveSupplierId(error: unknown): number | null {
+  if (!(error instanceof AxiosError)) return null;
+  const data = error.response?.data;
+  return data?.code === "supplier_inactive" && typeof data.supplier_id === "number" ? data.supplier_id : null;
 }
 
 /**

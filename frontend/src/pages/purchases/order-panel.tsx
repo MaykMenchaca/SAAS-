@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, CircleCheck, PackageCheck, Printer, Send } from "lucide-react";
+import { Ban, CircleCheck, PackageCheck, PackageX, Printer, Send } from "lucide-react";
 
 import type { PurchaseOrder, ReceiveItemInput } from "../../api/purchases";
-import { getOrder, receiveOrder, sendOrder } from "../../api/purchases";
+import { closeOrder, getOrder, receiveOrder, sendOrder } from "../../api/purchases";
 import { qk } from "../../api/query-keys";
 import { invalidateAfterPurchase } from "../../api/invalidate";
 import { useCan } from "../../components/auth/require-permission";
-import { Badge, Button, Card, ErrorState, Skeleton, Table, tableCellClass, tableHeadClass, tableNumClass, tableRowClass } from "../../components/ui";
+import { Badge, Button, Card, ErrorState, Input, Modal, Skeleton, Table, tableCellClass, tableHeadClass, tableNumClass, tableRowClass } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import { formatCurrency, formatStock } from "../../lib/formatters";
-import { apiErrorMessage, canCancelStatus, canReceiveStatus, cellInputClass, formatShortDate, statusLabel, statusTone } from "./helpers";
+import { apiErrorMessage, canCancelStatus, canCloseStatus, canReceiveStatus, cellInputClass, formatShortDate, statusLabel, statusTone } from "./helpers";
 import { PrintOrder } from "./print-order";
 
 type OrderPanelProps = {
@@ -35,12 +35,24 @@ export function OrderPanel({ orderId, onRequestCancel }: OrderPanelProps) {
   const [quantities, setQuantities] = useState<Record<number, string>>({});
   const [received, setReceived] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [closeNotes, setCloseNotes] = useState("");
 
   const receiveMutation = useMutation({
     mutationFn: (items: ReceiveItemInput[]) => receiveOrder(orderId, items),
     onSuccess: async () => {
       setQuantities({});
       setReceived(true);
+      await invalidateAfterPurchase(queryClient);
+    },
+  });
+
+  // Cerrar una orden parcial: lo recibido se queda, lo pendiente ya no se espera (RF-22)
+  const closeMutation = useMutation({
+    mutationFn: () => closeOrder(orderId, closeNotes.trim()),
+    onSuccess: async () => {
+      setConfirmingClose(false);
+      setCloseNotes("");
       await invalidateAfterPurchase(queryClient);
     },
   });
@@ -98,6 +110,7 @@ export function OrderPanel({ orderId, onRequestCancel }: OrderPanelProps) {
   const canRegisterReceipt = receivable && can("compras:recibir");
   const canSend = order.status === "borrador" && can("compras:editar");
   const canCancel = canCancelStatus(order.status) && can("compras:editar");
+  const canClose = canCloseStatus(order.status) && can("compras:editar");
   const hasAnyQuantity = Object.values(quantities).some((q) => Number(q) > 0);
 
   function pendingOf(item: PurchaseOrder["items"][number]) {
@@ -268,7 +281,59 @@ export function OrderPanel({ orderId, onRequestCancel }: OrderPanelProps) {
             Cancelar orden
           </Button>
         ) : null}
+        {canClose ? (
+          <Button
+            icon={<PackageX aria-hidden="true" size={16} />}
+            onClick={() => {
+              closeMutation.reset();
+              setConfirmingClose(true);
+            }}
+            variant="ghost"
+          >
+            Cerrar orden
+          </Button>
+        ) : null}
       </div>
+
+      {confirmingClose ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmingClose(false)} variant="secondary">
+                Volver
+              </Button>
+              <Button disabled={closeMutation.isPending} onClick={() => closeMutation.mutate()} variant="danger">
+                {closeMutation.isPending ? "Cerrando..." : "Cerrar orden"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmingClose(false)}
+          open
+          title={`Cerrar la orden ${order.folio}`}
+        >
+          <div className="grid gap-3 text-sm text-ink-2">
+            <p>
+              La orden se da por terminada sin esperar lo pendiente. Lo ya recibido se queda en el inventario: una
+              orden con mercancía recibida no se cancela porque esa entrada no se revierte.
+            </p>
+            <ul className="list-disc pl-5">
+              {order.items
+                .filter((item) => pendingOf(item) > 0)
+                .map((item) => (
+                  <li key={item.id}>
+                    {formatStock(pendingOf(item))} pendientes de {item.product_name}
+                  </li>
+                ))}
+            </ul>
+            <Input label="Motivo (opcional)" maxLength={500} onChange={(e) => setCloseNotes(e.target.value)} value={closeNotes} />
+            {closeMutation.error ? (
+              <div className="border border-bad bg-bad-tint px-3 py-2 font-medium text-bad" role="alert">
+                {apiErrorMessage(closeMutation.error, "No se pudo cerrar la orden.")}
+              </div>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
 
       {printing ? <PrintOrder onDone={() => setPrinting(false)} order={order} /> : null}
     </Card>

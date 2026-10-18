@@ -5,10 +5,14 @@ import { MemoryRouter } from "react-router-dom";
 
 import { useAuthStore } from "../../../stores/auth-store";
 import { PurchasesPage } from "../../purchases";
-import { canCancelStatus, canReceiveStatus, formatShortDate, statusLabel, statusTone } from "../helpers";
+import { AxiosError, AxiosHeaders } from "axios";
+
+import { canCancelStatus, canCloseStatus, canReceiveStatus, formatShortDate, statusLabel, statusTone } from "../helpers";
 
 const api = vi.hoisted(() => ({
   cancelOrder: vi.fn(),
+  closeOrder: vi.fn(),
+  reactivateSupplier: vi.fn(),
   createOrder: vi.fn(),
   createSupplier: vi.fn(),
   deactivateSupplier: vi.fn(),
@@ -116,6 +120,14 @@ describe("helpers de compras", () => {
     expect(canReceiveStatus("borrador")).toBe(false);
     expect(canCancelStatus("borrador")).toBe(true);
     expect(canCancelStatus("parcial")).toBe(false);
+  });
+
+  it("una orden parcial se cierra y la cerrada tiene etiqueta propia (RF-22)", () => {
+    expect(canCloseStatus("parcial")).toBe(true);
+    expect(canCloseStatus("enviada")).toBe(false);
+    expect(canCloseStatus("cerrada")).toBe(false);
+    expect(statusLabel("cerrada")).toBe("Cerrada");
+    expect(canReceiveStatus("cerrada")).toBe(false);
   });
 
   it("una fecha de solo día no se corre al día anterior por la zona horaria", () => {
@@ -243,6 +255,33 @@ describe("Compras · órdenes", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("una orden parcial no se cancela: se cierra explicando que lo recibido se queda (RF-22)", async () => {
+    const parcial = detail({ status: "parcial", items: [{ ...detail().items[0], received_quantity: "10.000" }] });
+    api.getOrder.mockResolvedValue(parcial);
+    api.closeOrder.mockResolvedValue({ ...parcial, status: "cerrada" });
+    const { invalidate } = renderPage();
+    await screen.findByRole("table", { name: "Partidas de la orden OC-2026-0031" });
+    expect(screen.queryByRole("button", { name: "Cancelar orden" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar orden" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/no se revierte/)).toBeTruthy();
+    expect(within(dialog).getByText(/30 pendientes de Tornillo 6x1/)).toBeTruthy();
+    expect(api.closeOrder).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByLabelText("Motivo (opcional)"), { target: { value: "Ya no surte" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar orden" }));
+    await waitFor(() => expect(api.closeOrder).toHaveBeenCalledWith(31, "Ya no surte"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(invalidate).toHaveBeenCalled();
+  });
+
+  it("sin compras:editar no aparece Cerrar orden", async () => {
+    setUser(LECTOR);
+    api.getOrder.mockResolvedValue(detail({ status: "parcial" }));
+    renderPage();
+    await screen.findByRole("table", { name: "Partidas de la orden OC-2026-0031" });
+    expect(screen.queryByRole("button", { name: "Cerrar orden" })).toBeNull();
+  });
+
   it("Imprimir abre el diálogo de impresión con la vista imprimible de la orden", async () => {
     const print = vi.fn();
     window.print = print;
@@ -330,6 +369,38 @@ describe("Compras · proveedores", () => {
     expect(screen.queryByRole("button", { name: /Editar/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Desactivar/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Nuevo proveedor/ })).toBeNull();
+  });
+
+  it("muestra los inactivos a pedido y los reactiva (RF-21)", async () => {
+    api.listSuppliers.mockImplementation(async (params?: { includeInactive?: boolean }) => ({
+      items: params?.includeInactive ? [supplier(), supplier({ id: 7, name: "Aceros del Norte", is_active: false })] : [supplier()],
+      total: 1, page: 1, pages: 1, per_page: 100,
+    }));
+    api.reactivateSupplier.mockResolvedValue(supplier({ id: 7, name: "Aceros del Norte" }));
+    await openSuppliers();
+    expect(screen.queryByText("Aceros del Norte")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar inactivos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivar Aceros del Norte" }));
+    await waitFor(() => expect(api.reactivateSupplier).toHaveBeenCalledWith(7));
+    expect(screen.queryByRole("button", { name: "Reactivar Distribuidora del Bajío" })).toBeNull();
+  });
+
+  it("si el RFC es de un proveedor inactivo ofrece reactivarlo (RF-21)", async () => {
+    const response = {
+      data: { error: "El RFC ADN010101AAA es del proveedor 'Aceros del Norte', que está desactivado. Reactívalo en lugar de darlo de alta de nuevo.", code: "supplier_inactive", supplier_id: 7 },
+      status: 409, statusText: "Conflict", headers: {}, config: { headers: new AxiosHeaders() },
+    };
+    api.createSupplier.mockRejectedValue(new AxiosError("409", "ERR_BAD_REQUEST", undefined, undefined, response));
+    api.reactivateSupplier.mockResolvedValue(supplier({ id: 7, name: "Aceros del Norte" }));
+    await openSuppliers();
+    fireEvent.click(screen.getByRole("button", { name: /Nuevo proveedor/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nombre"), { target: { value: "Aceros" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    expect(await within(dialog).findByText(/Reactívalo/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reactivar proveedor" }));
+    await waitFor(() => expect(api.reactivateSupplier).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("el formulario guarda las condiciones de pago", async () => {

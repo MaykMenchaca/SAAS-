@@ -1,11 +1,19 @@
 """Marshmallow schemas for supplier and purchase order endpoints."""
-from marshmallow import EXCLUDE, Schema, fields, validate
+from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
 
 from app.schemas.product import MAX_PRICE, MAX_QTY, TAX_RANGE
 from app.utils.quantities import max_qty_decimals
 
 # Cantidades de partidas y recepciones: > 0, tope del Numeric(12, 3) y máximo 3 decimales (RF-12)
 POSITIVE_QTY = [validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals]
+
+
+def _normalize_rfc(data):
+    """RFC sin espacios y en mayúsculas; vacío = sin RFC. " adn010101aaa" es el mismo que "ADN010101AAA" (RF-21)."""
+    if isinstance(data, dict) and isinstance(data.get("rfc"), str):
+        data = dict(data)
+        data["rfc"] = data["rfc"].strip().upper() or None
+    return data
 
 
 class SupplierCreateSchema(Schema):
@@ -22,6 +30,10 @@ class SupplierCreateSchema(Schema):
     payment_terms = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=100))
     notes = fields.Str(load_default=None, allow_none=True)
 
+    @pre_load
+    def _rfc(self, data, **kwargs):
+        return _normalize_rfc(data)
+
 
 class SupplierUpdateSchema(Schema):
     class Meta:
@@ -35,6 +47,10 @@ class SupplierUpdateSchema(Schema):
     address = fields.Str(allow_none=True)
     payment_terms = fields.Str(allow_none=True, validate=validate.Length(max=100))
     notes = fields.Str(allow_none=True)
+
+    @pre_load
+    def _rfc(self, data, **kwargs):
+        return _normalize_rfc(data)
 
 
 class SupplierSchema(Schema):
@@ -114,6 +130,14 @@ class PurchaseOrderSchema(Schema):
 
     def get_username(self, obj):
         return obj.user.username if obj.user else None
+
+
+class CloseOrderSchema(Schema):
+    """Cierre de una OC parcial: el motivo es opcional (RF-22)."""
+    class Meta:
+        unknown = EXCLUDE
+
+    notes = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=500))
 
 
 class ReceiveItemInputSchema(Schema):

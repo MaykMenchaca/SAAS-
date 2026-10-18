@@ -46,6 +46,12 @@ class PurchaseOrderService:
         """
         if not supplier_id:
             supplier = Supplier.query.filter_by(name="Sin Proveedor").first()
+            if supplier and not supplier.is_active:
+                # Se desactivó a propósito: no se usa en silencio (RF-21)
+                raise ValueError(
+                    "El proveedor 'Sin Proveedor' está desactivado. Elige un proveedor para la orden "
+                    "o reactívalo en la pestaña Proveedores."
+                )
             if not supplier:
                 supplier = Supplier(
                     name="Sin Proveedor",
@@ -208,6 +214,12 @@ class PurchaseOrderService:
         order = db.session.get(PurchaseOrder, order_id)
         if not order:
             raise ValueError("Orden de compra no encontrada")
+        if order.status == "parcial":
+            # Cancelarla dejaría en el inventario mercancía de una orden "cancelada" (RF-22)
+            raise ValueError(
+                "Esta orden ya tiene mercancía recibida, así que no se puede cancelar: lo recibido ya entró al "
+                "inventario y no se revierte. Usa «Cerrar orden» para darla por terminada sin esperar lo pendiente."
+            )
         if order.status not in ("borrador", "enviada"):
             raise ValueError(
                 "Solo se pueden cancelar órdenes en borrador o enviadas"
@@ -224,6 +236,54 @@ class PurchaseOrderService:
             details={"folio": order.folio, "status": "cancelada"},
             previous_value={"status": prev_status},
             new_value={"status": "cancelada"},
+        )
+
+        db.session.commit()
+        return order
+
+    @staticmethod
+    @with_rollback
+    def close_order(order_id: int, user_id: int, notes: str | None = None) -> PurchaseOrder:
+        """Cierra una orden parcial: lo recibido se queda y lo pendiente ya no se espera (RF-22).
+
+        No mueve inventario. La orden pasa a `cerrada` y sale de las pendientes.
+
+        Raises:
+            ValueError: Si la orden no existe o no está en estado parcial.
+        """
+        order = (
+            db.session.query(PurchaseOrder)
+            .filter_by(id=order_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if not order:
+            raise ValueError("Orden de compra no encontrada")
+        if order.status in ("borrador", "enviada"):
+            raise ValueError(
+                "Solo se cierran órdenes con recepción parcial. Si no se ha recibido nada, cancélala."
+            )
+        if order.status != "parcial":
+            raise ValueError("Solo se cierran órdenes con recepción parcial")
+
+        pending = [
+            {"product_id": oi.product_id, "product_name": oi.product_name,
+             "pending": str(oi.quantity - oi.received_quantity)}
+            for oi in order.items
+            if oi.received_quantity < oi.quantity
+        ]
+        order.status = "cerrada"
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="cerrar",
+            entity_type="purchase_order",
+            entity_id=order.id,
+            user_id=user_id,
+            details={"folio": order.folio, "status": "cerrada", "pending": pending, "notes": notes},
+            previous_value={"status": "parcial"},
+            new_value={"status": "cerrada"},
         )
 
         db.session.commit()

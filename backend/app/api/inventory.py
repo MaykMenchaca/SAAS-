@@ -76,18 +76,46 @@ def get_stock(product_id):
 @inventory_bp.route("/low-stock", methods=["GET"])
 @require_permission("inventario:ver")
 def low_stock():
-    """Productos bajo su mínimo, paginados (los más escasos primero) (H-45)."""
+    """Productos agotados o bajo su mínimo, paginados (los más escasos primero) (H-45).
+
+    Un agotado cuenta aunque no tenga mínimo, y un stock igual al mínimo ya es bajo (RF-23).
+    """
     query = (
         Stock.query
         .join(Product)
         .filter(
             Product.is_active.is_(True),
-            Product.min_stock > 0,
-            Stock.quantity < Product.min_stock,
+            db.or_(
+                Stock.quantity <= 0,
+                db.and_(Product.min_stock > 0, Stock.quantity <= Product.min_stock),
+            ),
         )
         .order_by(Stock.quantity.asc(), Product.name)
     )
     return jsonify(paginate(query, stocks_schema)), 200
+
+
+@inventory_bp.route("/summary", methods=["GET"])
+@require_permission("inventario:ver")
+def inventory_summary():
+    """Conteos exactos para los indicadores de inventario, sin el tope de 100 filas de low-stock (RF-23).
+
+    - total_products: productos activos.
+    - out_of_stock: activos con stock <= 0 (con o sin mínimo; sin registro de stock = 0).
+    - below_min: activos con mínimo, stock > 0 y stock <= mínimo.
+    """
+    qty = db.func.coalesce(Stock.quantity, 0)
+    total, out_of_stock, below_min = (
+        db.session.query(
+            db.func.count(Product.id),
+            db.func.count(Product.id).filter(qty <= 0),
+            db.func.count(Product.id).filter(Product.min_stock > 0, qty > 0, qty <= Product.min_stock),
+        )
+        .outerjoin(Stock, Stock.product_id == Product.id)
+        .filter(Product.is_active.is_(True))
+        .one()
+    )
+    return jsonify({"total_products": total, "out_of_stock": out_of_stock, "below_min": below_min}), 200
 
 
 @inventory_bp.route("/adjust-reasons", methods=["GET"])

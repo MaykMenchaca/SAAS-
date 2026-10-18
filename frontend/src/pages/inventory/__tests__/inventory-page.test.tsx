@@ -9,6 +9,7 @@ import { InventoryPage } from "../../inventory";
 const mocks = vi.hoisted(() => ({
   listStock: vi.fn(),
   getLowStock: vi.fn(),
+  getInventorySummary: vi.fn(),
   listMovements: vi.fn(),
   adjustStock: vi.fn(),
   fetchInventoryValuation: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("../../../api/inventory", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../api/inventory")>()),
   listStock: mocks.listStock,
   getLowStock: mocks.getLowStock,
+  getInventorySummary: mocks.getInventorySummary,
   listMovements: mocks.listMovements,
   adjustStock: mocks.adjustStock,
 }));
@@ -58,6 +60,7 @@ describe("Inventario con el diseño Industry", () => {
         : { items: [martillo, tubo, cinta], total: 3, page: 1, pages: 1, per_page: 20 },
     );
     mocks.getLowStock.mockResolvedValue({ items: [tubo], total: 1, page: 1, pages: 1, per_page: 100 });
+    mocks.getInventorySummary.mockResolvedValue({ total_products: 3, out_of_stock: 1, below_min: 1 });
     mocks.listMovements.mockResolvedValue([
       { id: 9, product_id: 1, movement_type: "salida", quantity: "2.000", previous_stock: "26.000", new_stock: "24.000", reference_type: "venta", reference_id: 4, notes: null, user_id: 1, username: "caja1", created_at: "2026-10-11T12:14:00" },
     ]);
@@ -78,6 +81,18 @@ describe("Inventario con el diseño Industry", () => {
     const kpis = screen.getByText("Valor a costo").closest("dl")!;
     expect(within(kpis).getByText("3")).toBeTruthy();
     expect(within(kpis).getAllByText("1")).toHaveLength(2);
+  });
+
+  it("los KPI salen del resumen del servidor, no de las primeras 100 filas de low-stock (RF-23)", async () => {
+    // low-stock solo trae 1 fila, pero el servidor cuenta 17 agotados y 4 bajo mínimo de 250 productos
+    mocks.getInventorySummary.mockResolvedValue({ total_products: 250, out_of_stock: 17, below_min: 4 });
+    renderPage();
+    const kpis = (await screen.findByText("Agotados")).closest("dl")!;
+    await waitFor(() => expect(within(kpis).getByText("17")).toBeTruthy());
+    const valor = (label: string) => within(kpis).getByText(label).closest("div")!.querySelector("dd")!.textContent;
+    expect(valor("Productos")).toBe("250");
+    expect(valor("Bajo mínimo")).toBe("4");
+    expect(valor("Agotados")).toBe("17");
   });
 
   it("sin permiso de reportes el valor a costo queda en guion y no consulta la valuación", async () => {
