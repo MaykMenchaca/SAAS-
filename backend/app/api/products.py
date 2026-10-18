@@ -21,6 +21,10 @@ units_schema = UnitOfMeasureSchema(many=True)
 unit_schema = UnitOfMeasureSchema()
 
 
+
+def _can(user, permission: str) -> bool:
+    return bool(user) and (user.role_name == "admin" or permission in user.permissions)
+
 @products_bp.route("/", methods=["GET"])
 @require_permission("productos:ver")
 def list_products():
@@ -130,7 +134,17 @@ def update_product(product_id):
                 "code": "forbidden",
             }), 403
 
-    product = ProductService.update_product(product, data)
+    # Cambiar is_active es desactivar o reactivar, no editar: exige su propio permiso y se audita como tal (RF-08)
+    if "is_active" in data:
+        nuevo = data.pop("is_active")
+        if nuevo != product.is_active:
+            if not _can(current_user, "productos:desactivar"):
+                return jsonify({"error": "Permiso insuficiente para desactivar o reactivar productos",
+                                "code": "forbidden"}), 403
+            product = (ProductService.reactivate_product if nuevo else ProductService.deactivate_product)(product)
+
+    if data:
+        product = ProductService.update_product(product, data)
     return jsonify(product_schema.dump(product)), 200
 
 

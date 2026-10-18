@@ -45,7 +45,22 @@ def update_category(category_id):
         return jsonify({"error": "Categoria no encontrada"}), 404
 
     data = category_update_schema.load(request.get_json(silent=True) or {})
-    category = CategoryService.update_category(category, data)
+
+    # Cambiar is_active exige `productos:desactivar`, igual que el DELETE (RF-08)
+    if "is_active" in data and data["is_active"] != category.is_active:
+        from flask_jwt_extended import current_user
+
+        if not current_user or not (current_user.role_name == "admin" or "productos:desactivar" in current_user.permissions):
+            return jsonify({"error": "Permiso insuficiente para desactivar o reactivar categorías",
+                            "code": "forbidden"}), 403
+        if not data["is_active"]:
+            data.pop("is_active")
+            category = CategoryService.deactivate_category(category)
+    else:
+        data.pop("is_active", None)
+
+    if data:
+        category = CategoryService.update_category(category, data)
     return jsonify(category_schema.dump(category)), 200
 
 
