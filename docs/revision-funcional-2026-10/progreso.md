@@ -41,4 +41,8 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 
 ## Fase 4: Bajos
 - [ ] RF-29…40, RF-43…51
+  - Carril Q (`test_revision_funcional_q.py`): [x] RF-29 (conteo y OC inexistentes → 404) · [x] RF-32 · [x] RF-33 · [x] RF-34 · [x] RF-35 · [x] RF-36 · [x] RF-37 · [x] RF-38 · [x] RF-39 · [x] RF-40
+    - Regla del conteo (RF-32): la diferencia se calcula contra el stock AL CAPTURAR y al cerrar se aplica sobre el stock actual (las ventas posteriores se respetan). Un ajuste manual (absoluto) durante el conteo anula la captura de ese producto (queda sin contar, con nota) porque es una existencia física más reciente; si se recaptura, la diferencia es contra el stock ajustado. Si una diferencia dejaría stock negativo, el cierre responde 409 `count_negative_stock` con el producto y no aplica nada. El conteo incluye inactivos con existencias
+    - Movimientos (RF-33): en un `ajuste`, `quantity` es el cambio con signo (nuevo − anterior); entradas y salidas siguen positivas. Los movimientos viejos en `pos_db` conservan el valor anterior (stock nuevo o `abs(delta)`); ningún reporte suma `quantity` y el historial del frontend usa `new_stock − previous_stock`
+    - RF-38: la cantidad 0.0004 ya la rechazaba RF-12 (se deja la prueba); el folio de OC se pide después de validar
 - [ ] **Gate 4**

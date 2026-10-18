@@ -1,15 +1,29 @@
 """Marshmallow schemas for supplier and purchase order endpoints."""
 from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
 
-from app.schemas.product import MAX_PRICE, MAX_QTY, TAX_RANGE
+from app.schemas.product import MAX_PRICE, MAX_QTY, TAX_RANGE, max_money_decimals, strip_fields
 from app.utils.quantities import max_qty_decimals
 
 # Cantidades de partidas y recepciones: > 0, tope del Numeric(12, 3) y máximo 3 decimales (RF-12)
 POSITIVE_QTY = [validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals]
 
 
-def _normalize_rfc(data):
-    """RFC sin espacios y en mayúsculas; vacío = sin RFC. " adn010101aaa" es el mismo que "ADN010101AAA" (RF-21)."""
+# RFC del SAT: 3 letras (persona moral, 12 caracteres) o 4 (persona física, 13), fecha AAMMDD y homoclave de
+# 3 caracteres. "123" o un mes 13 se aceptaban (RF-37)
+RFC_REGEX = r"^[A-ZÑ&]{3,4}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[A-Z\d]{3}$"
+RFC_VALIDATOR = validate.Regexp(
+    RFC_REGEX,
+    error="RFC no válido: deben ser 12 caracteres (persona moral) o 13 (persona física) con el formato del SAT, "
+          "p. ej. ABC010203XY1.",
+)
+
+
+def _normalize_supplier(data):
+    """Nombre y RFC sin espacios; RFC en mayúsculas y vacío = sin RFC (RF-21, RF-34, RF-37).
+
+    " adn010101aaa" es el mismo que "ADN010101AAA", y un nombre "   " ya no pasa como válido.
+    """
+    data = strip_fields(data, ("name",))
     if isinstance(data, dict) and isinstance(data.get("rfc"), str):
         data = dict(data)
         data["rfc"] = data["rfc"].strip().upper() or None
@@ -22,7 +36,7 @@ class SupplierCreateSchema(Schema):
 
     # Largos de las columnas: un teléfono de 25 caracteres daba 500 (RF-12)
     name = fields.Str(required=True, validate=validate.Length(min=1, max=200))
-    rfc = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=13))
+    rfc = fields.Str(load_default=None, allow_none=True, validate=RFC_VALIDATOR)
     contact_name = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=150))
     phone = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=20))
     email = fields.Email(load_default=None, allow_none=True, validate=validate.Length(max=120))
@@ -31,8 +45,8 @@ class SupplierCreateSchema(Schema):
     notes = fields.Str(load_default=None, allow_none=True)
 
     @pre_load
-    def _rfc(self, data, **kwargs):
-        return _normalize_rfc(data)
+    def _normalize(self, data, **kwargs):
+        return _normalize_supplier(data)
 
 
 class SupplierUpdateSchema(Schema):
@@ -40,7 +54,7 @@ class SupplierUpdateSchema(Schema):
         unknown = EXCLUDE
 
     name = fields.Str(validate=validate.Length(min=1, max=200))
-    rfc = fields.Str(allow_none=True, validate=validate.Length(max=13))
+    rfc = fields.Str(allow_none=True, validate=RFC_VALIDATOR)
     contact_name = fields.Str(allow_none=True, validate=validate.Length(max=150))
     phone = fields.Str(allow_none=True, validate=validate.Length(max=20))
     email = fields.Email(allow_none=True, validate=validate.Length(max=120))
@@ -49,8 +63,8 @@ class SupplierUpdateSchema(Schema):
     notes = fields.Str(allow_none=True)
 
     @pre_load
-    def _rfc(self, data, **kwargs):
-        return _normalize_rfc(data)
+    def _normalize(self, data, **kwargs):
+        return _normalize_supplier(data)
 
 
 class SupplierSchema(Schema):
@@ -76,11 +90,12 @@ class PurchaseOrderItemInputSchema(Schema):
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
     quantity = fields.Decimal(as_string=True, required=True, validate=POSITIVE_QTY)
+    # Sin `places`: un costo de 10.125 se redondeaba en silencio (RF-40)
     unit_cost = fields.Decimal(
-        as_string=True, required=True, places=2,
-        validate=validate.Range(min=0, min_inclusive=False, max=MAX_PRICE),
+        as_string=True, required=True,
+        validate=[validate.Range(min=0, min_inclusive=False, max=MAX_PRICE), max_money_decimals],
     )
-    tax_rate = fields.Decimal(as_string=True, load_default="16.00", places=2, validate=TAX_RANGE)
+    tax_rate = fields.Decimal(as_string=True, load_default="16.00", validate=TAX_RANGE)
 
 
 class PurchaseOrderCreateSchema(Schema):
@@ -91,7 +106,8 @@ class PurchaseOrderCreateSchema(Schema):
     items = fields.List(
         fields.Nested(PurchaseOrderItemInputSchema),
         required=True,
-        validate=validate.Length(min=1),
+        # El mensaje genérico decía "Debe tener al menos 1 caracteres" (RF-38)
+        validate=validate.Length(min=1, error="La orden debe tener al menos un producto."),
     )
     notes = fields.Str(load_default=None, allow_none=True)
     expected_date = fields.Str(load_default=None, allow_none=True)
@@ -155,7 +171,7 @@ class ReceiveOrderSchema(Schema):
     items = fields.List(
         fields.Nested(ReceiveItemInputSchema),
         required=True,
-        validate=validate.Length(min=1),
+        validate=validate.Length(min=1, error="Indica al menos un producto recibido."),
     )
 
 

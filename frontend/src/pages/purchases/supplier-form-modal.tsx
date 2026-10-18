@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import type { Supplier, SupplierCreatePayload } from "../../api/purchases";
 import { Button, Input, Modal } from "../../components/ui";
-import { apiErrorMessage } from "./helpers";
+import { apiErrorMessage, isValidRfc } from "./helpers";
 
 export function SupplierFormModal({
   error,
@@ -33,16 +33,28 @@ export function SupplierFormModal({
     notes: supplier?.notes ?? "",
   });
 
+  const [rfcTouched, setRfcTouched] = useState(false);
+
   function setField(field: string, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  // Vacío = sin RFC; si se escribe, debe tener el formato del SAT (RF-37)
+  const rfcError =
+    rfcTouched && form.rfc.trim() && !isValidRfc(form.rfc)
+      ? "RFC no válido: 12 caracteres (persona moral) o 13 (persona física), p. ej. ABC010203XY1."
+      : undefined;
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.name.trim()) return;
+    if (form.rfc.trim() && !isValidRfc(form.rfc)) {
+      setRfcTouched(true);
+      return;
+    }
     onSubmit({
       name: form.name.trim(),
-      rfc: form.rfc.trim() || null,
+      rfc: form.rfc.trim().toUpperCase() || null,
       contact_name: form.contact_name.trim() || null,
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
@@ -73,7 +85,15 @@ export function SupplierFormModal({
       <form className="grid gap-4" id="supplier-form" onSubmit={handleSubmit}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="Nombre" name="name" onChange={(e) => setField("name", e.target.value)} value={form.name} />
-          <Input label="RFC" name="rfc" onChange={(e) => setField("rfc", e.target.value)} value={form.rfc} />
+          <Input
+            error={rfcError}
+            label="RFC"
+            maxLength={13}
+            name="rfc"
+            onBlur={() => setRfcTouched(true)}
+            onChange={(e) => setField("rfc", e.target.value)}
+            value={form.rfc}
+          />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input

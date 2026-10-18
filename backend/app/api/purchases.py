@@ -14,7 +14,7 @@ from app.schemas.purchase import (
     SupplierSchema,
     SupplierUpdateSchema,
 )
-from app.services.purchase_order_service import PurchaseOrderService
+from app.services.purchase_order_service import OrderNotFoundError, PurchaseOrderService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
 
@@ -119,6 +119,10 @@ def update_supplier(supplier_id):
     if conflict:
         return conflict
 
+    # Solo los campos que cambian; un PATCH sin cambios no registra "editar" (RF-39)
+    data = {key: value for key, value in data.items() if getattr(supplier, key) != value}
+    if not data:
+        return jsonify(supplier_schema.dump(supplier)), 200
     previous_value = {key: getattr(supplier, key) for key in data.keys()}
     for key, value in data.items():
         setattr(supplier, key, value)
@@ -146,6 +150,9 @@ def deactivate_supplier(supplier_id):
     supplier = db.session.get(Supplier, supplier_id)
     if not supplier:
         return jsonify({"error": "Proveedor no encontrado"}), 404
+    if not supplier.is_active:
+        # Un segundo DELETE registraba otro "desactivar" con el valor previo ya en False (RF-39)
+        return jsonify(supplier_schema.dump(supplier)), 200
 
     prev_active = supplier.is_active
     supplier.is_active = False
@@ -172,6 +179,8 @@ def reactivate_supplier(supplier_id):
     supplier = db.session.get(Supplier, supplier_id)
     if not supplier:
         return jsonify({"error": "Proveedor no encontrado"}), 404
+    if supplier.is_active:
+        return jsonify(supplier_schema.dump(supplier)), 200  # ya estaba activo (RF-39)
 
     prev_active = supplier.is_active
     supplier.is_active = True
@@ -246,6 +255,8 @@ def send_order(order_id):
     """Mark a draft order as sent."""
     try:
         order = PurchaseOrderService.send_order(order_id)
+    except OrderNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(po_schema.dump(order)), 200
@@ -257,6 +268,8 @@ def cancel_order(order_id):
     """Cancel a purchase order."""
     try:
         order = PurchaseOrderService.cancel_order(order_id)
+    except OrderNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(po_schema.dump(order)), 200
@@ -269,6 +282,8 @@ def close_order(order_id):
     data = close_schema.load(request.get_json(silent=True) or {})
     try:
         order = PurchaseOrderService.close_order(order_id, int(get_jwt_identity()), notes=data.get("notes"))
+    except OrderNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(po_schema.dump(order)), 200
@@ -287,6 +302,8 @@ def receive_order(order_id):
             user_id=user_id,
             items=data["items"],
         )
+    except OrderNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

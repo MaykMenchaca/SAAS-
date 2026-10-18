@@ -17,6 +17,17 @@ from app.utils.timeutil import local_today
 MAX_ORDER_TOTAL = Decimal("9999999999.99")
 
 
+class OrderNotFoundError(ValueError):
+    """La orden de compra no existe: la API responde 404, no 400 (RF-29)."""
+
+    def __init__(self):
+        super().__init__("Orden de compra no encontrada")
+
+
+def _dec(value, places: str) -> str:
+    return str(Decimal(value).quantize(Decimal(places)))
+
+
 class PurchaseOrderService:
     """Handles purchase order lifecycle: draft → sent → (partial →) received."""
 
@@ -72,8 +83,6 @@ class PurchaseOrderService:
             if not supplier or not supplier.is_active:
                 raise ValueError("Proveedor no encontrado o inactivo")
 
-        folio = PurchaseOrderService._generate_folio()
-
         parsed_date = None
         if expected_date:
             try:
@@ -81,27 +90,19 @@ class PurchaseOrderService:
             except ValueError:
                 raise ValueError("Formato de fecha inválido, use YYYY-MM-DD")
 
-        order = PurchaseOrder(
-            folio=folio,
-            supplier_id=supplier_id,
-            user_id=user_id,
-            status="borrador",
-            notes=notes,
-            expected_date=parsed_date,
-            subtotal=Decimal("0"),
-            tax_total=Decimal("0"),
-            total=Decimal("0"),
-        )
-        db.session.add(order)
-        db.session.flush()
-
+        # Se valida todo antes de pedir el folio: una orden rechazada ya no deja huecos en la secuencia (RF-38)
+        lines = []
         subtotal = Decimal("0")
         tax_total = Decimal("0")
-
         for item_data in items:
             product = db.session.get(Product, item_data["product_id"])
             if not product:
                 raise ValueError(f"Producto {item_data['product_id']} no encontrado")
+            if not product.is_active:
+                # Un producto desactivado no se vuelve a pedir (RF-38)
+                raise ValueError(
+                    f"El producto '{product.name}' está desactivado. Reactívalo para incluirlo en una orden."
+                )
 
             qty = Decimal(str(item_data["quantity"]))
             # Unidades sin fracciones: solo enteros, igual que en la venta (RF-19)
@@ -113,8 +114,30 @@ class PurchaseOrderService:
             line_tax = (line_subtotal * tax_rate / Decimal("100")).quantize(
                 Decimal("0.01")
             )
+            lines.append((product, qty, cost, tax_rate, line_subtotal))
+            subtotal += line_subtotal
+            tax_total += line_tax
 
-            order_item = PurchaseOrderItem(
+        if subtotal + tax_total > MAX_ORDER_TOTAL:
+            raise ValueError("El total de la orden excede el máximo permitido ($9,999,999,999.99)")
+
+        folio = PurchaseOrderService._generate_folio()
+        order = PurchaseOrder(
+            folio=folio,
+            supplier_id=supplier_id,
+            user_id=user_id,
+            status="borrador",
+            notes=notes,
+            expected_date=parsed_date,
+            subtotal=subtotal,
+            tax_total=tax_total,
+            total=subtotal + tax_total,
+        )
+        db.session.add(order)
+        db.session.flush()
+
+        for product, qty, cost, tax_rate, line_subtotal in lines:
+            db.session.add(PurchaseOrderItem(
                 purchase_order_id=order.id,
                 product_id=product.id,
                 product_name=product.name,
@@ -123,17 +146,7 @@ class PurchaseOrderService:
                 unit_cost=cost,
                 tax_rate=tax_rate,
                 subtotal=line_subtotal,
-            )
-            db.session.add(order_item)
-
-            subtotal += line_subtotal
-            tax_total += line_tax
-
-        if subtotal + tax_total > MAX_ORDER_TOTAL:
-            raise ValueError("El total de la orden excede el máximo permitido ($9,999,999,999.99)")
-        order.subtotal = subtotal
-        order.tax_total = tax_total
-        order.total = subtotal + tax_total
+            ))
 
         from app.services.audit_service import log_action
         log_action(
@@ -174,7 +187,7 @@ class PurchaseOrderService:
         """
         order = db.session.get(PurchaseOrder, order_id)
         if not order:
-            raise ValueError("Orden de compra no encontrada")
+            raise OrderNotFoundError()
         if order.status != "borrador":
             raise ValueError("Solo se pueden enviar órdenes en borrador")
 
@@ -213,7 +226,7 @@ class PurchaseOrderService:
         """
         order = db.session.get(PurchaseOrder, order_id)
         if not order:
-            raise ValueError("Orden de compra no encontrada")
+            raise OrderNotFoundError()
         if order.status == "parcial":
             # Cancelarla dejaría en el inventario mercancía de una orden "cancelada" (RF-22)
             raise ValueError(
@@ -259,7 +272,7 @@ class PurchaseOrderService:
             .first()
         )
         if not order:
-            raise ValueError("Orden de compra no encontrada")
+            raise OrderNotFoundError()
         if order.status in ("borrador", "enviada"):
             raise ValueError(
                 "Solo se cierran órdenes con recepción parcial. Si no se ha recibido nada, cancélala."
@@ -320,7 +333,7 @@ class PurchaseOrderService:
             .first()
         )
         if not order:
-            raise ValueError("Orden de compra no encontrada")
+            raise OrderNotFoundError()
         if order.status not in ("enviada", "parcial"):
             raise ValueError(
                 "Solo se pueden recibir órdenes enviadas o parcialmente recibidas"
@@ -328,6 +341,7 @@ class PurchaseOrderService:
 
         # Bloqueo del stock en orden de producto antes de recibir (OPS-09)
         InventoryService.lock_stock(oi.product_id for oi in order.items)
+        received = []  # detalle para la auditoría (RF-39)
         for item_data in items:
             order_item = db.session.get(
                 PurchaseOrderItem, item_data["order_item_id"], populate_existing=True
@@ -364,6 +378,7 @@ class PurchaseOrderService:
             # Update weighted average cost
             product = db.session.get(Product, order_item.product_id)
             stock = Stock.query.filter_by(product_id=order_item.product_id).first()
+            previous_avg = product.avg_cost if product else None
             if product and stock:
                 current_stock = stock.quantity  # already updated by move_stock
                 old_stock = current_stock - recv_qty
@@ -378,6 +393,17 @@ class PurchaseOrderService:
                         / current_stock
                     ).quantize(Decimal("0.0001"))
                     product.avg_cost = new_avg
+
+            if product and stock:
+                received.append({
+                    "product_id": order_item.product_id,
+                    "product_name": order_item.product_name,
+                    "received_quantity": str(recv_qty),
+                    "previous_stock": _dec(stock.quantity - recv_qty, "0.001"),
+                    "new_stock": _dec(stock.quantity, "0.001"),
+                    "previous_avg_cost": _dec(previous_avg or 0, "0.0001"),
+                    "new_avg_cost": _dec(product.avg_cost or 0, "0.0001"),
+                })
 
         # Determine new status
         all_received = all(
@@ -396,6 +422,8 @@ class PurchaseOrderService:
                 "folio": order.folio,
                 "status": order.status,
                 "received_items": len(items),
+                # Stock y costo promedio antes y después por partida; el cambio de avg_cost no se auditaba (RF-39)
+                "items": received,
             },
             previous_value={"status": prev_status},
             new_value={"status": order.status},
