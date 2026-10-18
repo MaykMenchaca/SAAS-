@@ -1,16 +1,37 @@
 from decimal import Decimal
 
-from marshmallow import EXCLUDE, Schema, fields, pre_load, validate
+from marshmallow import EXCLUDE, Schema, ValidationError, fields, post_load, pre_load, validate
 
-from app.utils.quantities import max_qty_decimals
+from app.utils.quantities import decimals_of, max_qty_decimals
 
 # Topes de las columnas para responder 422 y no 500 por desbordamiento (RF-12). El precio por unidad se
 # limita por debajo del Numeric(12, 2) para que el total de una venta con IVA siga cabiendo
 MAX_PRICE = Decimal("99999999.99")
 MAX_QTY = Decimal("999999999.999")  # Numeric(12, 3)
-PRICE_RANGE = validate.Range(min=0, max=MAX_PRICE)
-TAX_RANGE = validate.Range(min=0, max=100)  # porcentaje de IVA
+MONEY_DECIMALS = 2
+
+
+def max_money_decimals(value) -> None:
+    """Validador: máximo 2 decimales en precios, costos e IVA; 10.125 ya no se redondea en silencio (RF-40)."""
+    if decimals_of(value) > MONEY_DECIMALS:
+        raise ValidationError(f"Admite como máximo {MONEY_DECIMALS} decimales")
+
+
+# Sin `places` al cargar: redondearía 10.125 a 10.12 antes de validar (RF-40)
+PRICE_RANGE = [validate.Range(min=0, max=MAX_PRICE), max_money_decimals]
+TAX_RANGE = [validate.Range(min=0, max=100), max_money_decimals]  # porcentaje de IVA
 QTY_VALIDATORS = [validate.Range(min=0, max=MAX_QTY), max_qty_decimals]
+
+
+def quantize_money(data, names):
+    """Ya validados (máx. 2 decimales), se dejan con 2: "180" y "180.00" quedan igual en la auditoría (RF-40)."""
+    for name in names:
+        if data.get(name) is not None:
+            data[name] = data[name].quantize(Decimal("0.01"))
+    return data
+
+
+MONEY_FIELDS = ("purchase_price", "sale_price", "tax_rate")
 
 
 def strip_fields(data, names):
@@ -31,6 +52,11 @@ class CategorySchema(Schema):
     is_active = fields.Bool(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
+    @pre_load
+    def _strip(self, data, **kwargs):
+        # "   " pasaba la validación de largo y se guardaba como "" (RF-34)
+        return strip_fields(data, ("name",))
+
 
 class CategoryUpdateSchema(Schema):
     class Meta:
@@ -39,6 +65,10 @@ class CategoryUpdateSchema(Schema):
     name = fields.Str(validate=validate.Length(min=1, max=100))
     description = fields.Str(allow_none=True, validate=validate.Length(max=200))
     is_active = fields.Bool()
+
+    @pre_load
+    def _strip(self, data, **kwargs):
+        return strip_fields(data, ("name",))  # RF-34
 
 
 class UnitOfMeasureSchema(Schema):
@@ -91,25 +121,22 @@ class ProductCreateSchema(Schema):
     purchase_price = fields.Decimal(
         as_string=True,
         load_default=Decimal("0.00"),
-        places=2,
         validate=PRICE_RANGE,
     )
+    # Se ignora (lo calcula el sistema) y lleva 4 decimales: solo se valida el rango
     avg_cost = fields.Decimal(
         as_string=True,
         load_default=Decimal("0.00"),
-        places=2,
-        validate=PRICE_RANGE,
+        validate=validate.Range(min=0, max=MAX_PRICE),
     )
     sale_price = fields.Decimal(
         as_string=True,
         required=True,
-        places=2,
         validate=PRICE_RANGE,
     )
     tax_rate = fields.Decimal(
         as_string=True,
         load_default=Decimal("16.00"),
-        places=2,
         validate=TAX_RANGE,
     )
     # Sin `places`: redondearía en silencio 1.0004 a 1.000 antes de validar los decimales (RF-12)
@@ -120,6 +147,10 @@ class ProductCreateSchema(Schema):
     def _strip(self, data, **kwargs):
         # "MART-001 " es el mismo SKU que "MART-001" (RF-17)
         return strip_fields(data, ("sku", "barcode", "name"))
+
+    @post_load
+    def _money(self, data, **kwargs):
+        return quantize_money(data, MONEY_FIELDS)
 
 
 class ProductUpdateSchema(Schema):
@@ -132,10 +163,10 @@ class ProductUpdateSchema(Schema):
     description = fields.Str(allow_none=True)
     category_id = fields.Int(allow_none=True, validate=validate.Range(min=1))
     unit_id = fields.Int(validate=validate.Range(min=1))
-    purchase_price = fields.Decimal(as_string=True, places=2, validate=PRICE_RANGE)
+    purchase_price = fields.Decimal(as_string=True, validate=PRICE_RANGE)
     avg_cost = fields.Decimal(dump_only=True)
-    sale_price = fields.Decimal(as_string=True, places=2, validate=PRICE_RANGE)
-    tax_rate = fields.Decimal(as_string=True, places=2, validate=TAX_RANGE)
+    sale_price = fields.Decimal(as_string=True, validate=PRICE_RANGE)
+    tax_rate = fields.Decimal(as_string=True, validate=TAX_RANGE)
     min_stock = fields.Decimal(as_string=True, validate=QTY_VALIDATORS)
     max_stock = fields.Decimal(as_string=True, validate=QTY_VALIDATORS)
     is_active = fields.Bool()
@@ -143,3 +174,7 @@ class ProductUpdateSchema(Schema):
     @pre_load
     def _strip(self, data, **kwargs):
         return strip_fields(data, ("sku", "barcode", "name"))
+
+    @post_load
+    def _money(self, data, **kwargs):
+        return quantize_money(data, MONEY_FIELDS)

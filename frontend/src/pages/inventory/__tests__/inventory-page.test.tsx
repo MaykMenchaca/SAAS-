@@ -124,6 +124,20 @@ describe("Inventario con el diseño Industry", () => {
     await waitFor(() => expect(mocks.adjustStock).toHaveBeenCalledTimes(1));
     expect(mocks.adjustStock.mock.calls[0][0]).toEqual({ product_id: 1, quantity: "20", reason: "merma_dano", notes: undefined });
     expect(await screen.findByText("Ajuste registrado en movimientos.")).toBeTruthy();
+    expect(screen.queryByText(/esa captura se anuló/)).toBeNull();
+  });
+
+  it("avisa si el ajuste anuló la captura del producto en un conteo en curso (RF-32)", async () => {
+    mocks.adjustStock.mockResolvedValue({
+      product_id: 1, previous_stock: "24.000", new_stock: "20.000", movement_type: "ajuste", reason: "merma_dano",
+      count_capture_reset: 5,
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Ajustar stock de Martillo" }));
+    fireEvent.change(await screen.findByLabelText("Nueva cantidad"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "merma_dano" } });
+    fireEvent.click(screen.getByRole("button", { name: /Aplicar ajuste/ }));
+    expect(await screen.findByText(/esa captura se anuló/)).toBeTruthy();
   });
 
   it("muestra los movimientos recientes del producto elegido", async () => {

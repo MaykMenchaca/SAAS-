@@ -41,7 +41,8 @@ class InventoryService:
 
         Args:
             product_id: Product to move stock for.
-            quantity: Amount to add/subtract/set, or delta if is_delta is True.
+            quantity: Amount to add/subtract/set, or delta if is_delta is True. En un ajuste, el movimiento
+                guarda el cambio con signo (RF-33).
             movement_type: "entrada" | "salida" | "ajuste".
             reference_type: Source of the movement (venta, compra, conteo, etc.).
             reference_id: ID of the source record.
@@ -84,12 +85,16 @@ class InventoryService:
             stock.quantity -= quantity
             movement_qty = quantity
         elif movement_type == "ajuste":
-            if is_delta:
-                stock.quantity = previous_stock + quantity
-                movement_qty = abs(quantity)
-            else:
-                stock.quantity = quantity
-                movement_qty = quantity
+            new_quantity = previous_stock + quantity if is_delta else quantity
+            if new_quantity < 0:
+                # Antes chocaba con el CHECK de la BD y salía un 409 genérico sin decir qué producto (RF-32)
+                raise ValueError(
+                    f"El ajuste dejaría el stock en {new_quantity} (actual: {previous_stock})"
+                )
+            stock.quantity = new_quantity
+            # En un ajuste, `quantity` es el cambio con signo (nuevo − anterior), no el stock nuevo ni el
+            # valor absoluto de la diferencia (RF-33). Entradas y salidas siguen siendo positivas
+            movement_qty = new_quantity - previous_stock
         else:
             raise ValueError(f"Tipo de movimiento no válido: {movement_type}")
 

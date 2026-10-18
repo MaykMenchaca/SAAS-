@@ -83,11 +83,18 @@ export async function getLowStock(params: { page?: number; perPage?: number } = 
   return response.data;
 }
 
+export type StockAdjustResult = {
+  product_id: number;
+  previous_stock: string;
+  new_stock: string;
+  movement_type: string;
+  reason: AdjustReason | null;
+  /** Conteo abierto cuya captura de este producto quedó anulada por el ajuste (RF-32); null si no había. */
+  count_capture_reset: number | null;
+};
+
 export async function adjustStock(payload: StockAdjustPayload) {
-  const response = await apiClient.post<{ product_id: number; new_stock: string; movement_type: string; reason: AdjustReason | null }>(
-    "/inventory/adjust",
-    payload,
-  );
+  const response = await apiClient.post<StockAdjustResult>("/inventory/adjust", payload);
   return response.data;
 }
 

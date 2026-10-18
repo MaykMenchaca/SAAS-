@@ -64,11 +64,33 @@ export function formatShortDate(value: string | null | undefined, withYear = tru
   });
 }
 
-/** Mensaje de error del servidor (o el de respaldo). */
+/** Mensajes de un objeto `details` de validación, aplanados (las partidas vienen anidadas por índice). */
+function detailMessages(details: unknown): string[] {
+  if (typeof details === "string") return [details];
+  if (Array.isArray(details)) return details.flatMap(detailMessages);
+  if (details && typeof details === "object") return Object.values(details).flatMap(detailMessages);
+  return [];
+}
+
+/**
+ * Mensaje de error del servidor (o el de respaldo). En un 422 muestra los detalles: antes solo se veía
+ * "Datos inválidos" para un RFC mal escrito o una orden sin productos (RF-37, RF-38).
+ */
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (!error) return "";
-  if (error instanceof AxiosError) return error.response?.data?.error ?? fallback;
+  if (error instanceof AxiosError) {
+    const details = detailMessages(error.response?.data?.details);
+    if (details.length > 0) return [...new Set(details)].join(" ");
+    return error.response?.data?.error ?? fallback;
+  }
   return fallback;
+}
+
+/** RFC del SAT: 12 caracteres (persona moral) o 13 (persona física), mismo patrón que el servidor (RF-37). */
+const RFC_PATTERN = /^[A-ZÑ&]{3,4}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[A-Z\d]{3}$/;
+
+export function isValidRfc(rfc: string): boolean {
+  return RFC_PATTERN.test(rfc.trim().toUpperCase());
 }
 
 /** Campo numérico compacto para las tablas (cantidad, costo, IVA, recibir). */

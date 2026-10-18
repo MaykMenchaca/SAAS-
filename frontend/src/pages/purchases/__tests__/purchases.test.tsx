@@ -7,7 +7,7 @@ import { useAuthStore } from "../../../stores/auth-store";
 import { PurchasesPage } from "../../purchases";
 import { AxiosError, AxiosHeaders } from "axios";
 
-import { canCancelStatus, canCloseStatus, canReceiveStatus, formatShortDate, statusLabel, statusTone } from "../helpers";
+import { apiErrorMessage, canCancelStatus, canCloseStatus, canReceiveStatus, formatShortDate, isValidRfc, statusLabel, statusTone } from "../helpers";
 
 const api = vi.hoisted(() => ({
   cancelOrder: vi.fn(),
@@ -413,5 +413,61 @@ describe("Compras · proveedores", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Guardar" }));
     await waitFor(() => expect(api.createSupplier).toHaveBeenCalled());
     expect(api.createSupplier.mock.calls[0][0]).toEqual(expect.objectContaining({ name: "Pinturas MX", payment_terms: "Contado" }));
+  });
+});
+
+function axios422(details: unknown) {
+  const response = {
+    data: { error: "Datos inválidos", details },
+    status: 422, statusText: "Unprocessable Entity", headers: {}, config: { headers: new AxiosHeaders() },
+  };
+  return new AxiosError("422", "ERR_BAD_REQUEST", undefined, undefined, response);
+}
+
+describe("Compras · validaciones (RF-37, RF-38)", () => {
+  it("valida el RFC con el formato del SAT", () => {
+    expect(isValidRfc("ADN010101AAA")).toBe(true);
+    expect(isValidRfc("gomj800101ab3")).toBe(true);
+    expect(isValidRfc("XAXX010101000")).toBe(true);
+    expect(isValidRfc("123")).toBe(false);
+    expect(isValidRfc("ADN011301AAA")).toBe(false);
+  });
+
+  it("el mensaje de error muestra los detalles de validación, también los anidados por partida", () => {
+    expect(apiErrorMessage(axios422({ items: ["La orden debe tener al menos un producto."] }), "x")).toBe(
+      "La orden debe tener al menos un producto.",
+    );
+    expect(apiErrorMessage(axios422({ items: { 0: { unit_cost: ["Admite como máximo 2 decimales"] } } }), "x")).toBe(
+      "Admite como máximo 2 decimales",
+    );
+  });
+
+  it("un RFC mal escrito no se envía y se explica junto al campo", async () => {
+    api.createSupplier.mockResolvedValue(supplier());
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Proveedores" }));
+    await screen.findByRole("table", { name: "Tabla de proveedores" });
+    fireEvent.click(screen.getByRole("button", { name: /Nuevo proveedor/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nombre"), { target: { value: "Pinturas MX" } });
+    fireEvent.change(within(dialog).getByLabelText("RFC"), { target: { value: "123" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    expect(await within(dialog).findByText(/RFC no válido/)).toBeTruthy();
+    expect(api.createSupplier).not.toHaveBeenCalled();
+
+    // El error queda dentro de la etiqueta del campo
+    fireEvent.change(within(dialog).getByLabelText(/^RFC/), { target: { value: "pmx010101ab1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(api.createSupplier).toHaveBeenCalled());
+    expect(api.createSupplier.mock.calls[0][0]).toEqual(expect.objectContaining({ rfc: "PMX010101AB1" }));
+  });
+
+  it("la búsqueda de productos sin resultados lo dice", async () => {
+    renderPage();
+    await screen.findByText("OC-2026-0031");
+    fireEvent.click(screen.getByRole("button", { name: /Nueva orden/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Agregar productos"), { target: { value: "zzz" } });
+    expect(await within(dialog).findByText("Ningún producto activo coincide con «zzz».")).toBeTruthy();
   });
 });

@@ -29,7 +29,11 @@ def _can(user, permission: str) -> bool:
 @require_permission("productos:ver")
 def list_products():
     include_inactive = request.args.get("include_inactive", "false").lower() == "true"
-    category_id = request.args.get("category_id", type=int)
+    raw_category = (request.args.get("category_id") or "").strip()
+    if raw_category and not raw_category.isdigit():
+        # "category_id=abc" se ignoraba sin aviso y regresaba todo (QA-B-16, RF-35)
+        return jsonify({"error": "category_id debe ser un número"}), 400
+    category_id = int(raw_category) if raw_category else None
     search = request.args.get("search") or request.args.get("q")
     query = ProductService.list_products(
         include_inactive=include_inactive,

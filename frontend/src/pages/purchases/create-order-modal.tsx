@@ -153,6 +153,11 @@ export function CreateOrderModal({ onClose, onSuccess }: { onClose: () => void; 
               ))}
             </div>
           ) : null}
+          {debouncedSearch.length > 0 && productsQuery.isSuccess && searchResults.length === 0 ? (
+            <p className="text-sm text-ink-2" role="status">
+              Ningún producto activo coincide con «{debouncedSearch}».
+            </p>
+          ) : null}
         </div>
 
         {lines.length > 0 ? (

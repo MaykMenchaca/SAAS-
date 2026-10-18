@@ -34,7 +34,7 @@ def test_admin_can_list_suppliers(client, admin_token):
     client.post(
         "/api/purchases/suppliers",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"name": "Proveedor Test", "rfc": "PT010101ABC"},
+        json={"name": "Proveedor Test", "rfc": "PTE010101ABC"},  # RFC con formato del SAT (RF-37)
     )
 
     response = client.get(
@@ -69,7 +69,7 @@ def test_admin_can_deactivate_supplier(client, admin_token):
     create_resp = client.post(
         "/api/purchases/suppliers",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"name": "Para Desactivar", "rfc": "PD010101ABC"},
+        json={"name": "Para Desactivar", "rfc": "PDE010101ABC"},  # RFC con formato del SAT (RF-37)
     )
     supplier_id = create_resp.get_json()["id"]
 

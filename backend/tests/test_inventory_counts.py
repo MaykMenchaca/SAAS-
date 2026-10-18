@@ -348,7 +348,7 @@ class TestCloseCount:
         )
         assert m is not None
         assert m.movement_type == "ajuste"
-        assert m.quantity == Decimal("5.000")
+        assert m.quantity == Decimal("-5.000")  # el cambio con signo (RF-33)
         assert m.previous_stock == Decimal("90.000")
         assert m.new_stock == Decimal("85.000")
 
