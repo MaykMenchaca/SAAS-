@@ -29,7 +29,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [x] 2.4 RF-09 Alta de cajas
 - [x] 2.5 RF-10 Modo sin conexión ante 5xx / base caída
 - [x] 2.6 RF-52 "Algo salió mal" persistente: reintento de carga de páginas y ErrorBoundary por ruta
-- [ ] **Gate 2**
+- [x] **Gate 2** (aprobado 2026-10-18: pytest completo local y CI en verde)
 
 ## Fase 3: Medios
 - [ ] 3.A RF-12, RF-13 · [ ] 3.B RF-11, RF-15 · [ ] 3.C RF-16…20 · [ ] 3.D RF-21…23 · [ ] 3.E RF-24, RF-28, RF-41, RF-42 · [ ] 3.F RF-25 · [ ] 3.G RF-14, RF-26, RF-27
