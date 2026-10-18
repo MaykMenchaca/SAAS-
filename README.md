@@ -89,7 +89,7 @@ $env:TEST_DATABASE_URL = "postgresql://<usuario>:<contraseña>@localhost:5432/po
 Prueba completa de la app con un solo comando (recorre login, usuarios, catálogo, compras, inventario, caja, ventas, devoluciones, corte, reportes, configuración, auditoría, permisos y respaldos contra un esquema nuevo de `pos_test_db`, que borra al terminar; nunca toca `pos_db`):
 
 ```powershell
-backendenv\Scripts\python.exe tools\prueba_completa.py
+backend\venv\Scripts\python.exe tools\prueba_completa.py
 ```
 
 Imprime cada prueba con ✅/❌ y guarda el reporte en `tools/reportes-prueba/`. Conviene correrla antes de cada actualización en tienda.
