@@ -7,12 +7,13 @@ import threading
 import unicodedata
 from decimal import Decimal
 from pathlib import Path
-from textwrap import shorten
+from textwrap import shorten, wrap
 
 from flask import current_app, has_app_context
 
+from app.extensions import db
 from app.models.product import Product
-from app.models.sale import Sale
+from app.models.sale import Sale, SaleReturn
 from app.services import config_service
 from app.utils.timeutil import to_local
 
@@ -82,8 +83,11 @@ class PrinterService:
             lines.append(PrinterService._center(f"Tel: {company['phone']}"))
         if company["rfc"]:
             lines.append(PrinterService._center(f"RFC: {company['rfc']}"))
+        # Una venta cancelada o con devolución no debe poder pasar por un comprobante vigente (RF-15)
+        status_lines = PrinterService._status_lines(sale)
         lines += [
             PrinterService._line(),
+            *status_lines,
             PrinterService._kv("Folio", sale.folio),
             PrinterService._kv("Fecha", created_at),
             PrinterService._kv("Cajero", cashier),
@@ -118,10 +122,34 @@ class PrinterService:
                 lines.append(PrinterService._kv("Ref", payment.reference))
 
         lines.append(PrinterService._line())
+        if status_lines:
+            # Se repite al final para que no se pueda recortar el encabezado
+            lines += [*status_lines, PrinterService._line()]
         for footer_line in company["footer"].splitlines():
             lines.append(PrinterService._center(footer_line))
         lines.append("")
         return "\n".join(lines)
+
+    @staticmethod
+    def _status_lines(sale: Sale) -> list[str]:
+        """Marca de estado del ticket: vacía si la venta está vigente (RF-15)."""
+        status = sale.status or "completada"
+        if status == "cancelada":
+            lines = [PrinterService._center("*** VENTA CANCELADA ***")]
+            if sale.cancel_reason:
+                reason = " ".join(PrinterService._clean(sale.cancel_reason).split())
+                lines += wrap(f"Motivo: {reason}", width=PrinterService.WIDTH)[:3]
+            return lines
+        if status in ("devolucion_parcial", "devolucion_total"):
+            refunded = db.session.query(
+                db.func.coalesce(db.func.sum(SaleReturn.refund_total), Decimal("0"))
+            ).filter(SaleReturn.sale_id == sale.id).scalar()
+            label = "PARCIAL" if status == "devolucion_parcial" else "TOTAL"
+            return [
+                PrinterService._center(f"*** CON DEVOLUCIÓN {label} ***"),
+                PrinterService._kv("Reembolsado", PrinterService._money(refunded)),
+            ]
+        return []
 
     @staticmethod
     def format_price_label(product: Product, business_name: str | None = None) -> str:

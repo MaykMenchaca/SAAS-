@@ -1,4 +1,5 @@
 """Sale service — complete transactional sale logic."""
+import uuid
 from decimal import ROUND_HALF_EVEN, Decimal
 
 from sqlalchemy import text
@@ -125,10 +126,10 @@ class SaleService:
         1. Validates client_uuid idempotency (returns existing sale if already processed)
         2. Validates cash register session is open and owned (or supervised)
         3. Calculates authoritative pricing via price_lines
-        4. Generates folio from PostgreSQL sequence
-        5. Creates sale items with discount calculation
-        6. Deducts inventory for each item (with row-level locking)
-        7. Validates payments and calculates exact change in server
+        4. Creates sale items with discount calculation (provisional folio)
+        5. Deducts inventory for each item (with row-level locking)
+        6. Validates payments and calculates exact change in server
+        7. Only then takes the folio from the PostgreSQL sequence (RF-11: no gaps on rejections)
 
         Args:
             user_id: Cashier performing the sale.
@@ -183,10 +184,10 @@ class SaleService:
 
         pricing = SaleService.price_lines(items, user_id=user_id)
 
-        folio = SaleService._generate_folio()
-
+        # Folio provisional único: el real (nextval) se pide al final, cuando ya pasaron todas las
+        # validaciones. Una secuencia no regresa con el rollback y cada rechazo dejaba un hueco (RF-11)
         sale = Sale(
-            folio=folio,
+            folio=f"TMP-{uuid.uuid4().hex[:16]}",
             session_id=session_id,
             user_id=user_id,
             client_uuid=str(client_uuid) if client_uuid else None,
@@ -281,6 +282,11 @@ class SaleService:
                 change_amount=pay_change,
             )
             db.session.add(payment)
+
+        # Todo validado y escrito (un dato que la base rechace falla aquí, antes de consumir folio)
+        db.session.flush()
+        sale.folio = SaleService._generate_folio()
+        db.session.flush()
 
         from app.services.audit_service import log_action
         log_action(

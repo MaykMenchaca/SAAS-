@@ -133,3 +133,85 @@ def test_rf12_printer_path_de_mas_de_255_caracteres_responde_400(client, admin_t
     db.session.expire_all()
     assert seed_cash_register.printer_path is None
 
+
+# ── 3.B · RF-11: una venta rechazada no consume folio ─────────────────────────────────────
+
+def test_rf11_ventas_rechazadas_no_dejan_huecos_en_el_folio(client, admin_token, db, seed_open_session,
+                                                           seed_product_for_sale):
+    primera = _vender(client, admin_token, seed_open_session, seed_product_for_sale)
+    assert primera.status_code == 201
+    n = _consecutivo(primera.get_json()["folio"])
+
+    rechazos = [
+        # Stock insuficiente (hay 99)
+        _vender(client, admin_token, seed_open_session, seed_product_for_sale, qty="500"),
+        # Pago insuficiente
+        _vender(client, admin_token, seed_open_session, seed_product_for_sale,
+                payments=[{"method": "efectivo", "amount": "1.00"}]),
+        # Sobrepago con tarjeta
+        _vender(client, admin_token, seed_open_session, seed_product_for_sale,
+                payments=[{"method": "tarjeta", "amount": "500.00"}]),
+    ]
+    assert [r.status_code for r in rechazos] == [400, 400, 400]
+
+    segunda = _vender(client, admin_token, seed_open_session, seed_product_for_sale)
+    assert segunda.status_code == 201
+    assert _consecutivo(segunda.get_json()["folio"]) == n + 1
+    assert Sale.query.count() == 2
+
+
+# ── 3.B · RF-15: el ticket dice si la venta se canceló o tuvo devolución ──────────────────
+
+def _ticket(client, token, sale_id):
+    resp = client.post(f"/api/printing/sales/{sale_id}/ticket", headers=_h(token), json={})
+    assert resp.status_code == 200
+    return resp.get_json()["content"]
+
+
+def test_rf15_ticket_vigente_sin_marcas(client, admin_token, db, seed_open_session, seed_product_for_sale):
+    venta = _vender(client, admin_token, seed_open_session, seed_product_for_sale).get_json()
+    contenido = _ticket(client, admin_token, venta["id"])
+    assert "CANCELADA" not in contenido
+    assert "DEVOLUCI" not in contenido
+
+
+def test_rf15_ticket_de_venta_cancelada_lo_indica_con_el_motivo(client, admin_token, db, seed_open_session,
+                                                                seed_product_for_sale):
+    venta = _vender(client, admin_token, seed_open_session, seed_product_for_sale).get_json()
+    resp = client.post(f"/api/sales/{venta['id']}/cancel", headers=_h(admin_token),
+                       json={"reason": "Cliente se arrepintio"})
+    assert resp.status_code == 200
+    contenido = _ticket(client, admin_token, venta["id"])
+    assert "*** VENTA CANCELADA ***" in contenido
+    assert "Cliente se arrepintio" in contenido
+    # La marca aparece antes de las partidas y se repite al final (no se puede recortar)
+    assert contenido.count("VENTA CANCELADA") >= 2
+    assert contenido.index("VENTA CANCELADA") < contenido.index("Martillo")
+    # La vista previa y la impresión usan el mismo contenido: también sale en los bytes ESC/POS
+    from app.services.printer_service import PrinterService
+    assert b"VENTA CANCELADA" in PrinterService.build_payload(contenido, "cp850")
+
+
+def test_rf15_ticket_con_devolucion_indica_lo_reembolsado(client, admin_token, db, seed_open_session,
+                                                         seed_product_for_sale):
+    venta = _vender(client, admin_token, seed_open_session, seed_product_for_sale, qty="2").get_json()
+    item_id = venta["items"][0]["id"]
+    resp = client.post(f"/api/sales/{venta['id']}/return", headers=_h(admin_token), json={
+        "reason": "Defecto", "session_id": seed_open_session.id, "refund_method": "efectivo",
+        "items": [{"sale_item_id": item_id, "quantity": "1"}],
+    })
+    assert resp.status_code == 200, resp.get_json()
+    contenido = _ticket(client, admin_token, venta["id"])
+    assert "DEVOLUCIÓN PARCIAL" in contenido
+    assert "$116.00" in contenido.split("DEVOLUCIÓN PARCIAL", 1)[1]
+    assert "Reembolsado" in contenido
+
+    resp = client.post(f"/api/sales/{venta['id']}/return", headers=_h(admin_token), json={
+        "reason": "Defecto", "session_id": seed_open_session.id, "refund_method": "efectivo",
+        "items": [{"sale_item_id": item_id, "quantity": "1"}],
+    })
+    assert resp.status_code == 200, resp.get_json()
+    contenido = _ticket(client, admin_token, venta["id"])
+    assert "DEVOLUCIÓN TOTAL" in contenido
+    assert "$232.00" in contenido
+
