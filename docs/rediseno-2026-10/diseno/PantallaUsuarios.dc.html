@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Usuarios</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">Cuentas de acceso y permisos por rol</p>
+    </div>
+    <button class="btn btn-primary blueprint" onClick="{{ newUser }}" style="height:40px; padding:0 16px; font-size:16px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <lucide-icon name="user-plus" size="16"></lucide-icon>Nuevo usuario
+    </button>
+  </div>
+
+  <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
+    <div style="position:relative; width:300px; max-width:100%">
+      <span style="position:absolute; left:10px; top:10px; color:var(--ink-2); display:inline-flex"><lucide-icon name="search" size="16"></lucide-icon></span>
+      <input class="input" value="{{ q }}" onChange="{{ setQ }}" placeholder="Nombre o usuario" style="padding-left:34px; min-height:38px">
+    </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer"><input type="checkbox" checked="{{ showInactive }}" onChange="{{ toggleInactive }}" style="accent-color:var(--color-accent); width:16px; height:16px">Mostrar inactivos</label>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+    <div style="flex:1 1 560px; min-width:0; display:flex; flex-direction:column; gap:24px; min-width:0">
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="overflow:auto; padding:2px 8px 8px">
+          <table class="table">
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Último acceso</th><th>Estado</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ rows }}" as="u" hint-placeholder-count="5">
+                <tr onClick="{{ u.select }}" style="cursor:pointer; background:{{ u.bg }}; box-shadow:{{ u.bar }}; opacity:{{ u.opacity }}">
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px">
+                      <span style="width:32px; height:32px; flex:none; display:grid; place-items:center; border:1px solid var(--color-divider); font-family:var(--font-heading); font-weight:600; font-size:13px">{{ u.initials }}</span>
+                      <div><div style="font-weight:500">{{ u.name }}</div><div style="font-size:12px; color:var(--ink-2)">@{{ u.user }}</div></div>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-accent">{{ u.role }}</span></td>
+                  <td style="color:var(--ink-2); white-space:nowrap">{{ u.last }}</td>
+                  <td><span class="tag" style="background:{{ u.tagBg }}; color:{{ u.tagFg }}">{{ u.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <h2 style="margin:0; font-size:21px">Permisos por rol</h2>
+          <span style="font-size:13px; color:var(--ink-2)">Permisos concedidos / total del módulo</span>
+        </header>
+        <div style="display:grid; grid-template-columns:minmax(140px,1.2fr) repeat(3, minmax(0,1fr))">
+          <div style="padding:10px 18px; font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); border-bottom:1px solid var(--color-divider)">Módulo</div>
+          <sc-for list="{{ roleCols }}" as="r" hint-placeholder-count="3">
+            <div style="padding:10px 12px; font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:{{ r.fg }}; background:{{ r.bg }}; border-bottom:1px solid var(--color-divider); border-left:1px solid var(--color-divider); text-align:center">{{ r.label }}</div>
+          </sc-for>
+          <sc-for list="{{ matrix }}" as="m" hint-placeholder-count="7">
+            <div style="padding:10px 18px; border-bottom:1px solid var(--line-soft); font-weight:500">{{ m.module }}</div>
+            <sc-for list="{{ m.cells }}" as="c" hint-placeholder-count="3">
+              <div style="padding:10px 12px; border-bottom:1px solid var(--line-soft); border-left:1px solid var(--color-divider); background:{{ c.colBg }}; display:flex; align-items:center; justify-content:center; gap:8px">
+                <span style="width:12px; height:12px; border:1px solid {{ c.ring }}; background:{{ c.fill }}"></span>
+                <span style="font-size:13px; font-variant-numeric:tabular-nums; color:{{ c.fg }}">{{ c.text }}</span>
+              </div>
+            </sc-for>
+          </sc-for>
+        </div>
+      </section>
+    </div>
+
+    <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc-text)">{{ panelKicker }}</div>
+        <h2 style="margin:2px 0 0; font-size:22px">{{ panelTitle }}</h2>
+      </header>
+      <div style="padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+        <div class="field"><label>Usuario</label><input class="input" value="{{ f.user }}" onChange="{{ setUser }}" placeholder="ej. jperez"></div>
+        <div class="field"><label>Nombre completo</label><input class="input" value="{{ f.name }}" onChange="{{ setName }}"></div>
+        <div class="field"><label>Email (opcional)</label><input class="input" value="{{ f.email }}" onChange="{{ setEmail }}"></div>
+        <div class="field"><label>Rol</label>
+          <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider)">
+            <sc-for list="{{ roleOpts }}" as="o" hint-placeholder-count="3">
+              <button onClick="{{ o.pick }}" style="height:38px; border:0; border-left:{{ o.sep }}; background:{{ o.bg }}; color:{{ o.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ o.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <p style="margin:0; font-size:13px; color:var(--ink-2)">{{ roleDesc }}</p>
+        <sc-if value="{{ creating }}">
+          <div class="field"><label>Contraseña temporal</label><input class="input" type="password" placeholder="Mínimo 8 caracteres"></div>
+        </sc-if>
+      </div>
+      <div style="display:flex; gap:8px; padding:0 18px 16px; flex-wrap:wrap">
+        <button class="btn btn-primary" onClick="{{ save }}" style="height:38px; flex:1; font-size:15px">{{ saveLabel }}</button>
+        <sc-if value="{{ editing }}">
+          <button class="btn btn-secondary" style="height:38px"><lucide-icon name="key-round" size="15"></lucide-icon>Restablecer contraseña</button>
+        </sc-if>
+      </div>
+      <sc-if value="{{ editing }}">
+        <div style="padding:0 18px 16px"><button class="btn btn-ghost" style="color:var(--bad); font-size:14px">{{ toggleLabel }}</button></div>
+      </sc-if>
+      <sc-if value="{{ saved }}"><div style="margin:0 18px 16px; font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Usuario guardado.</div></sc-if>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const USERS = [
+  { id: 1, user: "admin", name: "Administrador", email: "admin@pos.local", role: "admin", last: "Hoy 08:01", active: true },
+  { id: 2, user: "lmendez", name: "Laura Méndez", email: "laura@ferreteria.mx", role: "gerente", last: "Hoy 09:15", active: true },
+  { id: 3, user: "jperez", name: "Jorge Pérez", email: "", role: "cajero", last: "Hoy 08:02", active: true },
+  { id: 4, user: "aruiz", name: "Ana Ruiz", email: "", role: "cajero", last: "Hoy 08:47", active: true },
+  { id: 5, user: "mtorres", name: "Mario Torres", email: "", role: "cajero", last: "08 oct, 20:55", active: false },
+];
+const ROLES = { admin: "Administrador", gerente: "Gerente", cajero: "Cajero" };
+const DESC = { admin: "Administrador con acceso completo.", gerente: "Gerente de sucursal: catálogo, inventario, compras, cancelaciones y reportes.", cajero: "Cajero de punto de venta: vende, abre y cierra caja, consulta productos e inventario." };
+const MATRIX = [
+  ["Usuarios", 4, [4, 1, 0]], ["Productos", 5, [5, 5, 1]], ["Inventario", 2, [2, 2, 1]], ["Ventas", 3, [3, 2, 2]],
+  ["Caja", 3, [3, 3, 3]], ["Compras", 4, [4, 4, 0]], ["Reportes", 1, [1, 1, 0]],
+];
+const KEYS = ["admin", "gerente", "cajero"];
+
+class Component extends DCLogic {
+  state = { q: "", showInactive: false, sel: 3, creating: false, form: null, saved: false };
+  form() {
+    if (this.state.form) return this.state.form;
+    if (this.state.creating) return { user: "", name: "", email: "", role: "cajero" };
+    return { ...USERS.find((u) => u.id === this.state.sel) };
+  }
+  setF(k) { return (e) => this.setState({ form: { ...this.form(), [k]: e.target.value }, saved: false }); }
+  renderVals() {
+    const s = this.state;
+    const f = this.form();
+    const q = s.q.toLowerCase();
+    const rows = USERS.filter((u) => (s.showInactive || u.active) && (!q || u.name.toLowerCase().includes(q) || u.user.includes(q))).map((u) => {
+      const on = !s.creating && u.id === s.sel;
+      return { ...u, role: ROLES[u.role], initials: u.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase(),
+        status: u.active ? "Activo" : "Inactivo", tagBg: u.active ? "var(--ok-tint)" : "var(--line-soft)", tagFg: u.active ? "var(--ok)" : "var(--ink-2)",
+        opacity: u.active ? 1 : 0.7, bg: on ? "var(--acc-tint)" : "transparent", bar: on ? "inset 2px 0 0 var(--color-accent)" : "none",
+        select: () => this.setState({ sel: u.id, creating: false, form: null, saved: false }) };
+    });
+    const selUser = USERS.find((u) => u.id === s.sel);
+    return {
+      q: s.q, setQ: (e) => this.setState({ q: e.target.value }),
+      showInactive: s.showInactive, toggleInactive: () => this.setState({ showInactive: !s.showInactive }),
+      rows,
+      roleCols: KEYS.map((k) => ({ label: ROLES[k], bg: f.role === k ? "var(--acc-tint)" : "transparent", fg: f.role === k ? "var(--acc-text)" : "var(--ink-2)" })),
+      matrix: MATRIX.map(([module, total, vals]) => ({ module, cells: vals.map((v, i) => ({
+        text: v ? `${v}/${total}` : "—",
+        fill: v === total ? "var(--color-accent)" : v ? "linear-gradient(90deg, var(--color-accent) 50%, transparent 50%)" : "transparent",
+        ring: v ? "var(--color-accent)" : "var(--color-divider)", fg: v ? "var(--color-text)" : "var(--ink-3)",
+        colBg: f.role === KEYS[i] ? "var(--acc-tint)" : "transparent",
+      })) })),
+      panelKicker: s.creating ? "Alta" : "Editar · @" + selUser.user,
+      panelTitle: s.creating ? "Nuevo usuario" : selUser.name,
+      f, setUser: this.setF("user"), setName: this.setF("name"), setEmail: this.setF("email"),
+      roleOpts: KEYS.map((k, i) => ({ label: ROLES[k], sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ form: { ...f, role: k }, saved: false }), bg: f.role === k ? "var(--color-accent)" : "transparent", fg: f.role === k ? "var(--on-acc)" : "var(--color-text)" })),
+      roleDesc: DESC[f.role],
+      creating: s.creating, editing: !s.creating,
+      saveLabel: s.creating ? "Crear usuario" : "Guardar cambios",
+      toggleLabel: selUser.active ? "Desactivar usuario" : "Reactivar usuario",
+      newUser: () => this.setState({ creating: true, form: null, saved: false }),
+      save: () => this.setState({ saved: true }), saved: s.saved,
+    };
+  }
+}
+</script>
+</body>
+</html>

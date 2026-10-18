@@ -59,7 +59,7 @@ if ($Fase -ge 4) {
 if ($Fase -ge 5) {
     Check "5.1 dashboard sin deltas fijos" { -not (Grep "frontend/src/pages/dashboard.tsx" '"\+12\.4%"|"\+8\.1%"') }
     Check "5.5 focus-visible global" { Grep "frontend/src/index.css" 'focus-visible' }
-    Check "5.7 sin text-[9px|10px|11px]" { -not (Get-ChildItem (Join-Path $root "frontend/src") -Recurse -Include *.tsx | Select-String 'text-\[(9|10|11)px\]' -Quiet) }
+    Check "5.7 sin text-[9px|10px|11px]" { -not (Get-ChildItem (Join-Path $root "frontend/src") -Recurse -Include *.tsx | Select-String 'text-\[(9|10|11)px\]') }
 }
 if ($Fase -ge 6) {
     Check "6.3 workflow de CI existe" { Test-Path (Join-Path $root ".github/workflows") }

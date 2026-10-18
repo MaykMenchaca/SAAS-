@@ -1,78 +1,96 @@
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
-import { Edit, Search, Shield, UserMinus, UserPlus, Users } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 
-import type { Role, User, UserCreatePayload, UserUpdatePayload } from "../api/users";
-import { createUser, deactivateUser, listRoles, listUsers, updateUser } from "../api/users";
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Pagination, Select, SkeletonTable, Table, Toggle, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import type { User, UserCreatePayload, UserUpdatePayload } from "../api/users";
+import {
+  createUser,
+  deactivateUser,
+  listPermissions,
+  listRoles,
+  listUsers,
+  resetUserPassword,
+  updateUser,
+} from "../api/users";
+import { qk } from "../api/query-keys";
+import { useCan } from "../components/auth/require-permission";
+import { Button, Input, Modal, PageHeader, Pagination, Toggle } from "../components/ui";
+import { buildPermissionMatrix, getErrorMessage } from "./users/helpers";
+import { PermissionsMatrix } from "./users/permissions-matrix";
+import { ResetPasswordModal } from "./users/reset-password-modal";
+import { UserList } from "./users/user-list";
+import { UserPanel } from "./users/user-panel";
 
-// ── Helpers ────────────────────────────────────────────────────────
-
-type UserFormState = {
-  username: string;
-  password: string;
-  full_name: string;
-  email: string;
-  role_id: string;
-};
-
-const emptyForm: UserFormState = {
-  username: "",
-  password: "",
-  full_name: "",
-  email: "",
-  role_id: "",
-};
-
-function roleTone(role: string): "neutral" | "success" | "warning" {
-  if (role === "admin") return "warning";
-  if (role === "cajero") return "success";
-  return "neutral";
-}
-
-// ── Main Page ──────────────────────────────────────────────────────
+/** `creating` = alta; `number` = id del usuario seleccionado; `null` = panel cerrado. */
+type Selection = "creating" | number | null;
 
 export function UsersPage() {
   const queryClient = useQueryClient();
+  const can = useCan();
+  const canCreate = can("usuarios:crear");
+  const canEdit = can("usuarios:editar");
+  const canDeactivate = can("usuarios:desactivar");
+
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [showInactive, setShowInactive] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selection, setSelection] = useState<Selection>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [confirmDeactivateId, setConfirmDeactivateId] = useState<number | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ["users", page, search, showInactive],
+    queryKey: qk.users(page, search, showInactive),
     queryFn: () => listUsers({ page, search, includeInactive: showInactive }),
   });
 
   const rolesQuery = useQuery({
-    queryKey: ["roles"],
+    queryKey: qk.roles(),
     queryFn: listRoles,
+  });
+
+  const permissionsQuery = useQuery({
+    queryKey: qk.roles("permissions"),
+    queryFn: listPermissions,
   });
 
   const createMutation = useMutation({
     mutationFn: createUser,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
-      closeModal();
+    onSuccess: async (user) => {
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
+      setSelectedUser(user);
+      setSelection(user.id);
+      setSaved(true);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UserUpdatePayload }) => updateUser(id, payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
-      closeModal();
+    onSuccess: async (user) => {
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
+      setSelectedUser(user);
+      setSaved(true);
     },
   });
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateUser,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+    onSuccess: async (user) => {
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
+      setSelectedUser(user);
+      setConfirmDeactivateId(null);
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: resetUserPassword,
+    onSuccess: async (result) => {
+      setTemporaryPassword(result.temporary_password);
+      await queryClient.invalidateQueries({ queryKey: qk.users() });
     },
   });
 
@@ -80,21 +98,47 @@ export function UsersPage() {
   const totalPages = usersQuery.data?.pages ?? 1;
   const roles = rolesQuery.data ?? [];
 
-  function openCreateModal() {
-    setEditingUser(null);
-    setIsModalOpen(true);
-  }
+  // El usuario en edición sale de la lista vigente; si ya no aparece (filtros), se conserva el último conocido.
+  const activeUser = useMemo(() => {
+    if (typeof selection !== "number") return null;
+    return users.find((u) => u.id === selection) ?? (selectedUser?.id === selection ? selectedUser : null);
+  }, [selection, selectedUser, users]);
 
-  function openEditModal(user: User) {
-    setEditingUser(user);
-    setIsModalOpen(true);
-  }
+  const matrixRows = useMemo(
+    () => buildPermissionMatrix(roles, permissionsQuery.data ?? []),
+    [roles, permissionsQuery.data],
+  );
 
-  function closeModal() {
-    setEditingUser(null);
-    setIsModalOpen(false);
+  function resetMutations() {
     createMutation.reset();
     updateMutation.reset();
+    deactivateMutation.reset();
+    resetMutation.reset();
+    setSaved(false);
+  }
+
+  function openCreate() {
+    resetMutations();
+    setSelectedUser(null);
+    setSelection("creating");
+  }
+
+  function selectUser(user: User) {
+    resetMutations();
+    setSelectedUser(user);
+    setSelection(user.id);
+  }
+
+  function closePanel() {
+    resetMutations();
+    setSelection(null);
+    setSelectedUser(null);
+  }
+
+  function closeReset() {
+    setResetting(false);
+    setTemporaryPassword(null);
+    resetMutation.reset();
   }
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -103,287 +147,158 @@ export function UsersPage() {
     setSearch(searchInput.trim());
   }
 
-  return (
-    <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Usuarios</h1>
-          <p className="text-sm text-neutral-text-secondary">Administración de cuentas y roles</p>
-        </div>
-        <Button icon={<UserPlus aria-hidden="true" size={18} />} onClick={openCreateModal}>
-          Nuevo
-        </Button>
-      </div>
+  function handleSubmit(payload: UserCreatePayload) {
+    setSaved(false);
+    if (activeUser) {
+      const update: UserUpdatePayload = {
+        full_name: payload.full_name,
+        email: payload.email || null,
+        role_id: payload.role_id,
+      };
+      if (payload.password) {
+        update.password = payload.password;
+      }
+      updateMutation.mutate({ id: activeUser.id, payload: update });
+    } else {
+      createMutation.mutate(payload);
+    }
+  }
 
-      <section className="grid gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <form className="flex flex-1 flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
+  const panelOpen = selection === "creating" || activeUser !== null;
+  const panelError = getErrorMessage(createMutation.error ?? updateMutation.error);
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      <PageHeader
+        actions={
+          canCreate ? (
+            <Button frame icon={<UserPlus aria-hidden="true" size={18} />} onClick={openCreate}>
+              Nuevo usuario
+            </Button>
+          ) : undefined
+        }
+        subtitle="Cuentas de acceso y permisos por rol"
+        title="Usuarios"
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+        <form className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-80 sm:flex-row sm:items-end" onSubmit={handleSearch}>
+          <div className="flex-1">
             <Input
+              icon={<Search aria-hidden="true" size={16} />}
               label="Buscar"
               name="search"
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Nombre o usuario"
               value={searchInput}
             />
-            <div className="flex items-end">
-              <Button className="w-full sm:w-auto" icon={<Search aria-hidden="true" size={18} />} type="submit">
-                Buscar
-              </Button>
+          </div>
+          <Button type="submit" variant="secondary">
+            Buscar
+          </Button>
+        </form>
+        <Toggle
+          checked={showInactive}
+          label="Mostrar inactivos"
+          onChange={(value) => {
+            setPage(1);
+            setShowInactive(value);
+          }}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-start gap-6">
+        <div className="grid min-w-0 flex-[1_1_34rem] gap-6">
+          <section className="grid gap-3">
+            <UserList
+              canCreate={canCreate}
+              isError={usersQuery.isError}
+              isLoading={usersQuery.isLoading}
+              onCreate={openCreate}
+              onRetry={() => void usersQuery.refetch()}
+              onSelect={selectUser}
+              selectedId={typeof selection === "number" ? selection : null}
+              users={users}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-2">
+              <span>Página {usersQuery.data?.page ?? page} de {totalPages}</span>
+              <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
             </div>
-          </form>
-          <Toggle checked={showInactive} label="Mostrar inactivos" onChange={setShowInactive} />
+          </section>
+
+          {permissionsQuery.isError || rolesQuery.isError ? null : (
+            <PermissionsMatrix
+              highlightRoleId={activeUser?.role_id ?? null}
+              roles={roles}
+              rows={matrixRows}
+            />
+          )}
         </div>
 
-        {usersQuery.isLoading ? (
-          <SkeletonTable rows={6} cols={5} />
-        ) : usersQuery.isError ? (
-          <ErrorState onRetry={() => void usersQuery.refetch()} />
-        ) : users.length === 0 ? (
-          <EmptyState icon={<Users size={32} />} message="Solo tu por aqui." actionLabel="Nuevo usuario" onAction={openCreateModal} />
-        ) : (
-          <Card className="overflow-hidden">
-            <Table>
-              <caption className="sr-only">Tabla de usuarios</caption>
-              <thead>
-                <tr>
-                  <th className={tableHeadClass}>Usuario</th>
-                  <th className={tableHeadClass}>Rol</th>
-                  <th className={tableHeadClass}>Último acceso</th>
-                  <th className={tableHeadClass}>Estado</th>
-                  <th className={tableHeadClass}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr className={tableRowClass} key={user.id}>
-                    <td className={tableCellClass}>
-                      <div className="flex items-center gap-3">
-                        <Avatar name={user.full_name} size="sm" />
-                        <div>
-                          <div className="font-semibold text-neutral-text-primary">{user.full_name}</div>
-                          <div className="text-xs text-neutral-text-secondary">@{user.username}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={tableCellClass}>
-                      <Badge tone={roleTone(user.role)}>
-                        <Shield aria-hidden="true" className="mr-1 inline" size={12} />
-                        {user.role}
-                      </Badge>
-                    </td>
-                    <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                      {user.last_login_at
-                        ? new Date(user.last_login_at).toLocaleString("es-MX", {
-                            day: "2-digit",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Nunca"}
-                    </td>
-                    <td className={tableCellClass}>
-                      <Badge dot tone={user.is_active ? "success" : "danger"}>
-                        {user.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </td>
-                    <td className={tableCellClass}>
-                      <div className="flex gap-2">
-                        <Tooltip content="Editar">
-                          <Button
-                            aria-label={`Editar ${user.full_name}`}
-                            className="h-11 w-11 px-0"
-                            onClick={() => openEditModal(user)}
-                            variant="secondary"
-                          >
-                            <Edit aria-hidden="true" size={17} />
-                          </Button>
-                        </Tooltip>
-                        <Tooltip content="Desactivar">
-                          <Button
-                            aria-label={`Desactivar ${user.full_name}`}
-                            className="h-11 w-11 px-0"
-                            disabled={deactivateMutation.isPending || !user.is_active}
-                            onClick={() => deactivateMutation.mutate(user.id)}
-                            variant="danger"
-                          >
-                            <UserMinus aria-hidden="true" size={17} />
-                          </Button>
-                        </Tooltip>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-          <span>Página {usersQuery.data?.page ?? page} de {totalPages}</span>
-          <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
-        </div>
-      </section>
-
-      <UserFormModal
-        error={createMutation.error ?? updateMutation.error}
-        isLoading={createMutation.isPending || updateMutation.isPending}
-        onClose={closeModal}
-        onSubmit={(payload) => {
-          if (editingUser) {
-            const update: UserUpdatePayload = {
-              full_name: payload.full_name,
-              email: payload.email || null,
-              role_id: payload.role_id,
-            };
-            if (payload.password) {
-              update.password = payload.password;
-            }
-            updateMutation.mutate({ id: editingUser.id, payload: update });
-          } else {
-            createMutation.mutate(payload);
-          }
-        }}
-        open={isModalOpen}
-        roles={roles}
-        user={editingUser}
-      />
-    </div>
-  );
-}
-
-// ── User Form Modal ───────────────────────────────────────────────
-
-type UserFormModalProps = {
-  error: Error | null;
-  isLoading: boolean;
-  onClose: () => void;
-  onSubmit: (payload: UserCreatePayload) => void;
-  open: boolean;
-  roles: Role[];
-  user: User | null;
-};
-
-function UserFormModal({ error, isLoading, onClose, onSubmit, open, roles, user }: UserFormModalProps) {
-  const initialForm = useMemo(
-    () =>
-      user
-        ? {
-            username: user.username,
-            password: "",
-            full_name: user.full_name,
-            email: user.email ?? "",
-            role_id: String(user.role_id),
-          }
-        : emptyForm,
-    [user],
-  );
-
-  const [form, setForm] = useState<UserFormState>(initialForm);
-
-  useEffect(() => {
-    setForm(initialForm);
-  }, [initialForm]);
-
-  const canSubmit = Boolean(
-    form.username.trim() && form.full_name.trim() && form.role_id && (user || form.password.trim()),
-  );
-
-  function setField(field: keyof UserFormState, value: string) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canSubmit) return;
-    onSubmit({
-      username: form.username.trim(),
-      password: form.password,
-      full_name: form.full_name.trim(),
-      email: form.email.trim() || null,
-      role_id: Number(form.role_id),
-    });
-  }
-
-  const errorMessage = getErrorMessage(error);
-
-  return (
-    <Modal
-      footer={
-        <>
-          <Button onClick={onClose} variant="secondary">
-            Cancelar
-          </Button>
-          <Button disabled={!canSubmit || isLoading} form="user-form" type="submit">
-            {isLoading ? "Guardando" : "Guardar"}
-          </Button>
-        </>
-      }
-      onClose={onClose}
-      open={open}
-      title={user ? "Editar usuario" : "Nuevo usuario"}
-    >
-      <form className="grid gap-4" id="user-form" onSubmit={handleSubmit}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            disabled={!!user}
-            label="Usuario"
-            name="username"
-            onChange={(e) => setField("username", e.target.value)}
-            placeholder="ej. jperez"
-            value={form.username}
-          />
-          <Input
-            label={user ? "Nueva contraseña (opcional)" : "Contraseña"}
-            name="password"
-            onChange={(e) => setField("password", e.target.value)}
-            placeholder={user ? "Dejar vacio para mantener" : ""}
-            type="password"
-            value={form.password}
-          />
-        </div>
-
-        <Input
-          label="Nombre completo"
-          name="full_name"
-          onChange={(e) => setField("full_name", e.target.value)}
-          value={form.full_name}
-        />
-
-        <Input
-          label="Email (opcional)"
-          name="email"
-          onChange={(e) => setField("email", e.target.value)}
-          type="email"
-          value={form.email}
-        />
-
-        <Select
-          label="Rol"
-          name="role_id"
-          onChange={(e) => setField("role_id", e.target.value)}
-          options={roles.map((role) => ({ value: role.id, label: `${role.name}${role.description ? ` — ${role.description}` : ""}` }))}
-          placeholder="Seleccionar rol"
-          value={form.role_id}
-        />
-
-        {errorMessage ? (
-          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
-            {errorMessage}
+        {panelOpen ? (
+          <div className="w-full min-w-0 flex-[1_1_21rem] lg:sticky lg:top-5 lg:max-w-md">
+            <UserPanel
+              canDeactivate={canDeactivate}
+              canEdit={activeUser ? canEdit : canCreate}
+              error={panelError}
+              isSaving={createMutation.isPending || updateMutation.isPending}
+              key={activeUser ? `user-${activeUser.id}` : "new"}
+              onClose={closePanel}
+              onDeactivate={() => activeUser && setConfirmDeactivateId(activeUser.id)}
+              onReactivate={() => activeUser && updateMutation.mutate({ id: activeUser.id, payload: { is_active: true } })}
+              onResetPassword={() => setResetting(true)}
+              onSubmit={handleSubmit}
+              roles={roles}
+              saved={saved}
+              user={activeUser}
+            />
           </div>
         ) : null}
-      </form>
-    </Modal>
-  );
-}
+      </div>
 
-function getErrorMessage(error: Error | null) {
-  if (!error) return "";
-  if (error instanceof AxiosError) {
-    const details = error.response?.data?.details;
-    if (details && typeof details === "object") {
-      return Object.values(details).flat().join(" ");
-    }
-    return error.response?.data?.error ?? "No se pudo guardar.";
-  }
-  return "No se pudo guardar.";
+      {resetting && activeUser ? (
+        <ResetPasswordModal
+          error={getErrorMessage(resetMutation.error, "No se pudo restablecer la contraseña.")}
+          isPending={resetMutation.isPending}
+          onClose={closeReset}
+          onConfirm={() => resetMutation.mutate(activeUser.id)}
+          temporaryPassword={temporaryPassword}
+          user={activeUser}
+        />
+      ) : null}
+
+      {confirmDeactivateId ? (
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmDeactivateId(null)} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={deactivateMutation.isPending}
+                onClick={() => deactivateMutation.mutate(confirmDeactivateId)}
+                variant="danger"
+              >
+                {deactivateMutation.isPending ? "Desactivando…" : "Desactivar"}
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmDeactivateId(null)}
+          open
+          title="Confirmar desactivación"
+        >
+          <div className="grid gap-3">
+            <p className="text-sm text-ink-2">
+              El usuario será desactivado y no podrá iniciar sesión. Esta acción se puede revertir posteriormente.
+            </p>
+            {deactivateMutation.error ? (
+              <div className="border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">
+                {getErrorMessage(deactivateMutation.error, "No se pudo desactivar.")}
+              </div>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
+    </div>
+  );
 }

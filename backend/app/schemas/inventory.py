@@ -1,6 +1,8 @@
 """Marshmallow schemas for inventory endpoints."""
 from marshmallow import EXCLUDE, Schema, fields, validate
 
+from app.schemas.product import QTY_VALIDATORS
+
 
 class StockSchema(Schema):
     """Schema for stock listing/detail responses."""
@@ -13,6 +15,10 @@ class StockSchema(Schema):
     min_stock = fields.Method("get_min_stock")
     max_stock = fields.Method("get_max_stock")
     last_updated = fields.DateTime(dump_only=True)
+    is_active = fields.Method("get_is_active")
+
+    def get_is_active(self, obj):
+        return bool(obj.product.is_active) if obj.product else False
 
     def get_product_name(self, obj):
         return obj.product.name if obj.product else None
@@ -55,17 +61,31 @@ class StockMovementSchema(Schema):
         return obj.user.username if obj.user else None
 
 
+# Catálogo cerrado de motivos de ajuste manual (código -> etiqueta en español)
+ADJUST_REASONS = {
+    "merma_dano": "Merma o daño",
+    "error_captura": "Error de captura",
+    "devolucion_proveedor": "Devolución a proveedor",
+    "uso_interno": "Uso interno",
+    "otro": "Otro",
+}
+
+
 class StockAdjustSchema(Schema):
     """Schema for manual stock adjustment input."""
     class Meta:
         unknown = EXCLUDE
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(
-        as_string=True,
-        required=True,
-        places=3,
-        validate=validate.Range(min=0),
+    # Tope del Numeric(12, 3) y máximo 3 decimales, sin redondear en silencio (RF-12)
+    quantity = fields.Decimal(as_string=True, required=True, validate=QTY_VALIDATORS)
+    reason = fields.Str(
+        load_default=None,
+        allow_none=True,
+        validate=validate.OneOf(
+            list(ADJUST_REASONS),
+            error="Motivo de ajuste no válido. Opciones: " + ", ".join(ADJUST_REASONS),
+        ),
     )
     notes = fields.Str(load_default=None, allow_none=True)
 
@@ -86,13 +106,9 @@ class InventoryCountCaptureSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
-    counted_quantity = fields.Decimal(
-        as_string=True,
-        required=True,
-        places=3,
-        validate=validate.Range(min=0),
-    )
-    notes = fields.Str(load_default=None, allow_none=True)
+    counted_quantity = fields.Decimal(as_string=True, required=True, validate=QTY_VALIDATORS)  # RF-12
+    # Sin load_default: si no viene, se conserva la nota anterior del renglón (RF-36)
+    notes = fields.Str(allow_none=True)
 
 
 class InventoryCountItemSchema(Schema):

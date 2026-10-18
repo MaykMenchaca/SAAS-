@@ -32,10 +32,12 @@ PERMISSIONS = {
     "ventas:crear": ("ventas", "Crear ventas"),
     "ventas:ver": ("ventas", "Ver ventas"),
     "ventas:cancelar": ("ventas", "Cancelar ventas"),
+    "ventas:descuento": ("ventas", "Aplicar descuentos mayores al tope permitido"),
     # Cash register
     "caja:abrir": ("caja", "Abrir sesion de caja"),
     "caja:cerrar": ("caja", "Cerrar sesion de caja"),
     "caja:ver": ("caja", "Ver sesiones de caja"),
+    "caja:supervisar": ("caja", "Supervisar, vender y cerrar cajas de otros usuarios"),
     # Purchases
     "compras:ver": ("compras", "Ver proveedores y ordenes de compra"),
     "compras:crear": ("compras", "Crear ordenes de compra"),
@@ -57,8 +59,8 @@ ROLES = {
             "usuarios:ver",
             "productos:ver", "productos:crear", "productos:editar", "productos:editar_precio",
             "inventario:ver", "inventario:ajustar",
-            "ventas:ver", "ventas:cancelar",
-            "caja:abrir", "caja:cerrar", "caja:ver",
+            "ventas:ver", "ventas:cancelar", "ventas:descuento",
+            "caja:abrir", "caja:cerrar", "caja:ver", "caja:supervisar",
             "compras:ver", "compras:crear", "compras:editar", "compras:recibir",
             "reportes:ver",
         ],
@@ -106,11 +108,16 @@ def seed_permissions():
 
 
 def seed_roles(perm_map):
-    """Create roles and assign permissions."""
+    """Create roles and assign/sync permissions."""
     created = 0
     for role_name, config in ROLES.items():
         existing = Role.query.filter_by(name=role_name).first()
         if existing:
+            # Sincronizar permisos faltantes en roles existentes del sistema (H-51)
+            existing_perm_codes = {p.code for p in existing.permissions}
+            for code in config["permissions"]:
+                if code in perm_map and code not in existing_perm_codes:
+                    existing.permissions.append(perm_map[code])
             continue
         role = Role(name=role_name, description=config["description"])
         for code in config["permissions"]:
@@ -120,14 +127,16 @@ def seed_roles(perm_map):
         created += 1
 
     db.session.flush()
-    click.echo(f"  Roles: {created} creados, {len(ROLES) - created} existentes")
+    click.echo(f"  Roles: {created} creados, {len(ROLES) - created} existentes/sincronizados")
 
 
 def seed_admin_user():
-    """Create the default admin user."""
-    existing = User.query.filter_by(username="admin").first()
-    if existing:
-        click.echo("  Admin: ya existe")
+    """Create the default admin user only if no users exist in the system."""
+    import os
+    import secrets
+
+    if User.query.first():
+        click.echo("  Admin: ya existen usuarios en el sistema, omitiendo")
         return
 
     admin_role = Role.query.filter_by(name="admin").first()
@@ -135,16 +144,31 @@ def seed_admin_user():
         click.echo("  Admin: ERROR — rol 'admin' no encontrado")
         return
 
+    admin_password = os.getenv("POS_ADMIN_PASSWORD")
+    generated = False
+    if not admin_password:
+        admin_password = secrets.token_urlsafe(16)
+        generated = True
+
     user = User(
         username="admin",
         email="admin@pos.local",
         full_name="Administrador",
         role_id=admin_role.id,
+        must_change_password=True,
     )
-    user.set_password("admin123")
+    user.set_password(admin_password)
     db.session.add(user)
     db.session.flush()
-    click.echo("  Admin: creado (usuario: admin, password: admin123)")
+
+    if generated:
+        click.echo("  ================================================================")
+        click.echo(f"  Admin creado con contraseña generada: {admin_password}")
+        click.echo("  Guárdela ahora. Debe cambiarse en el primer inicio de sesión.")
+        click.echo("  ================================================================")
+    else:
+        click.echo("  Admin: creado desde POS_ADMIN_PASSWORD (debe cambiarse en primer inicio)")
+
 
 
 def seed_units():

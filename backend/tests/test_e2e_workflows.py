@@ -40,10 +40,8 @@ class TestSaleWorkflow:
             "items": [{
                 "product_id": seed_product_for_sale.id,
                 "quantity": 3,
-                "unit_price": "149.90",
-                "tax_rate": "16.00",
             }],
-            "payments": [{"method": "efectivo", "amount": "521.66"}],
+            "payments": [{"method": "efectivo", "amount": "348.00"}],
         }, headers=headers)
         assert sale_resp.status_code == 201
         sale_data = sale_resp.get_json()
@@ -65,7 +63,7 @@ class TestSaleWorkflow:
         # 6. Close cash register session
         close_resp = client.post(
             f"/api/cash-register/{session_id}/close",
-            json={"closing_amount": "1021.66"},
+            json={"closing_amount": "848.00"},
             headers=headers,
         )
         assert close_resp.status_code == 200
@@ -203,7 +201,7 @@ class TestPurchaseOrderWorkflow:
         # Old: 100*60 = 6000, New: 50*55 = 2750, Total: 8750/150 ≈ 58.33
         from app.models.product import Product
         product = db.session.get(Product, seed_product_for_sale.id)
-        assert product.avg_cost == Decimal("58.33")
+        assert product.avg_cost == Decimal("58.3333")  # 4 decimales desde la fase 4.6 (H-31)
 
 
 class TestInventoryCountWorkflow:

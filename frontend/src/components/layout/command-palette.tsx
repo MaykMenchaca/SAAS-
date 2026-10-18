@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   Boxes,
@@ -23,7 +23,10 @@ import { useNavigate } from "react-router-dom";
 import { listProducts } from "../../api/products";
 import { cn } from "../../lib/cn";
 import { useThemeStore } from "../../stores/theme-store";
+import { useCan } from "../auth/require-permission";
 import { useCommandPalette } from "./command-palette-context";
+import { qk } from "../../api/query-keys";
+import { Corners, Kbd } from "../ui";
 
 type CommandSection = "pages" | "products" | "actions";
 
@@ -51,6 +54,7 @@ const SECTION_ORDER: CommandSection[] = ["actions", "pages", "products"];
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const navigate = useNavigate();
+  const can = useCan();
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -80,66 +84,76 @@ export function CommandPalette() {
   }, [query]);
 
   const productsQuery = useQuery({
-    queryKey: ["command-palette-products", debouncedQuery],
+    queryKey: qk.commandPaletteProducts(debouncedQuery),
     queryFn: () => listProducts({ page: 1, perPage: 6, search: debouncedQuery }),
-    enabled: open && debouncedQuery.length >= 2,
+    enabled: open && can("productos:ver") && debouncedQuery.length >= 2,
     staleTime: 30_000,
   });
 
-  const actions = useMemo<Command[]>(() => [
-    {
-      id: "action-new-sale",
-      label: "Nueva venta",
-      hint: "Ir al punto de venta",
-      section: "actions",
-      keywords: ["pos", "vender", "cobrar"],
-      icon: ShoppingCart,
-      shortcut: "F5",
-      run: () => navigate("/pos"),
-    },
-    {
-      id: "action-close-shift",
-      label: "Corte de caja",
-      hint: "Cerrar turno",
-      section: "actions",
-      keywords: ["cerrar", "turno", "arqueo"],
-      icon: Calculator,
-      run: () => navigate("/corte-caja"),
-    },
-    {
-      id: "action-new-purchase",
-      label: "Nueva compra",
-      hint: "Crear orden de compra",
-      section: "actions",
-      keywords: ["proveedor", "orden", "comprar"],
-      icon: Plus,
-      run: () => navigate("/compras"),
-    },
-    {
-      id: "action-toggle-theme",
-      label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
-      section: "actions",
-      keywords: ["tema", "oscuro", "claro", "dark", "light"],
-      icon: theme === "dark" ? Sun : Moon,
-      run: () => toggleTheme(),
-    },
-  ], [navigate, theme, toggleTheme]);
+  const actions = useMemo<Command[]>(() => {
+    const list: (Command & { permission?: string })[] = [
+      {
+        id: "action-new-sale",
+        label: "Nueva venta",
+        hint: "Ir al punto de venta",
+        section: "actions",
+        keywords: ["pos", "vender", "cobrar"],
+        icon: ShoppingCart,
+        shortcut: "F5",
+        permission: "ventas:crear",
+        run: () => navigate("/pos"),
+      },
+      {
+        id: "action-close-shift",
+        label: "Corte de caja",
+        hint: "Cerrar turno",
+        section: "actions",
+        keywords: ["cerrar", "turno", "arqueo"],
+        icon: Calculator,
+        permission: "caja:ver",
+        run: () => navigate("/corte-caja"),
+      },
+      {
+        id: "action-new-purchase",
+        label: "Nueva compra",
+        hint: "Crear orden de compra",
+        section: "actions",
+        keywords: ["proveedor", "orden", "comprar"],
+        icon: Plus,
+        permission: "compras:crear",
+        run: () => navigate("/compras"),
+      },
+      {
+        id: "action-toggle-theme",
+        label: theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
+        section: "actions",
+        keywords: ["tema", "oscuro", "claro", "dark", "light"],
+        icon: theme === "dark" ? Sun : Moon,
+        run: () => toggleTheme(),
+      },
+    ];
+    return list.filter((item) => !item.permission || can(item.permission));
+  }, [navigate, theme, toggleTheme, can]);
 
-  const pages = useMemo<Command[]>(() => [
-    { id: "page-dashboard", label: "Dashboard", section: "pages", keywords: ["inicio", "home", "resumen"], icon: LayoutDashboard, run: () => navigate("/") },
-    { id: "page-pos", label: "Punto de Venta", section: "pages", keywords: ["pos", "venta", "cobrar"], icon: ShoppingCart, run: () => navigate("/pos") },
-    { id: "page-inventory", label: "Inventario", section: "pages", keywords: ["stock", "existencias"], icon: Boxes, run: () => navigate("/inventario") },
-    { id: "page-products", label: "Productos", section: "pages", keywords: ["catalogo", "sku"], icon: Package, run: () => navigate("/productos") },
-    { id: "page-purchases", label: "Compras", section: "pages", keywords: ["proveedores", "ordenes"], icon: Truck, run: () => navigate("/compras") },
-    { id: "page-sales-history", label: "Historial de Ventas", section: "pages", keywords: ["tickets", "ventas previas"], icon: ReceiptText, run: () => navigate("/ventas") },
-    { id: "page-cash-cut", label: "Corte de Caja", section: "pages", keywords: ["arqueo", "cierre"], icon: Calculator, run: () => navigate("/corte-caja") },
-    { id: "page-returns", label: "Devoluciones", section: "pages", keywords: ["reembolso", "regresar"], icon: CornerDownLeft, run: () => navigate("/devoluciones") },
-    { id: "page-users", label: "Usuarios", section: "pages", keywords: ["operadores", "cajeros"], icon: Users, run: () => navigate("/usuarios") },
-    { id: "page-reports", label: "Reportes", section: "pages", keywords: ["analytics", "graficos"], icon: BarChart3, run: () => navigate("/reportes") },
-    { id: "page-settings", label: "Configuración", section: "pages", keywords: ["ajustes", "preferencias"], icon: Settings, run: () => navigate("/configuracion") },
-  ], [navigate]);
+  const pages = useMemo<Command[]>(() => {
+    const list: (Command & { permission?: string })[] = [
+      { id: "page-dashboard", label: "Dashboard", section: "pages", keywords: ["inicio", "home", "resumen"], icon: LayoutDashboard, permission: "reportes:ver", run: () => navigate("/") },
+      { id: "page-pos", label: "Punto de Venta", section: "pages", keywords: ["pos", "venta", "cobrar"], icon: ShoppingCart, permission: "ventas:crear", run: () => navigate("/pos") },
+      { id: "page-inventory", label: "Inventario", section: "pages", keywords: ["stock", "existencias"], icon: Boxes, permission: "inventario:ver", run: () => navigate("/inventario") },
+      { id: "page-products", label: "Productos", section: "pages", keywords: ["catalogo", "sku"], icon: Package, permission: "productos:ver", run: () => navigate("/productos") },
+      { id: "page-purchases", label: "Compras", section: "pages", keywords: ["proveedores", "ordenes"], icon: Truck, permission: "compras:ver", run: () => navigate("/compras") },
+      { id: "page-sales-history", label: "Historial de Ventas", section: "pages", keywords: ["tickets", "ventas previas"], icon: ReceiptText, permission: "ventas:ver", run: () => navigate("/ventas") },
+      { id: "page-cash-cut", label: "Corte de Caja", section: "pages", keywords: ["arqueo", "cierre"], icon: Calculator, permission: "caja:ver", run: () => navigate("/corte-caja") },
+      { id: "page-returns", label: "Devoluciones", section: "pages", keywords: ["reembolso", "regresar"], icon: CornerDownLeft, permission: "ventas:cancelar", run: () => navigate("/devoluciones") },
+      { id: "page-users", label: "Usuarios", section: "pages", keywords: ["operadores", "cajeros"], icon: Users, permission: "usuarios:ver", run: () => navigate("/usuarios") },
+      { id: "page-reports", label: "Reportes", section: "pages", keywords: ["analytics", "graficos"], icon: BarChart3, permission: "reportes:ver", run: () => navigate("/reportes") },
+      { id: "page-settings", label: "Configuración", section: "pages", keywords: ["ajustes", "preferencias"], icon: Settings, permission: "admin", run: () => navigate("/configuracion") },
+    ];
+    return list.filter((item) => !item.permission || can(item.permission));
+  }, [navigate, can]);
 
   const productCommands = useMemo<Command[]>(() => {
+    if (!can("productos:ver")) return [];
     const items = productsQuery.data?.items ?? [];
     return items.map((p) => ({
       id: `product-${p.id}`,
@@ -149,7 +163,7 @@ export function CommandPalette() {
       icon: Package,
       run: () => navigate("/productos"),
     }));
-  }, [productsQuery.data, navigate]);
+  }, [productsQuery.data, navigate, can]);
 
   // Filtrado: si hay query, matchea contra label + keywords; productos vienen pre-filtrados.
   const filtered = useMemo<Command[]>(() => {
@@ -187,6 +201,9 @@ export function CommandPalette() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
       e.preventDefault();
+      // Que el Esc de la paleta no llegue al atajo "vaciar carrito" del POS (H-30)
+      e.stopPropagation();
+      e.nativeEvent.stopImmediatePropagation();
       setOpen(false);
       return;
     }
@@ -258,7 +275,7 @@ export function CommandPalette() {
       {/* Overlay */}
       <button
         aria-label="Cerrar paleta"
-        className="absolute inset-0 bg-black/40 fade-in"
+        className="absolute inset-0 bg-overlay fade-in"
         onClick={() => setOpen(false)}
         tabIndex={-1}
         type="button"
@@ -266,28 +283,27 @@ export function CommandPalette() {
 
       {/* Panel */}
       <div
-        className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-neutral-border bg-neutral-surface shadow-2xl scale-in"
+        className="blueprint relative z-10 w-full max-w-[560px] bg-bg text-text shadow-lg scale-in"
         ref={panelRef}
       >
+        <Corners />
         <h2 className="sr-only" id={titleId}>Paleta de comandos</h2>
 
-        {/* Search */}
-        <div className="flex items-center gap-2 border-b border-neutral-border px-4 py-3">
-          <Search aria-hidden="true" className="text-neutral-text-secondary shrink-0" size={18} />
+        {/* Búsqueda */}
+        <div className="flex h-14 items-center gap-2.5 border-b border-divider px-4">
+          <Search aria-hidden="true" className="shrink-0 text-ink-2" size={18} />
           <input
             aria-autocomplete="list"
             aria-controls="command-palette-list"
             aria-label="Buscar comandos, páginas y productos"
-            className="min-w-0 flex-1 bg-transparent text-sm text-neutral-text-primary placeholder:text-neutral-text-muted outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[1.0625rem] text-text outline-none placeholder:text-ink-2"
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar páginas, productos o acciones..."
+            placeholder="Buscar páginas, productos o acciones…"
             ref={inputRef}
             type="text"
             value={query}
           />
-          <kbd className="rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
-            Esc
-          </kbd>
+          <Kbd aria-hidden="true">Esc</Kbd>
         </div>
 
         {/* Results */}
@@ -299,7 +315,7 @@ export function CommandPalette() {
           role="listbox"
         >
           {filtered.length === 0 ? (
-            <div className="py-12 text-center text-xs text-neutral-text-secondary">
+            <div className="py-12 text-center text-xs text-ink-2">
               {productsQuery.isLoading
                 ? "Buscando..."
                 : query.trim()
@@ -312,7 +328,7 @@ export function CommandPalette() {
               if (items.length === 0) return null;
               return (
                 <div className="py-1" key={section}>
-                  <div className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-text-muted">
+                  <div className="px-4 pb-1 pt-2 font-heading text-[0.8125rem] font-semibold uppercase tracking-[0.1em] text-ink-2">
                     {SECTION_LABELS[section]}
                   </div>
                   <div className="grid gap-0.5">
@@ -323,10 +339,10 @@ export function CommandPalette() {
                         <button
                           aria-selected={isSelected}
                           className={cn(
-                            "flex w-full items-center gap-3 px-4 py-2 text-left text-sm outline-none transition-colors duration-100 ease-[var(--ease-out-strong)]",
+                            "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-[0.9375rem] outline-none transition-colors duration-100 ease-[var(--ease-out-strong)]",
                             isSelected
-                              ? "bg-primary/10 text-neutral-text-primary"
-                              : "text-neutral-text-primary hover:bg-neutral-surface-raised",
+                              ? "bg-acc-tint text-text"
+                              : "text-text hover:bg-line-soft",
                           )}
                           data-cmd-index={globalIndex}
                           id={`cmd-${cmd.id}`}
@@ -339,16 +355,12 @@ export function CommandPalette() {
                           role="option"
                           type="button"
                         >
-                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-primary" : "text-neutral-text-secondary")} size={16} />
-                          <span className="flex-1 truncate font-medium">{cmd.label}</span>
+                          <Icon aria-hidden="true" className={cn("shrink-0", isSelected ? "text-accent" : "text-ink-2")} size={17} />
+                          <span className="flex-1 truncate">{cmd.label}</span>
                           {cmd.hint ? (
-                            <span className="shrink-0 font-mono text-[10px] text-neutral-text-muted">{cmd.hint}</span>
+                            <span className="shrink-0 text-[0.8125rem] text-ink-2">{cmd.hint}</span>
                           ) : null}
-                          {cmd.shortcut ? (
-                            <kbd className="shrink-0 rounded border border-neutral-border bg-neutral-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-semibold text-neutral-text-secondary">
-                              {cmd.shortcut}
-                            </kbd>
-                          ) : null}
+                          {cmd.shortcut ? <Kbd className="shrink-0">{cmd.shortcut}</Kbd> : null}
                         </button>
                       );
                     })}
@@ -360,15 +372,15 @@ export function CommandPalette() {
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center justify-between border-t border-neutral-border bg-neutral-bg/40 px-4 py-2 text-[10px] text-neutral-text-secondary">
+        <div className="flex items-center justify-between border-t border-divider px-4 py-2 text-[0.8125rem] text-ink-2">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↑</kbd>
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↓</kbd>
+              <Kbd aria-hidden="true">↑</Kbd>
+              <Kbd aria-hidden="true">↓</Kbd>
               navegar
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-neutral-border bg-neutral-surface px-1 py-0.5 font-mono">↵</kbd>
+              <Kbd aria-hidden="true">↵</Kbd>
               ejecutar
             </span>
           </div>

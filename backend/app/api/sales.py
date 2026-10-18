@@ -1,29 +1,54 @@
 """Sales API — create, cancel, list, and detail sales."""
 from flask import Blueprint, jsonify, request
+from sqlalchemy import func
 from flask_jwt_extended import get_jwt_identity
 
 from app.schemas.sale import (
     SaleCancelSchema,
     SaleCreateSchema,
     SaleListSchema,
+    SaleQuoteResponseSchema,
+    SaleQuoteSchema,
     SaleReturnCreateSchema,
     SaleReturnSchema,
     SaleSchema,
 )
+from app.extensions import db
 from app.services.audit_service import log_action
-from app.services.sale_service import SaleService
+from app.services.printer_service import PrinterService
+from app.services.sale_service import ClientUuidConflictError, SaleNotFoundError, SaleService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
 from app.models.sale import Sale
+from app.models.user import User
+from app.utils.timeutil import local_day_bounds, parse_local_date
 
 sales_bp = Blueprint("sales", __name__)
 
 sale_create_schema = SaleCreateSchema()
 sale_cancel_schema = SaleCancelSchema()
+sale_quote_schema = SaleQuoteSchema()
+sale_quote_response_schema = SaleQuoteResponseSchema()
 sale_return_create_schema = SaleReturnCreateSchema()
 sale_schema = SaleSchema()
 sale_return_schema = SaleReturnSchema()
 sale_list_schema = SaleListSchema(many=True)
+
+
+@sales_bp.route("/quote", methods=["POST"])
+@require_permission("ventas:crear")
+def quote_sale():
+    """Calculate authoritative sale lines, taxes, and totals without creating a sale."""
+    data = sale_quote_schema.load(request.get_json(silent=True) or {})
+    identity = get_jwt_identity()
+    user_id = int(identity) if identity else None
+
+    try:
+        pricing = SaleService.price_lines(items=data["items"], user_id=user_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(sale_quote_response_schema.dump(pricing)), 200
 
 
 @sales_bp.route("/", methods=["POST"])
@@ -33,6 +58,8 @@ def create_sale():
     data = sale_create_schema.load(request.get_json(silent=True) or {})
 
     user_id = int(get_jwt_identity())
+    client_uuid = data.get("client_uuid")
+    is_replay = bool(client_uuid) and Sale.query.filter_by(client_uuid=str(client_uuid)).first() is not None
 
     try:
         sale = SaleService.create_sale(
@@ -40,16 +67,19 @@ def create_sale():
             session_id=data["session_id"],
             items=data["items"],
             payments=data["payments"],
+            client_uuid=client_uuid,
         )
+    except ClientUuidConflictError as e:
+        # El uuid es de la venta de otro usuario: no se devuelve ni se confirma cuál es (RF-30)
+        return jsonify({"error": str(e), "code": "client_uuid_conflict"}), 409
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    log_action(
-        action="create",
-        entity_type="sale",
-        entity_id=sale.id,
-        details={"folio": sale.folio, "total": str(sale.total)},
-    )
+    # Cajón: después del commit y sin afectar la venta si la impresora falla
+    if data["open_drawer"] and not is_replay and any(p.method == "efectivo" for p in sale.payments):
+        PrinterService.open_drawer_for_sale(sale)
 
     return jsonify(sale_schema.dump(sale)), 201
 
@@ -68,15 +98,10 @@ def cancel_sale(sale_id):
             user_id=user_id,
             reason=data["reason"],
         )
+    except SaleNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-
-    log_action(
-        action="cancel",
-        entity_type="sale",
-        entity_id=sale.id,
-        details={"folio": sale.folio, "reason": data["reason"]},
-    )
 
     return jsonify(sale_schema.dump(sale)), 200
 
@@ -95,7 +120,14 @@ def return_sale(sale_id):
             user_id=user_id,
             reason=data["reason"],
             items=data["items"],
+            session_id=data.get("session_id"),
+            refund_method=data.get("refund_method", "efectivo"),
+            restock=data.get("restock", True),
         )
+    except SaleNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -105,9 +137,40 @@ def return_sale(sale_id):
 @sales_bp.route("/", methods=["GET"])
 @require_permission("ventas:ver")
 def list_sales():
-    """List sales with pagination."""
+    """Ventas paginadas. Filtros opcionales: ?folio= (exacto, sin distinguir mayúsculas),
+    ?status=completada,devolucion_parcial (FE-102), ?user_id= (cajero) y ?date_from=/?date_to=
+    (AAAA-MM-DD, días en la zona horaria de la tienda, ambos inclusive)."""
     query = Sale.query.order_by(Sale.created_at.desc())
+    folio = (request.args.get("folio") or "").strip()
+    if folio:
+        query = query.filter(func.upper(Sale.folio) == folio.upper())
+    status = request.args.get("status")
+    if status:
+        query = query.filter(Sale.status.in_([s.strip() for s in status.split(",") if s.strip()]))
+    user_id = request.args.get("user_id", type=int)
+    if user_id:
+        query = query.filter(Sale.user_id == user_id)
+    raw_from = (request.args.get("date_from") or "").strip()
+    if raw_from:
+        query = query.filter(Sale.created_at >= local_day_bounds(parse_local_date(raw_from))[0])
+    raw_to = (request.args.get("date_to") or "").strip()
+    if raw_to:
+        query = query.filter(Sale.created_at < local_day_bounds(parse_local_date(raw_to))[1])
     return jsonify(paginate(query, sale_list_schema)), 200
+
+
+@sales_bp.route("/cashiers", methods=["GET"])
+@require_permission("ventas:ver")
+def list_sale_cashiers():
+    """Usuarios que han registrado ventas (opciones del filtro por cajero del historial)."""
+    rows = (
+        db.session.query(User.id, User.username)
+        .join(Sale, Sale.user_id == User.id)
+        .group_by(User.id, User.username)
+        .order_by(User.username)
+        .all()
+    )
+    return jsonify([{"id": r.id, "username": r.username} for r in rows]), 200
 
 
 @sales_bp.route("/<int:sale_id>", methods=["GET"])

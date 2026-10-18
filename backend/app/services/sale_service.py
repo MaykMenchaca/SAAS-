@@ -1,139 +1,343 @@
 """Sale service — complete transactional sale logic."""
-from datetime import datetime, timezone
-from decimal import Decimal
+import uuid
+from decimal import ROUND_HALF_EVEN, Decimal
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.product import Product
 from app.models.sale import CashRegisterSession, Payment, Sale, SaleItem, SaleReturn, SaleReturnItem
+from app.models.user import User
+from app.services import config_service
 from app.services.inventory_service import InventoryService
+from app.utils.decorators import with_rollback
+from app.utils.timeutil import local_today
+from app.utils.quantities import validate_quantity
+
+
+class SaleNotFoundError(ValueError):
+    """La venta no existe: la API responde 404 (RF-29). Hereda de ValueError por compatibilidad."""
+
+    def __init__(self, message: str = "Venta no encontrada"):
+        super().__init__(message)
+
+
+class ClientUuidConflictError(ValueError):
+    """El client_uuid ya se usó en una venta de OTRO usuario: la API responde 409 sin revelarla (RF-30)."""
+
+    def __init__(self):
+        super().__init__(
+            "Este identificador de venta (client_uuid) ya se usó en otra venta. Genera uno nuevo y reintenta."
+        )
+
+
+def _replay_of(client_uuid, user_id: int) -> Sale | None:
+    """Venta ya creada con ese client_uuid (reenvío idempotente) o None.
+
+    Solo el mismo usuario recibe la venta original; si es de otro usuario, ClientUuidConflictError (RF-30).
+    """
+    existing = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+    if existing is not None and existing.user_id != user_id:
+        raise ClientUuidConflictError()
+    return existing
 
 
 class SaleService:
     """Handles sale creation with inventory deduction and payment validation."""
 
     @staticmethod
-    def create_sale(user_id: int, session_id: int, items: list, payments: list) -> Sale:
-        """Create a complete sale atomically.
+    def price_lines(items: list, user_id: int | None = None) -> dict:
+        """Calculate authoritative pricing lines, taxes, and totals.
 
-        1. Validates cash register session is open
-        2. Generates folio from PostgreSQL sequence
-        3. Creates sale items with discount calculation
-        4. Deducts inventory for each item (with row-level locking)
-        5. Validates payment covers the total
+        Validates product existence, active status, unit fractions, and discount limits.
+        Uses Decimal arithmetic with per-line HALF_EVEN rounding for taxes and discounts.
 
-        Args:
-            user_id: Cashier performing the sale.
-            session_id: Open CashRegisterSession id.
-            items: List of dicts with product_id, quantity, unit_price, tax_rate,
-                   and optional discount_percent.
-            payments: List of dicts with method, amount, and optional reference/change_amount.
-
-        Returns:
-            The created Sale object.
-
-        Raises:
-            ValueError: If session is closed, stock insufficient, or payment insufficient.
+        Returns dict with:
+            lines: list of dicts with calculated pricing per item
+            subtotal: Decimal
+            discount_total: Decimal
+            tax_total: Decimal
+            total: Decimal
         """
-        session = db.session.get(CashRegisterSession, session_id)
-        if not session or session.status != "abierta":
-            raise ValueError("La sesión de caja no está abierta")
-
-        folio = SaleService._generate_folio()
-
-        sale = Sale(
-            folio=folio,
-            session_id=session_id,
-            user_id=user_id,
-            subtotal=Decimal("0"),
-            discount_total=Decimal("0"),
-            tax_total=Decimal("0"),
-            total=Decimal("0"),
+        user = db.session.get(User, user_id) if user_id else None
+        has_discount_perm = (
+            user is not None
+            and (user.role_name == "admin" or "ventas:descuento" in user.permissions)
         )
-        db.session.add(sale)
-        db.session.flush()
 
+        # Un tope dañado (NaN, negativo, > 100) cuenta como 0: no detiene las ventas ni permite regalar (RF-06)
+        max_discount_limit = config_service.max_discount_percent()
+
+        lines = []
         subtotal = Decimal("0")
         discount_total = Decimal("0")
         tax_total = Decimal("0")
 
         for item_data in items:
-            qty = Decimal(str(item_data["quantity"]))
-            price = Decimal(str(item_data["unit_price"]))
-            disc_pct = Decimal(str(item_data.get("discount_percent", 0)))
-            tax_rate = Decimal(str(item_data["tax_rate"]))
-
             product = db.session.get(Product, item_data["product_id"])
             if not product:
                 raise ValueError(f"Producto {item_data['product_id']} no encontrado")
 
-            line_gross = qty * price
+            if not product.is_active:
+                raise ValueError(f"El producto '{product.name}' está inactivo")
+
+            qty = Decimal(str(item_data["quantity"]))
+            # Máximo 3 decimales y enteros en unidades sin fracciones (RF-03); misma regla que las devoluciones
+            validate_quantity(qty, product.unit, product.name)
+
+            # Precios e impuestos autoritativos desde el catálogo del servidor
+            price = Decimal(str(product.sale_price))
+            tax_rate = Decimal(str(product.tax_rate))
+
+            disc_pct = Decimal(str(item_data.get("discount_percent", 0)))
+            if disc_pct < Decimal("0") or disc_pct > Decimal("100"):
+                raise ValueError("El porcentaje de descuento debe estar entre 0 y 100")
+
+            if disc_pct > max_discount_limit and not has_discount_perm:
+                raise ValueError(
+                    f"El descuento del {disc_pct}% supera el tope permitido ({max_discount_limit}%) "
+                    "y requiere el permiso 'ventas:descuento'"
+                )
+
+            # Importe bruto en centavos (HALF_EVEN): con fracciones (1.5 m × 12.99 = 19.485) el total
+            # debe quedar en centavos exactos para poder cobrarse "exacto" y con tarjeta (FE-103)
+            line_gross = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
             line_discount = (line_gross * disc_pct / Decimal("100")).quantize(
-                Decimal("0.01")
+                Decimal("0.01"), rounding=ROUND_HALF_EVEN
             )
             line_subtotal = line_gross - line_discount
             line_tax = (line_subtotal * tax_rate / Decimal("100")).quantize(
-                Decimal("0.01")
+                Decimal("0.01"), rounding=ROUND_HALF_EVEN
             )
+            line_total = line_subtotal + line_tax
 
+            lines.append({
+                "product_id": product.id,
+                "product_name": product.name,
+                "product_sku": product.sku,
+                "quantity": qty,
+                "unit_price": price,
+                "discount_percent": disc_pct,
+                "discount_amount": line_discount,
+                "tax_rate": tax_rate,
+                "subtotal": line_subtotal,
+                "tax_amount": line_tax,
+                "total": line_total,
+                "cost_at_sale": product.avg_cost,
+            })
+
+            subtotal += line_subtotal
+            discount_total += line_discount
+            tax_total += line_tax
+
+        return {
+            "lines": lines,
+            "subtotal": subtotal,
+            "discount_total": discount_total,
+            "tax_total": tax_total,
+            "total": subtotal + tax_total,
+        }
+
+    @staticmethod
+    @with_rollback
+    def create_sale(
+        user_id: int,
+        session_id: int,
+        items: list,
+        payments: list,
+        client_uuid: str | None = None,
+    ) -> Sale:
+        """Create a complete sale atomically.
+
+        1. Validates client_uuid idempotency (returns existing sale if already processed by the same
+           user; ClientUuidConflictError if it belongs to another user, RF-30)
+        2. Validates cash register session is open and owned (or supervised)
+        3. Calculates authoritative pricing via price_lines
+        4. Creates sale items with discount calculation (provisional folio)
+        5. Deducts inventory for each item (with row-level locking)
+        6. Validates payments and calculates exact change in server
+        7. Only then takes the folio from the PostgreSQL sequence (RF-11: no gaps on rejections)
+
+        Args:
+            user_id: Cashier performing the sale.
+            session_id: Open CashRegisterSession id.
+            items: List of dicts with product_id, quantity, and optional discount_percent.
+                   (unit_price and tax_rate are ignored if passed; catalog is authoritative).
+            payments: List of dicts with method, amount, and optional reference.
+            client_uuid: Optional client-generated UUID for idempotency.
+
+        Returns:
+            The created (or existing idempotent) Sale object.
+
+        Raises:
+            ValueError: If session is closed, stock insufficient, payment insufficient,
+                        product inactive, fraction not allowed, or discount exceeds limit.
+            PermissionError: If cashier attempts to sell in another user's session without permission.
+        """
+        if client_uuid:
+            existing_sale = _replay_of(client_uuid, user_id)
+            if existing_sale:
+                return existing_sale
+
+        # Bloqueo de la sesión: si se está cerrando, esperamos y vemos su estado final (H-31)
+        session = (
+            db.session.query(CashRegisterSession)
+            .filter_by(id=session_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if not session or session.status != "abierta":
+            raise ValueError("La sesión de caja no está abierta")
+
+        # Un reenvío simultáneo con el mismo client_uuid esperó el bloqueo de la sesión:
+        # ahora ve la venta ya creada y la devuelve en vez de chocar con el UNIQUE (OPS-10)
+        if client_uuid:
+            existing_sale = _replay_of(client_uuid, user_id)
+            if existing_sale:
+                return existing_sale
+
+        # Validar pertenencia de la sesión: el usuario debe ser el dueño o tener 'caja:supervisar' / admin (H-16)
+        if session.user_id != user_id:
+            user = db.session.get(User, user_id) if user_id else None
+            has_supervise = (
+                user is not None
+                and (user.role_name == "admin" or "caja:supervisar" in user.permissions)
+            )
+            if not has_supervise:
+                raise PermissionError(
+                    "No tienes permiso para realizar ventas en la sesión de caja de otro usuario"
+                )
+
+        pricing = SaleService.price_lines(items, user_id=user_id)
+
+        # Folio provisional único: el real (nextval) se pide al final, cuando ya pasaron todas las
+        # validaciones. Una secuencia no regresa con el rollback y cada rechazo dejaba un hueco (RF-11)
+        sale = Sale(
+            folio=f"TMP-{uuid.uuid4().hex[:16]}",
+            session_id=session_id,
+            user_id=user_id,
+            client_uuid=str(client_uuid) if client_uuid else None,
+            subtotal=pricing["subtotal"],
+            discount_total=pricing["discount_total"],
+            tax_total=pricing["tax_total"],
+            total=pricing["total"],
+        )
+        db.session.add(sale)
+        db.session.flush()
+
+        # Bloqueo del stock en orden de producto antes de descontar (OPS-09)
+        InventoryService.lock_stock(line["product_id"] for line in pricing["lines"])
+        for line in pricing["lines"]:
             sale_item = SaleItem(
                 sale_id=sale.id,
-                product_id=product.id,
-                product_name=product.name,
-                product_sku=product.sku,
-                quantity=qty,
-                unit_price=price,
-                discount_percent=disc_pct,
-                discount_amount=line_discount,
-                tax_rate=tax_rate,
-                subtotal=line_subtotal,
-                cost_at_sale=product.avg_cost,
+                product_id=line["product_id"],
+                product_name=line["product_name"],
+                product_sku=line["product_sku"],
+                quantity=line["quantity"],
+                unit_price=line["unit_price"],
+                discount_percent=line["discount_percent"],
+                discount_amount=line["discount_amount"],
+                tax_rate=line["tax_rate"],
+                subtotal=line["subtotal"],
+                cost_at_sale=line["cost_at_sale"],
             )
             db.session.add(sale_item)
 
             # Deduct inventory (atomic with SELECT FOR UPDATE)
             InventoryService.move_stock(
-                product_id=product.id,
-                quantity=qty,
+                product_id=line["product_id"],
+                quantity=line["quantity"],
                 movement_type="salida",
                 reference_type="venta",
                 reference_id=sale.id,
                 user_id=user_id,
             )
 
-            subtotal += line_subtotal
-            discount_total += line_discount
-            tax_total += line_tax
+        # Process payments (H-16: el servidor calcula el cambio exacto e ignora al cliente)
+        if not payments:
+            raise ValueError("Debe registrar al menos un método de pago")
 
-        sale.subtotal = subtotal
-        sale.discount_total = discount_total
-        sale.tax_total = tax_total
-        sale.total = subtotal + tax_total
+        cash_total = Decimal("0")
+        non_cash_total = Decimal("0")
+        normalized_payments = []
 
-        # Process payments
-        payment_total = Decimal("0")
         for pay_data in payments:
             amount = Decimal(str(pay_data["amount"]))
-            payment = Payment(
-                sale_id=sale.id,
-                method=pay_data["method"],
-                amount=amount,
-                reference=pay_data.get("reference"),
-                change_amount=Decimal(str(pay_data.get("change_amount", 0))),
-            )
-            db.session.add(payment)
-            payment_total += amount
+            if amount <= Decimal("0"):
+                raise ValueError("El monto del pago debe ser mayor a 0")
 
+            method = pay_data.get("method")
+            if method == "efectivo":
+                cash_total += amount
+            else:
+                non_cash_total += amount
+
+            normalized_payments.append({
+                "method": method,
+                "amount": amount,
+                "reference": pay_data.get("reference"),
+            })
+
+        # Rechazar sobrepagos con métodos distintos a efectivo (tarjeta o transferencia)
+        if non_cash_total > sale.total:
+            raise ValueError("No se permite sobrepago con tarjeta o transferencia")
+
+        payment_total = cash_total + non_cash_total
         if payment_total < sale.total:
             raise ValueError(
                 f"Pago insuficiente: total ${sale.total}, recibido ${payment_total}"
             )
 
-        db.session.commit()
+        # El cambio se calcula autoritativamente: total recibido - total venta.
+        # Como non_cash_total <= sale.total, el excedente proviene exclusivamente del efectivo.
+        total_change = payment_total - sale.total
+
+        # Encontrar el último pago en efectivo para asignarle el cambio
+        last_cash_idx = None
+        for idx, p in enumerate(normalized_payments):
+            if p["method"] == "efectivo":
+                last_cash_idx = idx
+
+        for idx, p in enumerate(normalized_payments):
+            pay_change = total_change if idx == last_cash_idx else Decimal("0.00")
+            payment = Payment(
+                sale_id=sale.id,
+                method=p["method"],
+                amount=p["amount"],
+                reference=p["reference"],
+                change_amount=pay_change,
+            )
+            db.session.add(payment)
+
+        # Todo validado y escrito (un dato que la base rechace falla aquí, antes de consumir folio)
+        db.session.flush()
+        sale.folio = SaleService._generate_folio()
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="create",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={"folio": sale.folio, "total": str(sale.total)},
+            user_id=user_id,
+        )
+
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            if client_uuid:
+                existing = _replay_of(client_uuid, user_id)
+                if existing:
+                    return existing
+            raise
         return sale
 
     @staticmethod
+    @with_rollback
     def cancel_sale(sale_id: int, user_id: int, reason: str) -> Sale:
         """Cancel a sale and return inventory.
 
@@ -150,11 +354,36 @@ class SaleService:
         """
         sale = db.session.get(Sale, sale_id)
         if not sale:
-            raise ValueError("Venta no encontrada")
+            raise SaleNotFoundError()
+        # Orden de bloqueo sesión → venta. La cancelación devuelve el efectivo desde el cajón de la
+        # sesión de la venta; si ya se cerró, cambiaría un corte histórico y el dinero saldría de
+        # una caja que no lo registra (BE-101)
+        session = (
+            db.session.query(CashRegisterSession)
+            .filter_by(id=sale.session_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if not session or session.status != "abierta":
+            raise ValueError(
+                "La caja de esta venta ya se cerró. Para devolver el dinero usa Devoluciones "
+                "desde una caja abierta."
+            )
+        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().populate_existing().first()
         if sale.status == "cancelada":
             raise ValueError("La venta ya está cancelada")
+        if sale.status in ("devolucion_parcial", "devolucion_total"):
+            raise ValueError("No se puede cancelar una venta que tiene devoluciones asociadas")
+        if sale.status != "completada":
+            raise ValueError(f"No se puede cancelar una venta en estado '{sale.status}'")
+
+        has_returns = SaleReturn.query.filter_by(sale_id=sale_id).first() is not None
+        if has_returns:
+            raise ValueError("No se puede cancelar una venta que tiene devoluciones asociadas")
 
         # Return inventory for each item
+        InventoryService.lock_stock(item.product_id for item in sale.items)
         for item in sale.items:
             InventoryService.move_stock(
                 product_id=item.product_id,
@@ -168,11 +397,30 @@ class SaleService:
         sale.status = "cancelada"
         sale.cancelled_by = user_id
         sale.cancel_reason = reason
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="cancel",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={"folio": sale.folio, "reason": reason},
+            user_id=user_id,
+        )
+
         db.session.commit()
         return sale
 
     @staticmethod
-    def return_sale(sale_id: int, user_id: int, reason: str, items: list) -> SaleReturn:
+    @with_rollback
+    def return_sale(
+        sale_id: int,
+        user_id: int,
+        reason: str,
+        items: list,
+        session_id: int | None = None,
+        refund_method: str = "efectivo",
+        restock: bool = True,
+    ) -> SaleReturn:
         """Process a return (partial or full) for a sale.
 
         Args:
@@ -180,18 +428,72 @@ class SaleService:
             user_id: User performing the return.
             reason: Reason for the return.
             items: List of dicts with sale_item_id and quantity to return.
+            session_id: Optional CashRegisterSession id to track cash refunds.
+            refund_method: Refund method ('efectivo', 'tarjeta', 'transferencia').
+            restock: Si es False (producto dañado) no se reingresa stock; el reembolso se calcula igual.
 
         Returns:
             The SaleReturn object.
 
         Raises:
-            ValueError: If sale not found, already cancelled, or quantity exceeds sold.
+            ValueError: If sale not found, already cancelled, quantity exceeds sold,
+                        or session is invalid/closed.
+            PermissionError: If cashier attempts return in another's session without permission.
         """
-        sale = db.session.get(Sale, sale_id)
+        if refund_method not in ("efectivo", "tarjeta", "transferencia"):
+            raise ValueError(f"Método de reembolso inválido: {refund_method}")
+        # Una venta inexistente es 404 antes que cualquier validación de la caja (RF-29)
+        if db.session.get(Sale, sale_id) is None:
+            raise SaleNotFoundError()
+
+        # Un reembolso en efectivo sale de un cajón: si no se indica la caja, se usa la sesión abierta
+        # del usuario, para que el corte lo descuente (BE-100/FE-100, H-08). Sin caja, no se puede.
+        if session_id is None:
+            open_session = (
+                CashRegisterSession.query.filter_by(user_id=user_id, status="abierta")
+                .order_by(CashRegisterSession.opened_at.desc())
+                .first()
+            )
+            if open_session is not None:
+                session_id = open_session.id
+            elif refund_method == "efectivo":
+                raise ValueError(
+                    "Para reembolsar en efectivo necesitas una caja abierta. Abre tu caja o elige "
+                    "tarjeta o transferencia como método de reembolso."
+                )
+
+        if session_id is not None:
+            # Mismo orden de bloqueo que create_sale: sesión y luego venta. Una devolución que
+            # coincide con el cierre espera y ve la caja cerrada (OPS-08)
+            session = (
+                db.session.query(CashRegisterSession)
+                .filter_by(id=session_id)
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
+            if not session or session.status != "abierta":
+                raise ValueError("La sesión de caja no está abierta")
+
+            if session.user_id != user_id:
+                user = db.session.get(User, user_id) if user_id else None
+                has_supervise = (
+                    user is not None
+                    and (user.role_name == "admin" or "caja:supervisar" in user.permissions)
+                )
+                if not has_supervise:
+                    raise PermissionError(
+                        "No tienes permiso para realizar devoluciones en la sesión de caja de otro usuario"
+                    )
+
+        sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
         if not sale:
-            raise ValueError("Venta no encontrada")
+            raise SaleNotFoundError()
         if sale.status == "cancelada":
             raise ValueError("No se puede devolver una venta cancelada")
+
+        if not items:
+            raise ValueError("Debe incluir al menos un artículo para la devolución")
 
         # Build a map of already-returned quantities per sale_item
         already_returned: dict[int, Decimal] = {}
@@ -202,9 +504,41 @@ class SaleService:
                     already_returned.get(ri.sale_item_id, Decimal("0")) + ri.quantity
                 )
 
+        # Agrupar las cantidades por sale_item_id para evitar sobre-devolución por duplicados (H-06)
+        grouped_quantities: dict[int, Decimal] = {}
+        for item_data in items:
+            si_id = item_data.get("sale_item_id")
+            if not si_id:
+                raise ValueError("sale_item_id es requerido")
+            qty = Decimal(str(item_data.get("quantity", 0)))
+            if qty <= Decimal("0"):
+                raise ValueError("La cantidad a devolver debe ser mayor a 0")
+            grouped_quantities[si_id] = grouped_quantities.get(si_id, Decimal("0")) + qty
+
+        # Validar disponibilidad para cada item agrupado antes de aplicar cambios
+        for si_id, total_qty in grouped_quantities.items():
+            sale_item = db.session.get(SaleItem, si_id)
+            if not sale_item or sale_item.sale_id != sale_id:
+                raise ValueError(f"Item {si_id} no pertenece a esta venta")
+            # No se devuelve media pieza ni más de 3 decimales (RF-02, RF-03)
+            unit = sale_item.product.unit if sale_item.product else None
+            validate_quantity(total_qty, unit, sale_item.product_name)
+
+            prev_returned = already_returned.get(sale_item.id, Decimal("0"))
+            available = sale_item.quantity - prev_returned
+
+            if total_qty > available:
+                raise ValueError(
+                    f"Cantidad a devolver ({total_qty}) excede lo disponible ({available}) "
+                    f"para {sale_item.product_name}"
+                )
+
         sale_return = SaleReturn(
             sale_id=sale_id,
             user_id=user_id,
+            session_id=session_id,
+            refund_method=refund_method,
+            restocked=bool(restock),
             reason=reason,
             refund_total=Decimal("0"),
         )
@@ -213,25 +547,20 @@ class SaleService:
 
         refund_total = Decimal("0")
 
-        for item_data in items:
-            sale_item = db.session.get(SaleItem, item_data["sale_item_id"])
-            if not sale_item or sale_item.sale_id != sale_id:
-                raise ValueError(f"Item {item_data['sale_item_id']} no pertenece a esta venta")
-
-            qty = Decimal(str(item_data["quantity"]))
-            prev_returned = already_returned.get(sale_item.id, Decimal("0"))
-            available = sale_item.quantity - prev_returned
-
-            if qty > available:
-                raise ValueError(
-                    f"Cantidad a devolver ({qty}) excede lo disponible ({available}) "
-                    f"para {sale_item.product_name}"
-                )
-
-            # Calculate proportional refund
-            price_per_unit = sale_item.subtotal / sale_item.quantity
-            tax_per_unit = price_per_unit * sale_item.tax_rate / Decimal("100")
-            line_refund = ((price_per_unit + tax_per_unit) * qty).quantize(Decimal("0.01"))
+        # Bloqueo del stock en orden de producto antes de reingresar (OPS-09)
+        if restock:
+            InventoryService.lock_stock(
+                item.product_id for item in sale.items if item.id in grouped_quantities
+            )
+        for si_id, qty in grouped_quantities.items():
+            sale_item = db.session.get(SaleItem, si_id)
+            # Reembolso ACUMULADO (RF-04): lo que corresponde a todo lo devuelto hasta ahora, menos lo que ya se
+            # reembolsó. Redondear cada devolución por separado sumaba de más (3 × 1.22 = 3.66 de una partida
+            # de 3.65); así, devolver la partida completa en cualquier número de partes da exactamente lo cobrado
+            prev_qty = already_returned.get(si_id, Decimal("0"))
+            line_refund = SaleService._refund_upto(sale_item, prev_qty + qty) - SaleService._refund_upto(
+                sale_item, prev_qty
+            )
 
             return_item = SaleReturnItem(
                 sale_return_id=sale_return.id,
@@ -242,27 +571,25 @@ class SaleService:
             )
             db.session.add(return_item)
 
-            # Return inventory
-            InventoryService.move_stock(
-                product_id=sale_item.product_id,
-                quantity=qty,
-                movement_type="entrada",
-                reference_type="devolucion",
-                reference_id=sale_return.id,
-                user_id=user_id,
-            )
+            # Return inventory (solo si el artículo vuelve a estar disponible para vender)
+            if restock:
+                InventoryService.move_stock(
+                    product_id=sale_item.product_id,
+                    quantity=qty,
+                    movement_type="entrada",
+                    reference_type="devolucion",
+                    reference_id=sale_return.id,
+                    user_id=user_id,
+                )
 
             refund_total += line_refund
 
         sale_return.refund_total = refund_total
 
         # Determine if the return is partial or total
-        total_returned: dict[int, Decimal] = {}
-        for si_id, prev_qty in already_returned.items():
-            total_returned[si_id] = prev_qty
-        for item_data in items:
-            si_id = item_data["sale_item_id"]
-            total_returned[si_id] = total_returned.get(si_id, Decimal("0")) + Decimal(str(item_data["quantity"]))
+        total_returned: dict[int, Decimal] = dict(already_returned)
+        for si_id, qty in grouped_quantities.items():
+            total_returned[si_id] = total_returned.get(si_id, Decimal("0")) + qty
 
         all_returned = all(
             total_returned.get(si.id, Decimal("0")) >= si.quantity
@@ -271,8 +598,35 @@ class SaleService:
 
         sale.status = "devolucion_total" if all_returned else "devolucion_parcial"
 
+        from app.services.audit_service import log_action
+        log_action(
+            action="return",
+            entity_type="sale",
+            entity_id=sale.id,
+            details={
+                "folio": sale.folio,
+                "refund_total": str(refund_total),
+                "refund_method": refund_method,
+                "restock": bool(restock),
+                "session_id": session_id,
+                "reason": reason,
+            },
+            user_id=user_id,
+        )
+
         db.session.commit()
         return sale_return
+
+    @staticmethod
+    def _refund_upto(sale_item: SaleItem, qty: Decimal) -> Decimal:
+        """Parte del importe cobrado de la partida que corresponde a `qty` unidades devueltas en total."""
+        line_tax = (sale_item.subtotal * sale_item.tax_rate / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_EVEN
+        )
+        line_total = sale_item.subtotal + line_tax
+        if qty >= sale_item.quantity:
+            return line_total
+        return (line_total * qty / sale_item.quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     @staticmethod
     def get_sale(sale_id: int) -> Sale | None:
@@ -286,8 +640,7 @@ class SaleService:
         Format: V-YYYYMMDD-NNNN (e.g., V-20260606-0042)
         Thread-safe via database sequence.
         """
-        now = datetime.now(timezone.utc)
-        date_str = now.strftime("%Y%m%d")
+        date_str = local_today().strftime("%Y%m%d")
         result = db.session.execute(text("SELECT nextval('sale_folio_seq')"))
         seq = result.scalar()
         return f"V-{date_str}-{seq:04d}"

@@ -1,6 +1,15 @@
-"""Marshmallow schemas for sale and cash register endpoints."""
+from datetime import datetime, timezone
+from decimal import Decimal
+
 from marshmallow import EXCLUDE, Schema, fields, validate
 
+from app.extensions import db
+from app.utils.quantities import max_qty_decimals
+
+# Topes de las columnas: Numeric(12, 2) para dinero y Numeric(12, 3) para cantidades. Un valor mayor
+# desbordaba en la base y respondía 500 (RF-12)
+MAX_MONEY = Decimal("9999999999.99")
+MAX_QTY = Decimal("999999999.999")
 
 # --- Cash Register ---
 
@@ -11,7 +20,7 @@ class CashRegisterSessionOpenSchema(Schema):
 
     cash_register_id = fields.Int(required=True, validate=validate.Range(min=1))
     opening_amount = fields.Decimal(
-        as_string=True, required=True, places=2, validate=validate.Range(min=0)
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, max=MAX_MONEY)
     )
 
 
@@ -20,7 +29,7 @@ class CashRegisterSessionCloseSchema(Schema):
         unknown = EXCLUDE
 
     closing_amount = fields.Decimal(
-        as_string=True, required=True, places=2, validate=validate.Range(min=0)
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, max=MAX_MONEY)
     )
     close_notes = fields.Str(load_default=None, allow_none=True)
 
@@ -55,9 +64,13 @@ class SaleItemInputSchema(Schema):
         unknown = EXCLUDE
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
-    unit_price = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0))
-    tax_rate = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0))
+    quantity = fields.Decimal(
+        as_string=True,
+        required=True,
+        validate=[validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals],
+    )
+    unit_price = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
+    tax_rate = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
     discount_percent = fields.Decimal(
         as_string=True, load_default="0", places=2, validate=validate.Range(min=0, max=100)
     )
@@ -68,9 +81,13 @@ class PaymentInputSchema(Schema):
         unknown = EXCLUDE
 
     method = fields.Str(required=True, validate=validate.OneOf(["efectivo", "tarjeta", "transferencia"]))
-    amount = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0, min_inclusive=False))
-    reference = fields.Str(load_default=None, allow_none=True)
-    change_amount = fields.Decimal(as_string=True, load_default="0", places=2, validate=validate.Range(min=0))
+    amount = fields.Decimal(
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, min_inclusive=False, max=MAX_MONEY)
+    )
+    reference = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=100))
+    change_amount = fields.Decimal(
+        as_string=True, load_default="0", places=2, validate=validate.Range(min=0, max=MAX_MONEY)
+    )
 
 
 class SaleCreateSchema(Schema):
@@ -78,6 +95,9 @@ class SaleCreateSchema(Schema):
         unknown = EXCLUDE
 
     session_id = fields.Int(required=True, validate=validate.Range(min=1))
+    client_uuid = fields.Str(required=False, load_default=None, allow_none=True, validate=validate.Length(max=36))
+    # La cola offline lo manda en False: una venta sincronizada después no debe abrir el cajón
+    open_drawer = fields.Bool(load_default=True)
     items = fields.List(fields.Nested(SaleItemInputSchema), required=True, validate=validate.Length(min=1))
     payments = fields.List(fields.Nested(PaymentInputSchema), required=True, validate=validate.Length(min=1))
 
@@ -87,6 +107,36 @@ class SaleCancelSchema(Schema):
         unknown = EXCLUDE
 
     reason = fields.Str(required=True, validate=validate.Length(min=1))
+
+
+class SaleQuoteSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    items = fields.List(fields.Nested(SaleItemInputSchema), required=True, validate=validate.Length(min=1))
+    session_id = fields.Int(required=False, load_default=None, allow_none=True)
+
+
+class SaleQuoteLineSchema(Schema):
+    product_id = fields.Int()
+    product_name = fields.Str()
+    product_sku = fields.Str()
+    quantity = fields.Decimal(as_string=True, places=3)
+    unit_price = fields.Decimal(as_string=True, places=2)
+    discount_percent = fields.Decimal(as_string=True, places=2)
+    discount_amount = fields.Decimal(as_string=True, places=2)
+    tax_rate = fields.Decimal(as_string=True, places=2)
+    tax_amount = fields.Decimal(as_string=True, places=2)
+    subtotal = fields.Decimal(as_string=True, places=2)
+    total = fields.Decimal(as_string=True, places=2)
+
+
+class SaleQuoteResponseSchema(Schema):
+    lines = fields.List(fields.Nested(SaleQuoteLineSchema))
+    subtotal = fields.Decimal(as_string=True, places=2)
+    discount_total = fields.Decimal(as_string=True, places=2)
+    tax_total = fields.Decimal(as_string=True, places=2)
+    total = fields.Decimal(as_string=True, places=2)
 
 
 # --- Output schemas ---
@@ -104,6 +154,27 @@ class SaleItemSchema(Schema):
     tax_rate = fields.Decimal(as_string=True, places=2, dump_only=True)
     subtotal = fields.Decimal(as_string=True, places=2, dump_only=True)
     cost_at_sale = fields.Decimal(as_string=True, places=2, dump_only=True)
+    allows_fractions = fields.Method("get_allows_fractions")
+    returned_quantity = fields.Method("get_returned_quantity")
+    available_quantity = fields.Method("get_available_quantity")
+
+    def get_allows_fractions(self, obj):
+        return bool(obj.product and obj.product.unit and obj.product.unit.allows_fractions)
+
+    def get_returned_quantity(self, obj):
+        from app.models.sale import SaleReturnItem
+        qty = db.session.query(db.func.coalesce(db.func.sum(SaleReturnItem.quantity), Decimal("0"))).filter(
+            SaleReturnItem.sale_item_id == obj.id
+        ).scalar()
+        return str(qty)
+
+    def get_available_quantity(self, obj):
+        from app.models.sale import SaleReturnItem
+        returned = db.session.query(db.func.coalesce(db.func.sum(SaleReturnItem.quantity), Decimal("0"))).filter(
+            SaleReturnItem.sale_item_id == obj.id
+        ).scalar()
+        avail = max(Decimal("0"), obj.quantity - returned)
+        return str(avail)
 
 
 class PaymentSchema(Schema):
@@ -117,6 +188,7 @@ class PaymentSchema(Schema):
 class SaleSchema(Schema):
     id = fields.Int(dump_only=True)
     folio = fields.Str(dump_only=True)
+    client_uuid = fields.Str(dump_only=True, allow_none=True)
     session_id = fields.Int(dump_only=True)
     user_id = fields.Int(dump_only=True)
     username = fields.Method("get_username")
@@ -139,7 +211,11 @@ class SaleReturnItemInputSchema(Schema):
         unknown = EXCLUDE
 
     sale_item_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
+    quantity = fields.Decimal(
+        as_string=True,
+        required=True,
+        validate=[validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals],
+    )
 
 
 class SaleReturnCreateSchema(Schema):
@@ -147,6 +223,13 @@ class SaleReturnCreateSchema(Schema):
         unknown = EXCLUDE
 
     reason = fields.Str(required=True, validate=validate.Length(min=1))
+    session_id = fields.Int(allow_none=True)
+    refund_method = fields.Str(
+        load_default="efectivo",
+        validate=validate.OneOf(["efectivo", "tarjeta", "transferencia"]),
+    )
+    # False = producto dañado: no se reingresa stock (el reembolso no cambia)
+    restock = fields.Boolean(load_default=True)
     items = fields.List(
         fields.Nested(SaleReturnItemInputSchema), required=True, validate=validate.Length(min=1)
     )
@@ -162,7 +245,11 @@ class SaleReturnItemSchema(Schema):
 
 class SaleReturnSchema(Schema):
     id = fields.Int(dump_only=True)
+    folio = fields.Method("get_folio")
     sale_id = fields.Int(dump_only=True)
+    session_id = fields.Int(dump_only=True, allow_none=True)
+    refund_method = fields.Str(dump_only=True)
+    restocked = fields.Bool(dump_only=True)
     status = fields.Method("get_sale_status")
     reason = fields.Str(dump_only=True)
     refund_total = fields.Decimal(as_string=True, places=2, dump_only=True)
@@ -172,15 +259,32 @@ class SaleReturnSchema(Schema):
     def get_sale_status(self, obj):
         return obj.sale.status if obj.sale else None
 
+    def get_folio(self, obj):
+        """Folio del comprobante: D-AAAAMMDD-NNNN (fecha local de la devolución, consecutivo = id)."""
+        from app.utils.timeutil import to_local
+
+        created = obj.created_at or datetime.now(timezone.utc)
+        return f"D-{to_local(created):%Y%m%d}-{obj.id:04d}"
+
 
 class SaleListSchema(Schema):
     """Lighter schema for sale listings (no items/payments)."""
     id = fields.Int(dump_only=True)
     folio = fields.Str(dump_only=True)
+    client_uuid = fields.Str(dump_only=True, allow_none=True)
     total = fields.Decimal(as_string=True, places=2, dump_only=True)
     status = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     username = fields.Method("get_username")
+    user_id = fields.Int(dump_only=True)
+    items_count = fields.Method("get_items_count")
+    payment_methods = fields.Method("get_payment_methods")
 
     def get_username(self, obj):
         return obj.user.username if obj.user else None
+
+    def get_items_count(self, obj):
+        return str(sum((i.quantity for i in obj.items), Decimal("0")))
+
+    def get_payment_methods(self, obj):
+        return sorted({p.method for p in obj.payments})

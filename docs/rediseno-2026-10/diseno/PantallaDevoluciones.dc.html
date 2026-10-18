@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:22px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div>
+    <h1 style="margin:0; font-size:38px; line-height:1">Devoluciones</h1>
+    <p style="margin:6px 0 0; color:var(--ink-2)">Busca la venta, elige qué regresa el cliente y registra el reembolso.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider)">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="3">
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-left:{{ st.sep }}; background:{{ st.bg }}">
+        <span style="width:28px; height:28px; display:grid; place-items:center; border:1px solid {{ st.ring }}; background:{{ st.dotBg }}; color:{{ st.dotFg }}; font-family:var(--font-heading); font-weight:600; font-size:15px">{{ st.n }}</span>
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:17px; color:{{ st.fg }}">{{ st.label }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isStep1 }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; flex-direction:column; gap:20px; max-width:980px">
+      <form onSubmit="{{ search }}" style="display:flex; gap:10px">
+        <label class="blueprint" style="flex:1; display:flex; align-items:center; gap:12px; height:56px; padding:0 14px; background:var(--color-surface); border-color:var(--color-accent)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <span style="display:inline-flex; color:var(--color-accent)"><lucide-icon name="scan-barcode" size="22"></lucide-icon></span>
+          <input value="{{ folio }}" onChange="{{ setFolio }}" placeholder="V-20261011-0001 · escanea el código del ticket" style="flex:1; border:0; outline:none; background:transparent; color:var(--color-text); font:inherit; font-size:19px; font-variant-numeric:tabular-nums">
+        </label>
+        <button type="submit" class="btn btn-primary" style="height:56px; padding:0 22px; font-size:17px">Buscar venta</button>
+      </form>
+      <sc-if value="{{ notFound }}"><div style="color:var(--bad); font-size:14px">No encontramos una venta con ese folio en los últimos 30 días.</div></sc-if>
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)"><h2 style="margin:0; font-size:20px">Ventas recientes</h2></header>
+        <div style="padding:2px 8px 8px">
+          <table class="table">
+            <thead><tr><th>Folio</th><th>Fecha</th><th>Cajero</th><th style="text-align:right">Total</th><th></th></tr></thead>
+            <tbody>
+              <sc-for list="{{ recent }}" as="r" hint-placeholder-count="5">
+                <tr>
+                  <td style="font-weight:500; color:var(--acc-text); font-variant-numeric:tabular-nums">{{ r.folio }}</td>
+                  <td style="color:var(--ink-2)">{{ r.date }}</td><td>{{ r.cashier }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ r.total }}</td>
+                  <td style="text-align:right"><button class="btn btn-secondary" onClick="{{ r.pick }}" style="height:32px">Seleccionar</button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isStep2 }}">
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section class="blueprint">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="flex:1 1 560px; min-width:0; display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <div style="flex:1">
+            <h2 style="margin:0; font-size:22px; font-variant-numeric:tabular-nums">{{ sale.folio }}</h2>
+            <div style="font-size:13px; color:var(--ink-2)">{{ sale.date }} · {{ sale.cashier }} · Pagada en {{ sale.method }}</div>
+          </div>
+          <button class="btn btn-ghost" onClick="{{ back }}" style="font-size:14px">Cambiar venta</button>
+        </header>
+        <div style="display:flex; flex-direction:column">
+          <sc-for list="{{ lines }}" as="l" hint-placeholder-count="3">
+            <div style="display:grid; grid-template-columns:28px minmax(0,1fr) auto auto; gap:14px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--line-soft); background:{{ l.bg }}">
+              <button onClick="{{ l.toggle }}" title="Incluir en la devolución" style="width:22px; height:22px; display:grid; place-items:center; border:1px solid {{ l.boxBorder }}; background:{{ l.boxBg }}; color:var(--on-acc); cursor:pointer; padding:0"><sc-if value="{{ l.on }}"><lucide-icon name="check" size="14" stroke="2"></lucide-icon></sc-if></button>
+              <div style="min-width:0">
+                <div style="font-weight:500">{{ l.name }}</div>
+                <div style="font-size:13px; color:var(--ink-2); font-variant-numeric:tabular-nums">Vendidos {{ l.sold }} × {{ l.price }}</div>
+              </div>
+              <div style="display:flex; opacity:{{ l.opacity }}">
+                <button class="btn btn-secondary btn-icon" onClick="{{ l.dec }}" style="width:34px; height:34px"><lucide-icon name="minus" size="14"></lucide-icon></button>
+                <span style="width:48px; height:34px; display:grid; place-items:center; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); font-variant-numeric:tabular-nums; font-weight:500">{{ l.qty }}</span>
+                <button class="btn btn-secondary btn-icon" onClick="{{ l.inc }}" style="width:34px; height:34px"><lucide-icon name="plus" size="14"></lucide-icon></button>
+              </div>
+              <span style="min-width:90px; text-align:right; font-variant-numeric:tabular-nums; font-weight:500; color:{{ l.subColor }}">{{ l.sub }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column; gap:14px; padding:16px 18px 18px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <h2 style="margin:0; font-size:21px">Reembolso</h2>
+        <div class="field"><label>Motivo</label>
+          <textarea class="input" value="{{ reason }}" onChange="{{ setReason }}" placeholder="Producto defectuoso, error en cantidad..." style="min-height:72px"></textarea>
+        </div>
+        <div class="field"><label>Regresar dinero en</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--color-divider)">
+            <sc-for list="{{ refundOpts }}" as="o" hint-placeholder-count="2">
+              <button onClick="{{ o.pick }}" style="height:38px; border:0; border-left:{{ o.sep }}; background:{{ o.bg }}; color:{{ o.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ o.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer"><input type="checkbox" checked="{{ restock }}" onChange="{{ toggleRestock }}" style="accent-color:var(--color-accent); width:16px; height:16px">Regresar artículos al inventario</label>
+        <div style="display:flex; flex-direction:column; gap:4px; padding-top:12px; border-top:1px solid var(--color-divider)">
+          <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>{{ countLabel }}</span><span style="font-variant-numeric:tabular-nums">{{ refundSub }}</span></div>
+          <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>IVA</span><span style="font-variant-numeric:tabular-nums">{{ refundTax }}</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-family:var(--font-heading); font-weight:600; font-size:17px">A devolver</span><span style="font-family:var(--font-heading); font-weight:600; font-size:34px; font-variant-numeric:tabular-nums">{{ refundTotal }}</span></div>
+        </div>
+        <button class="btn btn-primary blueprint" onClick="{{ confirm }}" disabled="{{ cannotConfirm }}" style="height:48px; font-size:17px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Registrar devolución
+        </button>
+        <sc-if value="{{ needReason }}"><div style="font-size:13px; color:var(--ink-2)">Selecciona al menos un artículo y escribe el motivo.</div></sc-if>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isStep3 }}">
+    <section class="blueprint" style="max-width:620px; padding:28px; display:flex; flex-direction:column; gap:14px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:flex; align-items:center; gap:10px; color:var(--ok)"><lucide-icon name="circle-check" size="26"></lucide-icon><span style="font-family:var(--font-heading); font-weight:600; font-size:28px">Devolución registrada</span></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; border:1px solid var(--color-divider)">
+        <div style="padding:12px 14px"><div style="font-size:13px; color:var(--ink-2)">Folio</div><div style="font-weight:500">D-20261011-0012</div></div>
+        <div style="padding:12px 14px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Reembolso</div><div style="font-family:var(--font-heading); font-weight:600; font-size:22px; font-variant-numeric:tabular-nums">{{ refundTotal }}</div></div>
+        <div style="padding:12px 14px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Método</div><div style="font-weight:500">{{ refundMethod }}</div></div>
+      </div>
+      <p style="margin:0; color:var(--ink-2)">{{ restockNote }}</p>
+      <div style="display:flex; gap:8px">
+        <button class="btn btn-secondary" style="height:40px"><lucide-icon name="printer" size="15"></lucide-icon>Imprimir comprobante</button>
+        <button class="btn btn-primary" onClick="{{ restart }}" style="height:40px">Nueva devolución</button>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const SALES = {
+  "V-20261011-0045": { date: "Hoy 14:18", cashier: "Jorge Pérez", method: "Transferencia", items: [["Cable THW cal. 12", 50, 16.5], ["Foco LED 9 W luz blanca", 8, 39], ["Cinta de aislar negra 19 mm", 4, 18]] },
+  "V-20261011-0048": { date: "Hoy 14:52", cashier: "Jorge Pérez", method: "Efectivo", items: [["Cemento gris 50 kg", 1, 259], ["Brocha 3\" cerda natural", 1, 54], ["Cinta de aislar negra 19 mm", 1, 18]] },
+  "V-20261011-0047": { date: "Hoy 14:40", cashier: "Ana Ruiz", method: "Tarjeta", items: [["Pintura vinílica blanca 19 L", 1, 1649]] },
+  "V-20261010-0061": { date: "Ayer 18:22", cashier: "Ana Ruiz", method: "Efectivo", items: [["Llave perica 10\"", 1, 239], ["Martillo uña curva 16 oz", 1, 189]] },
+  "V-20261010-0057": { date: "Ayer 17:03", cashier: "Mario Torres", method: "Efectivo", items: [["Tubo PVC hidráulico ½\" × 6 m", 4, 92], ["Pegamento PVC 250 ml", 1, 79]] },
+};
+const total = (s) => s.items.reduce((a, [, q, p]) => a + q * p, 0) * 1.16;
+
+class Component extends DCLogic {
+  state = { step: 1, folio: "", notFound: false, sel: null, picks: {}, reason: "", refund: "Efectivo", restock: true };
+  open(folio) {
+    const s = SALES[folio];
+    if (!s) { this.setState({ notFound: true }); return; }
+    this.setState({ step: 2, sel: folio, picks: { 1: 2 }, reason: "Foco no enciende", notFound: false });
+  }
+  renderVals() {
+    const s = this.state;
+    const sale = s.sel ? SALES[s.sel] : null;
+    const lines = sale ? sale.items.map(([name, sold, price], i) => {
+      const q = s.picks[i] || 0, on = q > 0;
+      const set = (n) => this.setState((st) => ({ picks: { ...st.picks, [i]: Math.max(0, Math.min(sold, n)) } }));
+      return { name, sold, price: mx(price), qty: q, on, sub: on ? mx(q * price) : "—",
+        subColor: on ? "var(--color-text)" : "var(--ink-3)", bg: on ? "var(--acc-tint)" : "transparent", opacity: on ? 1 : 0.55,
+        boxBorder: on ? "var(--color-accent)" : "var(--color-divider)", boxBg: on ? "var(--color-accent)" : "transparent",
+        toggle: () => set(on ? 0 : sold), inc: () => set(q + 1), dec: () => set(q - 1) };
+    }) : [];
+    const sub = sale ? sale.items.reduce((a, [, , p], i) => a + (s.picks[i] || 0) * p, 0) : 0;
+    const count = Object.values(s.picks).reduce((a, b) => a + b, 0);
+    const ok = count > 0 && s.reason.trim();
+    const steps = ["Buscar venta", "Seleccionar artículos", "Confirmación"].map((label, i) => {
+      const n = i + 1, cur = s.step === n, done = s.step > n;
+      return { n: done ? "✓" : n, label, sep: i ? "1px solid var(--color-divider)" : "0", bg: cur ? "var(--acc-tint)" : "transparent",
+        ring: cur || done ? "var(--color-accent)" : "var(--color-divider)", dotBg: done ? "var(--color-accent)" : "transparent",
+        dotFg: done ? "var(--on-acc)" : cur ? "var(--acc-text)" : "var(--ink-2)", fg: cur || done ? "var(--color-text)" : "var(--ink-2)" };
+    });
+    return {
+      steps, isStep1: s.step === 1, isStep2: s.step === 2, isStep3: s.step === 3,
+      folio: s.folio, setFolio: (e) => this.setState({ folio: e.target.value, notFound: false }),
+      search: (e) => { e.preventDefault(); this.open(s.folio.trim().toUpperCase()); }, notFound: s.notFound,
+      recent: Object.entries(SALES).map(([folio, x]) => ({ folio, date: x.date, cashier: x.cashier, total: mx(total(x)), pick: () => this.open(folio) })),
+      sale: sale ? { folio: s.sel, ...sale } : {}, back: () => this.setState({ step: 1 }),
+      lines, reason: s.reason, setReason: (e) => this.setState({ reason: e.target.value }),
+      refundOpts: ["Efectivo", "Método original"].map((l, i) => ({ label: l, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ refund: l }), bg: s.refund === l ? "var(--color-accent)" : "transparent", fg: s.refund === l ? "var(--on-acc)" : "var(--color-text)" })),
+      restock: s.restock, toggleRestock: () => this.setState({ restock: !s.restock }),
+      countLabel: `${count} ${count === 1 ? "artículo" : "artículos"}`,
+      refundSub: mx(sub), refundTax: mx(sub * 0.16), refundTotal: mx(sub * 1.16),
+      refundMethod: s.refund === "Efectivo" ? "Efectivo" : sale?.method,
+      restockNote: s.restock ? "Los artículos regresaron al inventario y el movimiento quedó en el historial del producto." : "Los artículos no se regresaron al inventario (merma).",
+      cannotConfirm: !ok, needReason: !ok,
+      confirm: () => ok && this.setState({ step: 3 }),
+      restart: () => this.setState({ step: 1, folio: "", sel: null, picks: {}, reason: "" }),
+    };
+  }
+}
+</script>
+</body>
+</html>

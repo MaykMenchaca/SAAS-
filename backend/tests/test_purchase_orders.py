@@ -416,7 +416,7 @@ class TestReceiveOrder:
         )
 
         product = db.session.get(Product, p1.id)
-        assert product.avg_cost == Decimal("81.67")
+        assert product.avg_cost == Decimal("81.6667")  # 4 decimales desde la fase 4.6 (H-31)
 
     def test_cannot_exceed_ordered_quantity(self, client, admin_token, sent_order):
         """Should fail if received_quantity exceeds remaining."""
@@ -473,3 +473,20 @@ class TestReceiveOrder:
             },
         )
         assert resp.status_code == 403
+
+
+def test_listar_ordenes_por_varios_estados(client, admin_token, db, seed_admin, seed_supplier, seed_products_for_po):
+    """La campana cuenta las órdenes pendientes: borrador, enviada o parcial (Subfase 5.4, H-44)."""
+    from app.models.purchase import PurchaseOrder
+
+    for i, status in enumerate(["borrador", "enviada", "parcial", "recibida", "cancelada"]):
+        db.session.add(PurchaseOrder(folio=f"OC-T-{i}", supplier_id=seed_supplier.id, status=status, user_id=seed_admin.id))
+    db.session.commit()
+
+    response = client.get(
+        "/api/purchases/orders",
+        query_string={"status": "borrador,enviada,parcial"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    assert sorted(o["status"] for o in response.get_json()["items"]) == ["borrador", "enviada", "parcial"]

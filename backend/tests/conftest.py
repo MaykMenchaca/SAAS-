@@ -20,9 +20,11 @@ PERMISSION_CODES = {
     "ventas:crear": "Crear ventas",
     "ventas:ver": "Ver ventas",
     "ventas:cancelar": "Cancelar ventas",
+    "ventas:descuento": "Aplicar descuentos mayores al tope permitido",
     "caja:abrir": "Abrir sesion de caja",
     "caja:cerrar": "Cerrar sesion de caja",
     "caja:ver": "Ver sesiones de caja",
+    "caja:supervisar": "Supervisar, vender y cerrar cajas de otros usuarios",
     "compras:ver": "Ver proveedores y ordenes de compra",
     "compras:crear": "Crear ordenes de compra",
     "compras:editar": "Editar proveedores y ordenes",
@@ -35,12 +37,13 @@ PERMISSION_CODES = {
 def flask_app():
     application = create_app(TestConfig)
     with application.app_context():
+        # pg_trgm antes de create_all: el modelo declara el índice GIN trigram (6.5); en una BD
+        # nueva (CI) el operador gin_trgm_ops aún no existiría
+        _db.session.execute(_db.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        _db.session.commit()
         _db.drop_all()
         _db.create_all()
-        # Create sequences and extensions not managed by SQLAlchemy's create_all
-        _db.session.execute(
-            _db.text("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-        )
+        # Create sequences not managed by SQLAlchemy's create_all
         _db.session.execute(
             _db.text("CREATE SEQUENCE IF NOT EXISTS sale_folio_seq START 1")
         )
@@ -73,14 +76,41 @@ def db_session(flask_app):
             _db.session.commit()
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    from app.services.rate_limiter import login_limiter
+    login_limiter.reset()
+    yield
+    login_limiter.reset()
+
+
 @pytest.fixture
 def app(flask_app):
     return flask_app
 
 
+from flask.testing import FlaskClient
+
+
 @pytest.fixture
 def client(flask_app):
-    return flask_app.test_client()
+    class IsolatedClient(FlaskClient):
+        def open(self, *args, **kwargs):
+            # Limpiar y aislar sesión entre requests de test (H-34)
+            _db.session.commit()
+            _db.session.remove()
+            try:
+                return super().open(*args, **kwargs)
+            finally:
+                _db.session.remove()
+
+    orig_client_class = flask_app.test_client_class
+    flask_app.test_client_class = IsolatedClient
+    client_instance = flask_app.test_client()
+    try:
+        yield client_instance
+    finally:
+        flask_app.test_client_class = orig_client_class
 
 
 @pytest.fixture
@@ -96,7 +126,7 @@ def seed_permissions(db):
         permission = Permission(code=code, module=module, description=description)
         db.session.add(permission)
         permissions[code] = permission
-    db.session.flush()
+    db.session.commit()
     return permissions
 
 
@@ -107,12 +137,16 @@ def seed_roles(db, seed_permissions):
     cajero_role = Role(name="cajero", description="Cajero")
     admin_role.permissions.extend(seed_permissions.values())
     gerente_role.permissions.append(seed_permissions["usuarios:ver"])
+    gerente_role.permissions.append(seed_permissions["ventas:descuento"])
+    gerente_role.permissions.append(seed_permissions["caja:supervisar"])
+    gerente_role.permissions.append(seed_permissions["caja:cerrar"])
+    gerente_role.permissions.append(seed_permissions["ventas:crear"])
     # Cajero gets POS-related permissions
     for code in ("ventas:crear", "ventas:ver", "caja:abrir", "caja:cerrar", "caja:ver",
                  "productos:ver", "inventario:ver"):
         cajero_role.permissions.append(seed_permissions[code])
     db.session.add_all([admin_role, gerente_role, cajero_role])
-    db.session.flush()
+    db.session.commit()
     return {"admin": admin_role, "gerente": gerente_role, "cajero": cajero_role}
 
 
@@ -126,7 +160,7 @@ def seed_admin(db, seed_roles):
     )
     user.set_password("admin123")
     db.session.add(user)
-    db.session.flush()
+    db.session.commit()
     return user
 
 
@@ -140,7 +174,7 @@ def seed_cajero(db, seed_roles):
     )
     user.set_password("cajero123")
     db.session.add(user)
-    db.session.flush()
+    db.session.commit()
     return user
 
 
@@ -176,7 +210,7 @@ def seed_cash_register(db):
     from app.models.sale import CashRegister
     register = CashRegister(name="Caja 1")
     db.session.add(register)
-    db.session.flush()
+    db.session.commit()
     return register
 
 
@@ -191,7 +225,7 @@ def seed_open_session(db, seed_admin, seed_cash_register):
         status="abierta",
     )
     db.session.add(session)
-    db.session.flush()
+    db.session.commit()
     return session
 
 
@@ -209,7 +243,7 @@ def seed_product_for_sale(db):
         sku="POS-001",
         name="Martillo",
         unit_id=unit.id,
-        sale_price=Decimal("149.90"),
+        sale_price=Decimal("100.00"),
         avg_cost=Decimal("60.00"),
         tax_rate=Decimal("16.00"),
     )
@@ -218,5 +252,5 @@ def seed_product_for_sale(db):
 
     stock = Stock(product_id=product.id, quantity=Decimal("100.000"))
     db.session.add(stock)
-    db.session.flush()
+    db.session.commit()
     return product

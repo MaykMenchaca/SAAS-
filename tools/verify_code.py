@@ -28,7 +28,8 @@ def run_command(cmd, cwd, env=None):
 def main():
     print_header("POS Retail VRNTAS - Agente de Verificación de Código")
     
-    script_root = os.path.dirname(os.path.abspath(__file__))
+    # Raíz del proyecto: el padre de tools/ (6.3)
+    script_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     backend_dir = os.path.join(script_root, "backend")
     frontend_dir = os.path.join(script_root, "frontend")
     

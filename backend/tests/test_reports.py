@@ -221,3 +221,65 @@ def test_gross_margin_report(
     item = data["items"][0]
     assert item["gross_margin"] == "80.00"
     assert item["margin_percent"] == "40.00"
+
+
+def test_reportes_con_devolucion_restan_reembolso(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    """Dashboard, ventas y márgenes reflejan ventas con devoluciones y restan reembolsos."""
+    # Venta de 2 unidades ($100 c/u, IVA 16% = $232.00, costo 60 c/u = 120.00)
+    create_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": [{"product_id": seed_product_for_sale.id, "quantity": 2}],
+            "payments": [{"method": "efectivo", "amount": "232.00"}],
+        },
+    )
+    assert create_resp.status_code == 201
+    sale_id = create_resp.get_json()["id"]
+    item_id = create_resp.get_json()["items"][0]["id"]
+
+    # Devolución de 1 unidad ($116.00 reembolso total, subtotal $100, costo $60)
+    ret_resp = client.post(
+        f"/api/sales/{sale_id}/return",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "reason": "Defecto",
+            "items": [{"sale_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert ret_resp.status_code == 200
+
+    # 1. Dashboard: ingreso neto hoy = 116.00 (232 - 116)
+    dash_resp = client.get(
+        "/api/reports/dashboard",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert dash_resp.status_code == 200
+    dash_data = dash_resp.get_json()
+    assert dash_data["revenue_today"] == "116.00"
+    top_p = dash_data["top_products"][0]
+    assert top_p["quantity"] == "1.000"
+    assert top_p["revenue"] == "100.00"
+
+    # 2. Reporte de ventas: ingreso neto = 116.00
+    sales_rep = client.get(
+        "/api/reports/sales",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert sales_rep.status_code == 200
+    assert sales_rep.get_json()["total_revenue"] == "116.00"
+
+    # 3. Margen bruto: ingreso 100, costo 60, margen 40
+    margin_rep = client.get(
+        "/api/reports/gross-margin",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert margin_rep.status_code == 200
+    m_data = margin_rep.get_json()
+    assert m_data["summary"]["total_revenue"] == "100.00"
+    assert m_data["summary"]["total_cost"] == "60.00"
+    assert m_data["summary"]["gross_margin"] == "40.00"
+

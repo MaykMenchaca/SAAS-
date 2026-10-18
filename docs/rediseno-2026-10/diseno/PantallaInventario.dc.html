@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Inventario</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">Existencias, ajustes y conteos físicos</p>
+    </div>
+    <sc-if value="{{ canAdjust }}" hint-placeholder-val="{{ true }}">
+    <button class="btn btn-primary blueprint" onClick="{{ goCount }}" style="height:40px; padding:0 16px; font-size:16px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <lucide-icon name="clipboard-list" size="16"></lucide-icon>Conteo físico
+    </button>
+    </sc-if>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+      <button onClick="{{ t.pick }}" style="height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isStock }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:1px; background:var(--color-divider); border:1px solid var(--color-divider)">
+      <div style="background:var(--color-bg); padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Productos</div><div style="font-family:var(--font-heading); font-weight:600; font-size:30px; line-height:1.1">12</div></div>
+      <div style="background:var(--color-bg); padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Bajo mínimo</div><div style="font-family:var(--font-heading); font-weight:600; font-size:30px; line-height:1.1; color:var(--warn)">4</div></div>
+      <div style="background:var(--color-bg); padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Agotados</div><div style="font-family:var(--font-heading); font-weight:600; font-size:30px; line-height:1.1; color:var(--bad)">1</div></div>
+      <div style="background:var(--color-bg); padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Valor a costo</div><div style="font-family:var(--font-heading); font-weight:600; font-size:30px; line-height:1.1; font-variant-numeric:tabular-nums">{{ stockValue }}</div></div>
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <div style="display:flex; border:1px solid var(--color-divider)">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+          <button onClick="{{ f.pick }}" style="height:36px; padding:0 14px; border:0; border-left:{{ f.sep }}; background:{{ f.bg }}; color:{{ f.fg }}; font:inherit; font-size:14px; cursor:pointer">{{ f.label }}</button>
+        </sc-for>
+      </div>
+      <div style="position:relative; width:320px; max-width:100%">
+        <span style="position:absolute; left:10px; top:10px; color:var(--ink-2); display:inline-flex"><lucide-icon name="search" size="16"></lucide-icon></span>
+        <input class="input" value="{{ q }}" onChange="{{ setQ }}" placeholder="Nombre, SKU o código" style="padding-left:34px; min-height:38px">
+      </div>
+    </div>
+
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section class="blueprint" style="flex:1 1 560px; min-width:0; min-width:0">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="overflow:auto; padding:2px 8px 8px">
+          <table class="table">
+            <thead><tr><th>Producto</th><th style="text-align:right">Stock</th><th style="width:180px">Nivel (mín / máx)</th><th>Estado</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+                <tr onClick="{{ r.select }}" style="cursor:pointer; background:{{ r.bg }}; box-shadow:{{ r.bar }}">
+                  <td><div style="font-weight:500">{{ r.name }}</div><div style="font-size:12px; color:var(--ink-2); letter-spacing:.04em">{{ r.sku }}</div></td>
+                  <td style="text-align:right; font-family:var(--font-heading); font-weight:600; font-size:18px; font-variant-numeric:tabular-nums; color:{{ r.color }}; white-space:nowrap">{{ r.stock }}</td>
+                  <td>
+                    <div style="position:relative; height:8px; background:var(--line-soft)">
+                      <div style="position:absolute; left:0; top:0; bottom:0; width:{{ r.w }}; background:{{ r.color }}"></div>
+                      <div style="position:absolute; top:-3px; bottom:-3px; left:{{ r.minPos }}; width:1px; background:var(--color-text)"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-2); margin-top:3px"><span>mín {{ r.min }}</span><span>máx {{ r.max }}</span></div>
+                  </td>
+                  <td><span class="tag" style="background:{{ r.tagBg }}; color:{{ r.tagFg }}">{{ r.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc-text)">{{ selSku }}</div>
+          <h2 style="margin:2px 0 0; font-size:22px; line-height:1.15">{{ selName }}</h2>
+        </header>
+        <sc-if value="{{ cannotAdjust }}"><div style="padding:14px 18px; border-bottom:1px solid var(--color-divider); font-size:13px; color:var(--ink-2); display:flex; gap:6px; align-items:center"><lucide-icon name="lock" size="14"></lucide-icon>Existencias: {{ selStock }}. Los ajustes los hace un gerente.</div></sc-if>
+        <sc-if value="{{ canAdjust }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:16px 18px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid var(--color-divider)">
+          <div style="font-family:var(--font-heading); font-weight:600; font-size:16px">Ajustar stock</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div class="field"><label>Actual</label><div class="input" style="display:flex; align-items:center; background:transparent; font-variant-numeric:tabular-nums">{{ selStock }}</div></div>
+            <div class="field"><label>Nueva cantidad</label><input class="input" value="{{ newQty }}" onChange="{{ setNewQty }}" type="number" style="font-variant-numeric:tabular-nums"></div>
+          </div>
+          <div class="field"><label>Motivo</label>
+            <select class="input" value="{{ reason }}" onChange="{{ setReason }}"><option>Merma o daño</option><option>Error de captura</option><option>Devolución a proveedor</option><option>Uso interno</option></select>
+          </div>
+          <button class="btn btn-primary" onClick="{{ applyAdj }}" style="height:38px; font-size:15px">Aplicar ajuste {{ adjDelta }}</button>
+          <sc-if value="{{ adjDone }}"><div style="font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Ajuste registrado en movimientos.</div></sc-if>
+        </div>
+        </sc-if>
+        <div style="padding:14px 18px 6px; font-family:var(--font-heading); font-weight:600; font-size:16px">Movimientos recientes</div>
+        <div style="display:flex; flex-direction:column; padding-bottom:8px">
+          <sc-for list="{{ moves }}" as="m" hint-placeholder-count="4">
+            <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; padding:8px 18px; border-top:1px solid var(--line-soft)">
+              <span style="font-weight:500">{{ m.type }}</span>
+              <span style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; color:{{ m.color }}">{{ m.qty }}</span>
+              <span style="font-size:12px; color:var(--ink-2)">{{ m.ref }} · {{ m.date }}</span>
+              <span style="text-align:right; font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums">{{ m.from }} → {{ m.to }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isCount }}">
+    <section class="blueprint" style="display:flex; flex-direction:column">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px 18px; border-bottom:1px solid var(--color-divider)">
+        <div style="flex:1; min-width:240px">
+          <div style="display:flex; align-items:center; gap:10px"><h2 style="margin:0; font-size:24px">Conteo mensual octubre 2026</h2><span class="tag tag-accent">En curso</span></div>
+          <div style="font-size:13px; color:var(--ink-2)">Iniciado por Laura Méndez · 10 oct 2026, 19:30</div>
+        </div>
+        <button class="btn btn-ghost" style="height:38px; color:var(--bad)">Cancelar conteo</button>
+        <button class="btn btn-primary" disabled="{{ cannotClose }}" style="height:38px; font-size:15px">Cerrar y aplicar diferencias</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,2fr); border-bottom:1px solid var(--color-divider)">
+        <div style="padding:14px 18px"><div style="font-size:13px; color:var(--ink-2)">Productos</div><div style="font-family:var(--font-heading); font-weight:600; font-size:28px; line-height:1.1">{{ cTotal }}</div></div>
+        <div style="padding:14px 18px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Contados</div><div style="font-family:var(--font-heading); font-weight:600; font-size:28px; line-height:1.1">{{ cDone }}</div></div>
+        <div style="padding:14px 18px; border-left:1px solid var(--color-divider)"><div style="font-size:13px; color:var(--ink-2)">Con diferencia</div><div style="font-family:var(--font-heading); font-weight:600; font-size:28px; line-height:1.1; color:var(--warn)">{{ cDiff }}</div></div>
+        <div style="padding:14px 18px; border-left:1px solid var(--color-divider); display:flex; flex-direction:column; justify-content:center; gap:8px">
+          <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--ink-2)"><span>Avance</span><span style="color:var(--color-text); font-weight:500">{{ cPct }}</span></div>
+          <div style="height:8px; background:var(--line-soft)"><div style="height:100%; width:{{ cPct }}; background:var(--color-accent)"></div></div>
+        </div>
+      </div>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Producto</th><th style="text-align:right">Esperado</th><th style="width:140px">Contado</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ countRows }}" as="r" hint-placeholder-count="8">
+              <tr>
+                <td><div style="font-weight:500">{{ r.name }}</div><div style="font-size:12px; color:var(--ink-2)">{{ r.sku }}</div></td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums">{{ r.expected }}</td>
+                <td><input class="input" value="{{ r.counted }}" onChange="{{ r.change }}" placeholder="—" type="number" style="min-height:34px; text-align:right; font-variant-numeric:tabular-nums"></td>
+                <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; color:{{ r.diffColor }}">{{ r.diff }}</td>
+                <td><span class="tag" style="background:{{ r.tagBg }}; color:{{ r.tagFg }}">{{ r.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="blueprint" style="max-width:900px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <header style="padding:14px 18px; border-bottom:1px solid var(--color-divider)"><h2 style="margin:0; font-size:20px">Conteos anteriores</h2></header>
+      <div style="padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>#</th><th>Nombre</th><th>Usuario</th><th>Estado</th><th style="text-align:right">Diferencias</th><th>Fecha</th></tr></thead>
+          <tbody>
+            <tr><td>CF-0008</td><td>Conteo mensual septiembre 2026</td><td>Laura Méndez</td><td><span class="tag" style="background:var(--ok-tint); color:var(--ok)">Cerrado</span></td><td style="text-align:right">6</td><td style="color:var(--ink-2)">30 sep 2026</td></tr>
+            <tr><td>CF-0007</td><td>Conteo pasillo eléctrico</td><td>Jorge Pérez</td><td><span class="tag" style="background:var(--ok-tint); color:var(--ok)">Cerrado</span></td><td style="text-align:right">2</td><td style="color:var(--ink-2)">14 sep 2026</td></tr>
+            <tr><td>CF-0006</td><td>Conteo mensual agosto 2026</td><td>Laura Méndez</td><td><span class="tag tag-neutral">Cancelado</span></td><td style="text-align:right">—</td><td style="color:var(--ink-2)">31 ago 2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const P = [
+  [1, "MAR-016", "Martillo uña curva 16 oz", "pz", 128, 24, 6, 40],
+  [2, "TOR-6X1", "Tornillo tablaroca 6×1\" (caja 100)", "cja", 42.5, 3, 10, 60],
+  [3, "CIN-AIS", "Cinta de aislar negra 19 mm", "pz", 9.8, 86, 20, 150],
+  [4, "PIN-V19", "Pintura vinílica blanca 19 L", "pz", 1180, 5, 4, 12],
+  [5, "PVC-12", "Tubo PVC hidráulico ½\" × 6 m", "pz", 58, 0, 8, 40],
+  [6, "CEM-50", "Cemento gris 50 kg", "pz", 205, 41, 15, 80],
+  [7, "LED-9W", "Foco LED 9 W luz blanca", "pz", 22, 7, 12, 60],
+  [8, "LLP-10", "Llave perica 10\"", "pz", 165, 11, 4, 20],
+  [9, "BRO-3", "Brocha 3\" cerda natural", "pz", 31, 18, 6, 30],
+  [10, "TAQ-14", "Taquete plástico ¼\" (bolsa 100)", "pz", 19, 52, 10, 80],
+  [11, "CAB-12", "Cable THW cal. 12", "m", 9.4, 312.5, 100, 600],
+  [12, "PEG-PVC", "Pegamento PVC 250 ml", "pz", 48, 9, 10, 40],
+].map(([id, sku, name, unit, cost, stock, min, max]) => ({ id, sku, name, unit, cost, stock, min, max }));
+const TONE = { bad: ["var(--bad-tint)", "var(--bad)"], warn: ["var(--warn-tint)", "var(--warn)"], ok: ["var(--ok-tint)", "var(--ok)"], neutral: ["var(--line-soft)", "var(--ink-2)"] };
+
+class Component extends DCLogic {
+  state = {
+    tab: "stock", filter: "all", q: "", sel: 2, newQty: "", reason: "Merma o daño", adjDone: false,
+    counts: { 1: "24", 2: "3", 3: "80", 4: "5", 6: "41", 7: "6", 8: "11", 11: "305.5" },
+  };
+  renderVals() {
+    const s = this.state;
+    const q = norm(s.q.trim());
+    const level = (p) => (p.stock <= 0 ? "bad" : p.stock < p.min ? "warn" : "ok");
+    const rows = P.filter((p) => (s.filter === "all" || (s.filter === "low" ? level(p) !== "ok" : level(p) === "ok")) && (!q || norm(p.name).includes(q) || norm(p.sku).includes(q))).map((p) => {
+      const lv = level(p), on = p.id === s.sel;
+      const color = lv === "bad" ? "var(--bad)" : lv === "warn" ? "var(--warn)" : "var(--color-accent)";
+      return {
+        name: p.name, sku: p.sku, stock: `${p.stock} ${p.unit}`, min: p.min, max: p.max, color,
+        w: Math.min(100, (p.stock / p.max) * 100) + "%", minPos: (p.min / p.max) * 100 + "%",
+        status: lv === "bad" ? "Agotado" : lv === "warn" ? "Stock bajo" : "Normal",
+        tagBg: TONE[lv][0], tagFg: lv === "ok" ? "var(--ok)" : TONE[lv][1],
+        bg: on ? "var(--acc-tint)" : "transparent", bar: on ? "inset 2px 0 0 var(--color-accent)" : "none",
+        select: () => this.setState({ sel: p.id, newQty: "", adjDone: false }),
+      };
+    });
+    const sel = P.find((p) => p.id === s.sel) || P[0];
+    const delta = s.newQty === "" ? null : Number(s.newQty) - sel.stock;
+    const countRows = P.map((p) => {
+      const c = s.counts[p.id];
+      const has = c !== undefined && c !== "";
+      const diff = has ? Math.round((Number(c) - p.stock) * 1000) / 1000 : null;
+      const st = !has ? "neutral" : diff === 0 ? "ok" : "warn";
+      return {
+        name: p.name, sku: p.sku, expected: `${p.stock} ${p.unit}`, counted: has ? c : "",
+        diff: has ? (diff > 0 ? "+" : "") + diff : "—",
+        diffColor: !has ? "var(--ink-3)" : diff === 0 ? "var(--ink-2)" : diff < 0 ? "var(--bad)" : "var(--warn)",
+        status: !has ? "Pendiente" : diff === 0 ? "Coincide" : "Diferencia", tagBg: TONE[st][0], tagFg: TONE[st][1],
+        change: (e) => { const v = e.target.value; this.setState((st2) => ({ counts: { ...st2.counts, [p.id]: v } })); },
+      };
+    });
+    const done = countRows.filter((r) => r.counted !== "").length;
+    const diffs = countRows.filter((r) => r.status === "Diferencia").length;
+    const canAdjust = this.props.role !== "cajero";
+    const tabs = [["stock", "Existencias"], ...(canAdjust ? [["count", "Conteo físico"]] : [])].map(([id, label]) => ({
+      label, pick: () => this.setState({ tab: id }), line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    return {
+      canAdjust, cannotAdjust: !canAdjust,
+      tabs, isStock: s.tab === "stock" || !canAdjust, isCount: s.tab === "count" && canAdjust, goCount: () => this.setState({ tab: "count" }),
+      stockValue: mx(P.reduce((a, p) => a + p.cost * p.stock, 0)),
+      filters: [["all", "Todo"], ["low", "Bajo mínimo"], ["normal", "Normal"]].map(([id, label], i) => ({
+        label, sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ filter: id }),
+        bg: s.filter === id ? "var(--color-accent)" : "transparent", fg: s.filter === id ? "var(--on-acc)" : "var(--color-text)",
+      })),
+      q: s.q, setQ: (e) => this.setState({ q: e.target.value }), rows,
+      selSku: sel.sku, selName: sel.name, selStock: `${sel.stock} ${sel.unit}`,
+      newQty: s.newQty, setNewQty: (e) => this.setState({ newQty: e.target.value, adjDone: false }),
+      reason: s.reason, setReason: (e) => this.setState({ reason: e.target.value }),
+      adjDelta: delta === null ? "" : `(${delta > 0 ? "+" : ""}${delta})`,
+      applyAdj: () => this.setState({ adjDone: s.newQty !== "" }), adjDone: s.adjDone,
+      moves: [
+        ["Venta", "−2", "V-20261011-0041", "11 oct, 12:14", sel.stock + 2, sel.stock, "var(--bad)"],
+        ["Entrada por compra", "+20", "OC-2026-0028", "08 oct, 10:02", sel.stock - 18, sel.stock + 2, "var(--ok)"],
+        ["Venta", "−5", "V-20261007-0033", "07 oct, 17:45", sel.stock + 3, sel.stock - 2 + 0, "var(--bad)"],
+        ["Ajuste: merma", "−1", "Laura Méndez", "05 oct, 09:20", sel.stock + 4, sel.stock + 3, "var(--bad)"],
+      ].map(([type, qty, ref, date, from, to, color]) => ({ type, qty, ref, date, from: Math.max(0, from), to: Math.max(0, to), color })),
+      countRows, cTotal: P.length, cDone: done, cDiff: diffs, cPct: Math.round((done / P.length) * 100) + "%",
+      cannotClose: done < P.length,
+    };
+  }
+}
+</script>
+</body>
+</html>

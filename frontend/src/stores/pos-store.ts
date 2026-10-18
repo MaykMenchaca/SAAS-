@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { CreateSalePayload } from "../api/sales";
 
@@ -12,13 +12,56 @@ export type CartItem = {
   tax_rate: string;
   discount_percent: string;
   unit_abbreviation: string;
+  /** La unidad admite cantidades fraccionarias (kg, m, lt): habilita pasos de 0.5 y atajos de peso/medida. */
+  allows_fractions?: boolean;
 };
+
+export type QueuedOfflineSale = {
+  userId: number;
+  sale: CreateSalePayload;
+  queuedAt?: string;
+  total?: string;
+  /** Copia del carrito al cobrar, para poder recapturar la venta si el servidor la rechaza (OPS-07). */
+  cart?: CartItem[];
+};
+
+/** Venta offline que el servidor rechazó (4xx). No bloquea la cola; espera revisión del usuario. */
+export type RejectedOfflineSale = QueuedOfflineSale & {
+  error: string;
+  rejectedAt: string;
+};
+
+/** Evento que se emite si el navegador no pudo guardar el estado del POS (cuota llena, OPS-15). */
+export const POS_STORAGE_ERROR_EVENT = "pos:storage-error";
+
+/**
+ * localStorage que no falla en silencio: si setItem lanza (cuota llena, almacenamiento
+ * bloqueado), se avisa con un evento para que la UI lo muestre. Sin esto, una venta offline podía
+ * quedar solo en memoria y perderse al recargar (OPS-15).
+ */
+const safeLocalStorage = {
+  getItem: (name: string) => window.localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent(POS_STORAGE_ERROR_EVENT, { detail: String(error) }));
+    }
+  },
+  removeItem: (name: string) => window.localStorage.removeItem(name),
+};
+
+/** Id estable de una venta encolada: su client_uuid (fase 1.4). */
+export function queuedSaleId(item: QueuedOfflineSale): string {
+  return item.sale?.client_uuid ?? "";
+}
 
 type PosState = {
   sessionId: number | null;
   sessionName: string | null;
   cart: CartItem[];
-  offlineSalesQueue: CreateSalePayload[];
+  offlineSalesQueue: QueuedOfflineSale[];
+  rejectedSales: RejectedOfflineSale[];
   setSession: (id: number, name: string) => void;
   clearSession: () => void;
   addToCart: (item: Omit<CartItem, "quantity" | "discount_percent"> & { quantity?: number; discount_percent?: string }) => void;
@@ -26,45 +69,81 @@ type PosState = {
   updateDiscount: (productId: number, discount: string) => void;
   removeFromCart: (productId: number) => void;
   clearCart: () => void;
-  addOfflineSale: (sale: CreateSalePayload) => void;
-  removeOfflineSale: (index: number) => void;
+  addOfflineSale: (sale: CreateSalePayload, userId?: number, total?: string, cart?: CartItem[]) => void;
+  /** Reemplaza el carrito con el de una venta rechazada y la quita de la bandeja (OPS-07). */
+  loadRejectedIntoCart: (clientUuid: string) => boolean;
+  removeOfflineSaleByUuid: (clientUuid: string) => void;
+  rejectOfflineSale: (clientUuid: string, error: string) => void;
+  discardRejectedSale: (clientUuid: string) => void;
 };
 
-function calcLineTotal(item: CartItem): number {
+/**
+ * Redondeo bancario (HALF_EVEN) para centavos.
+ * Si la parte fraccionaria es exactamente 0.5, redondea al entero par más cercano.
+ */
+/** Importe (número o texto) a centavos enteros; vacío o inválido cuenta como 0. */
+export function toCents(value: number | string): number {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+/** Suma de pagos en centavos enteros: evita que 10 + 1.13 = 11.129999… bloquee el cobro exacto (FE-104). */
+export function sumPaymentsCents(payments: { amount: number | string }[]): number {
+  return payments.reduce((sum, p) => sum + toCents(p.amount), 0);
+}
+
+export function roundHalfEvenCents(cents: number): number {
+  const floor = Math.floor(cents);
+  const diff = cents - floor;
+  const EPSILON = 1e-9;
+  if (Math.abs(diff - 0.5) < EPSILON) {
+    return floor % 2 === 0 ? floor : floor + 1;
+  }
+  return Math.round(cents);
+}
+
+export function calcLineTotal(item: CartItem): number {
   const qty = item.quantity;
-  const price = Number(item.unit_price);
-  const disc = Number(item.discount_percent) / 100;
-  const tax = Number(item.tax_rate) / 100;
-  const gross = qty * price;
-  const afterDisc = gross - gross * disc;
-  return afterDisc + afterDisc * tax;
+  const priceCents = Math.round(Number(item.unit_price) * 100);
+  const discPct = Number(item.discount_percent || 0);
+  const taxRate = Number(item.tax_rate || 0);
+
+  const grossCents = roundHalfEvenCents(qty * priceCents); // igual que el servidor (FE-103)
+  const discCents = roundHalfEvenCents(grossCents * (discPct / 100));
+  const subtotalCents = grossCents - discCents;
+  const taxCents = roundHalfEvenCents(subtotalCents * (taxRate / 100));
+  const totalCents = subtotalCents + taxCents;
+
+  return totalCents / 100;
 }
 
 export function getCartTotals(cart: CartItem[]) {
-  let subtotal = 0;
-  let discountTotal = 0;
-  let taxTotal = 0;
+  let subtotalCents = 0;
+  let discountTotalCents = 0;
+  let taxTotalCents = 0;
 
   for (const item of cart) {
     const qty = item.quantity;
-    const price = Number(item.unit_price);
-    const disc = Number(item.discount_percent) / 100;
-    const tax = Number(item.tax_rate) / 100;
-    const gross = qty * price;
-    const lineDiscount = gross * disc;
-    const afterDisc = gross - lineDiscount;
-    const lineTax = afterDisc * tax;
+    const priceCents = Math.round(Number(item.unit_price) * 100);
+    const discPct = Number(item.discount_percent || 0);
+    const taxRate = Number(item.tax_rate || 0);
 
-    subtotal += afterDisc;
-    discountTotal += lineDiscount;
-    taxTotal += lineTax;
+    const grossCents = roundHalfEvenCents(qty * priceCents); // igual que el servidor (FE-103)
+    const lineDiscountCents = roundHalfEvenCents(grossCents * (discPct / 100));
+    const lineSubtotalCents = grossCents - lineDiscountCents;
+    const lineTaxCents = roundHalfEvenCents(lineSubtotalCents * (taxRate / 100));
+
+    subtotalCents += lineSubtotalCents;
+    discountTotalCents += lineDiscountCents;
+    taxTotalCents += lineTaxCents;
   }
 
+  const totalCents = subtotalCents + taxTotalCents;
+
   return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    discountTotal: Math.round(discountTotal * 100) / 100,
-    taxTotal: Math.round(taxTotal * 100) / 100,
-    total: Math.round((subtotal + taxTotal) * 100) / 100,
+    subtotal: subtotalCents / 100,
+    discountTotal: discountTotalCents / 100,
+    taxTotal: taxTotalCents / 100,
+    total: totalCents / 100,
   };
 }
 
@@ -75,6 +154,7 @@ export const usePosStore = create<PosState>()(
       sessionName: null,
       cart: [],
       offlineSalesQueue: [],
+      rejectedSales: [],
 
       setSession: (id, name) => set({ sessionId: id, sessionName: name }),
 
@@ -101,6 +181,7 @@ export const usePosStore = create<PosState>()(
                 unit_price: item.unit_price,
                 tax_rate: item.tax_rate,
                 unit_abbreviation: item.unit_abbreviation,
+                allows_fractions: item.allows_fractions,
                 quantity: item.quantity ?? 1,
                 discount_percent: item.discount_percent ?? "0.00",
               },
@@ -131,20 +212,68 @@ export const usePosStore = create<PosState>()(
 
       clearCart: () => set({ cart: [] }),
 
-      addOfflineSale: (sale) =>
+      addOfflineSale: (sale, userId = 0, total, cart) =>
+        set((state) => {
+          const queued: QueuedOfflineSale = {
+            userId,
+            sale: { ...sale, client_uuid: sale.client_uuid ?? crypto.randomUUID(), open_drawer: false },
+            queuedAt: new Date().toISOString(),
+            total,
+            cart: cart?.map((item) => ({ ...item })),
+          };
+          // Un mismo client_uuid nunca se encola dos veces
+          if (state.offlineSalesQueue.some((q) => queuedSaleId(q) === queuedSaleId(queued))) {
+            return state;
+          }
+          return { offlineSalesQueue: [...state.offlineSalesQueue, queued] };
+        }),
+
+      removeOfflineSaleByUuid: (clientUuid: string) =>
         set((state) => ({
-          offlineSalesQueue: [...state.offlineSalesQueue, sale],
+          offlineSalesQueue: state.offlineSalesQueue.filter((q) => queuedSaleId(q) !== clientUuid),
         })),
 
-      removeOfflineSale: (index) =>
+      rejectOfflineSale: (clientUuid, error) =>
+        set((state) => {
+          const item = state.offlineSalesQueue.find((q) => queuedSaleId(q) === clientUuid);
+          if (!item) return state;
+          return {
+            offlineSalesQueue: state.offlineSalesQueue.filter((q) => queuedSaleId(q) !== clientUuid),
+            rejectedSales: [...state.rejectedSales, { ...item, error, rejectedAt: new Date().toISOString() }],
+          };
+        }),
+
+      loadRejectedIntoCart: (clientUuid) => {
+        const rejected = get().rejectedSales.find((r) => queuedSaleId(r) === clientUuid);
+        if (!rejected?.cart?.length) return false;
         set((state) => ({
-          offlineSalesQueue: state.offlineSalesQueue.filter((_, i) => i !== index),
+          cart: rejected.cart!.map((item) => ({ ...item })),
+          rejectedSales: state.rejectedSales.filter((r) => queuedSaleId(r) !== clientUuid),
+        }));
+        return true;
+      },
+
+      discardRejectedSale: (clientUuid) =>
+        set((state) => ({
+          rejectedSales: state.rejectedSales.filter((r) => queuedSaleId(r) !== clientUuid),
         })),
     }),
     {
       name: "pos-storage",
+      storage: createJSONStorage(() => safeLocalStorage),
+      version: 1,
+      // v0 -> v1: ventas encoladas sin client_uuid reciben uno para poder sincronizarse y eliminarse por id
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<PosState>;
+        if (version < 1) {
+          state.offlineSalesQueue = (state.offlineSalesQueue ?? []).map((q) => ({
+            ...q,
+            sale: { ...q.sale, client_uuid: q.sale?.client_uuid ?? crypto.randomUUID(), open_drawer: false },
+          }));
+          state.rejectedSales = state.rejectedSales ?? [];
+        }
+        return state as PosState;
+      },
     },
   ),
 );
-
-export { calcLineTotal };

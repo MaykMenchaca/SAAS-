@@ -1,4 +1,6 @@
-const CACHE_NAME = "vrntas-pos-cache-v1";
+// La versión llega en la URL de registro (/sw.js?v=<versión>): cada build nuevo usa otra caché
+const BUILD_VERSION = new URL(self.location.href).searchParams.get("v") || "dev";
+const CACHE_NAME = `vrntas-pos-cache-${BUILD_VERSION}`;
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -47,32 +49,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Handle API requests (Network-First)
+  // La API nunca pasa por la caché: respuestas viejas (precios, configuración) o datos de otro
+  // usuario no deben servirse desde aquí. El modo offline vive en la app (cola + catálogo local).
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(
-      fetch(req)
-        .then((response) => {
-          // Cache successful API responses if needed (optional, e.g., config query)
-          if (response.status === 200 && url.pathname.includes("/config")) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(req, copy);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(req);
-        })
-    );
     return;
   }
 
   // Handle navigation requests (SPA fallback)
   if (req.mode === "navigate" || (req.method === "GET" && req.headers.get("accept")?.includes("text/html"))) {
     event.respondWith(
-      fetch(req).catch(() => {
-        return caches.match("/") || caches.match("/index.html");
+      fetch(req).catch(async () => {
+        // caches.match devuelve una promesa: "||" nunca llegaba al respaldo
+        return (await caches.match("/")) ?? (await caches.match("/index.html")) ?? Response.error();
       })
     );
     return;

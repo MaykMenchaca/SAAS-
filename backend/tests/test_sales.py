@@ -32,7 +32,7 @@ def _seed_cash_register_session(db):
         status="abierta",
     )
     db.session.add(session)
-    db.session.flush()
+    db.session.commit()  # el servicio hace rollback ante errores (6.1): los datos sembrados deben estar confirmados
 
     return user, register, session
 
@@ -62,7 +62,7 @@ def _seed_product_for_sale(db, sku="SALE-001", name="Martillo", price="149.90"):
 
     stock = Stock(product_id=product.id, quantity=Decimal("100.000"))
     db.session.add(stock)
-    db.session.flush()
+    db.session.commit()
 
     return product
 
@@ -250,8 +250,14 @@ def test_service_create_sale_success(db):
 def test_service_create_sale_with_discount(db):
     """SaleService correctly applies per-item percentage discounts."""
     from app.services.sale_service import SaleService
+    from app.models.user import Permission
 
     user, register, session = _seed_cash_register_session(db)
+    perm = Permission(code="ventas:descuento", module="ventas", description="Descuento")
+    db.session.add(perm)
+    user.role_rel.permissions.append(perm)
+    db.session.flush()
+
     product = _seed_product_for_sale(db, "SRV-002", "Sierra", "200.00")
 
     sale = SaleService.create_sale(
@@ -432,3 +438,576 @@ def test_service_cancel_already_cancelled_sale(db):
 
     with pytest.raises(ValueError, match="ya está cancelada"):
         SaleService.cancel_sale(sale.id, user.id, "Segunda cancelacion")
+
+
+# --- Regression Tests: Subfase 1.1 (H-01) ---
+
+
+def test_precio_del_cliente_se_ignora(db):
+    """El cliente manda unit_price=0.01 y tax_rate=0 pero el servidor usa el catálogo."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-001", "Tuerca", "34.90")
+
+    # Catalog: price=34.90, tax_rate=16.00 -> 34.90 + 5.58 = 40.48
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "unit_price": "0.01",  # Client tries to force $0.01
+                "tax_rate": "0.00",    # Client tries to force 0% tax
+            }
+        ],
+        payments=[
+            {"method": "efectivo", "amount": "40.48"},
+        ],
+    )
+
+    assert sale.items[0].unit_price == Decimal("34.90")
+    assert sale.items[0].tax_rate == Decimal("16.00")
+    assert sale.subtotal == Decimal("34.90")
+    assert sale.tax_total == Decimal("5.58")
+    assert sale.total == Decimal("40.48")
+
+
+def test_descuento_sobre_tope_rechazado(db):
+    """Cajero sin permiso ventas:descuento no puede superar max_discount_percent."""
+    import pytest
+    from app.services.sale_service import SaleService
+    from app.models.user import Permission
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-002", "Pala", "250.00")
+
+    # Default max_discount_percent is 0; 10% discount must be rejected for cashier without permission
+    with pytest.raises(ValueError, match="descuento"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                    "discount_percent": "10",
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "261.00"}],
+        )
+
+    # If user is granted 'ventas:descuento', discount is allowed
+    perm = Permission(code="ventas:descuento", module="ventas", description="Permiso de descuento")
+    db.session.add(perm)
+    user.role_rel.permissions.append(perm)
+    db.session.commit()
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[
+            {
+                "product_id": product.id,
+                "quantity": 1,
+                "discount_percent": "10",
+            }
+        ],
+        payments=[{"method": "efectivo", "amount": "261.00"}],
+    )
+    assert sale.items[0].discount_percent == Decimal("10.00")
+
+
+def test_producto_inactivo_rechazado(db):
+    """No se pueden vender productos inactivos."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-003", "Tornillo Viejo", "5.00")
+    product.is_active = False
+    db.session.commit()
+
+    with pytest.raises(ValueError, match="inactivo"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": 1,
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "5.80"}],
+        )
+
+
+def test_fraccion_en_unidad_entera_rechazada(db):
+    """No se pueden vender fracciones de productos con allows_fractions = False."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H01-004", "Martillo Entero", "150.00")
+    # Unit 'Pieza' has allows_fractions = False
+    assert product.unit.allows_fractions is False
+
+    with pytest.raises(ValueError, match="fraccion"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "quantity": "1.5",
+                }
+            ],
+            payments=[{"method": "efectivo", "amount": "261.00"}],
+        )
+
+
+# --- Regression Tests: Subfase 1.2.1 (H-04) ---
+
+
+def test_quote_igual_a_venta(db, client, admin_token, seed_open_session, seed_product_for_sale):
+    """POST /api/sales/quote calcula exactamente las mismas líneas y totales que la venta."""
+    items = [
+        {"product_id": seed_product_for_sale.id, "quantity": 2, "discount_percent": "5"},
+    ]
+
+    quote_resp = client.post(
+        "/api/sales/quote",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"items": items},
+    )
+    assert quote_resp.status_code == 200
+    quote_data = quote_resp.get_json()
+
+    # Create the real sale with same items
+    # 2 * 100 = 200, 5% disc = 10, subtotal = 190, 16% tax = 30.40, total = 220.40
+    sale_resp = client.post(
+        "/api/sales/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "session_id": seed_open_session.id,
+            "items": items,
+            "payments": [{"method": "efectivo", "amount": quote_data["total"]}],
+        },
+    )
+    assert sale_resp.status_code == 201
+    sale_data = sale_resp.get_json()
+
+    assert quote_data["subtotal"] == sale_data["subtotal"]
+    assert quote_data["discount_total"] == sale_data["discount_total"]
+    assert quote_data["tax_total"] == sale_data["tax_total"]
+    assert quote_data["total"] == sale_data["total"]
+    assert len(quote_data["lines"]) == len(sale_data["items"])
+    assert quote_data["lines"][0]["unit_price"] == sale_data["items"][0]["unit_price"]
+    assert quote_data["lines"][0]["discount_amount"] == sale_data["items"][0]["discount_amount"]
+    assert quote_data["lines"][0]["tax_rate"] == sale_data["items"][0]["tax_rate"]
+    assert quote_data["lines"][0]["subtotal"] == sale_data["items"][0]["subtotal"]
+
+
+def test_redondeo_half_even_por_linea(db, client, admin_token):
+    """2 items a $12.85 con 16% IVA dan exactamente $29.82 por redondeo HALF_EVEN por línea."""
+    from app.services.sale_service import SaleService
+
+    p1 = _seed_product_for_sale(db, sku="RND-001", name="Clavo A", price="12.85")
+    p2 = _seed_product_for_sale(db, sku="RND-002", name="Clavo B", price="12.85")
+
+    items = [
+        {"product_id": p1.id, "quantity": 1},
+        {"product_id": p2.id, "quantity": 1},
+    ]
+
+    pricing = SaleService.price_lines(items)
+    # Line 1: 12.85 * 0.16 = 2.056 -> round half even -> 2.06. Total line = 14.91
+    # Line 2: 12.85 * 0.16 = 2.056 -> round half even -> 2.06. Total line = 14.91
+    # Subtotal: 25.70, Tax: 4.12, Total: 29.82
+    # (Global tax would have been 25.70 * 0.16 = 4.112 -> 4.11, Total 29.81)
+    assert pricing["subtotal"] == Decimal("25.70")
+    assert pricing["tax_total"] == Decimal("4.12")
+    assert pricing["total"] == Decimal("29.82")
+
+    # Verify through quote endpoint as well
+    resp = client.post(
+        "/api/sales/quote",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"items": items},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["total"] == "29.82"
+    assert data["tax_total"] == "4.12"
+
+
+# --- Regression Tests: Subfase 1.3 (H-16) ---
+
+
+def test_cambio_calculado_en_servidor_ignora_cliente(db):
+    """El servidor calcula el cambio exacto e ignora el change_amount enviado por el cliente."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-001", "Pintura", "100.00")
+
+    # Venta de 1 producto a 100 + 16% IVA = 116.00
+    # Cliente manda pago en efectivo de 150.00 pero falsea change_amount = "99.00"
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "150.00", "change_amount": "99.00"}],
+    )
+
+    assert sale.total == Decimal("116.00")
+    assert len(sale.payments) == 1
+    assert sale.payments[0].amount == Decimal("150.00")
+    # Cambio debe ser 150.00 - 116.00 = 34.00, ignorando los 99.00
+    assert sale.payments[0].change_amount == Decimal("34.00")
+
+
+def test_sobrepago_tarjeta_rechazado(db):
+    """No se permite sobrepago con métodos distintos a efectivo (tarjeta)."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-002", "Brocha", "100.00")
+
+    # Venta total = 116.00, intenta pagar con tarjeta 120.00
+    with pytest.raises(ValueError, match="sobrepago"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "tarjeta", "amount": "120.00"}],
+        )
+
+
+def test_sobrepago_transferencia_rechazado(db):
+    """No se permite sobrepago con métodos distintos a efectivo (transferencia)."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-003", "Rodillo", "100.00")
+
+    with pytest.raises(ValueError, match="sobrepago"):
+        SaleService.create_sale(
+            user_id=user.id,
+            session_id=session.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "transferencia", "amount": "200.00"}],
+        )
+
+
+def test_pago_mixto_cambio_solo_de_efectivo(db):
+    """En pago mixto tarjeta + efectivo, el cambio solo se resta del efectivo."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H16-004", "Sellador", "100.00")
+
+    # Venta total = 116.00.
+    # Tarjeta = 50.00 (no excede el total). Efectivo = 80.00.
+    # Total recibido = 130.00. Cambio = 130.00 - 116.00 = 14.00.
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[
+            {"method": "tarjeta", "amount": "50.00", "change_amount": "5.00"},
+            {"method": "efectivo", "amount": "80.00", "change_amount": "0.00"},
+        ],
+    )
+
+    card_pay = [p for p in sale.payments if p.method == "tarjeta"][0]
+    cash_pay = [p for p in sale.payments if p.method == "efectivo"][0]
+
+    assert card_pay.change_amount == Decimal("0.00")
+    assert cash_pay.change_amount == Decimal("14.00")
+
+
+def test_cajero_no_puede_vender_en_sesion_ajena(db, seed_roles):
+    """Un cajero no puede realizar ventas en la sesión de caja de otro cajero."""
+    import pytest
+    from app.services.sale_service import SaleService
+    from app.models.sale import CashRegister, CashRegisterSession
+    from app.models.user import User
+
+    register = CashRegister(name="Caja H16")
+    db.session.add(register)
+    db.session.flush()
+
+    cajero1 = User(username="cajero_a", email="ca@test.com", full_name="Cajero A", role_id=seed_roles["cajero"].id)
+    cajero1.set_password("pass123")
+    cajero2 = User(username="cajero_b", email="cb@test.com", full_name="Cajero B", role_id=seed_roles["cajero"].id)
+    cajero2.set_password("pass123")
+    db.session.add_all([cajero1, cajero2])
+    db.session.flush()
+
+    session1 = CashRegisterSession(
+        cash_register_id=register.id,
+        user_id=cajero1.id,
+        opening_amount=Decimal("500.00"),
+        status="abierta",
+    )
+    db.session.add(session1)
+    db.session.flush()
+
+    product = _seed_product_for_sale(db, "H16-005", "Lija", "50.00")
+
+    # Cajero 2 intenta vender en la sesión del Cajero 1
+    with pytest.raises((PermissionError, ValueError), match="otro usuario|sesión"):
+        SaleService.create_sale(
+            user_id=cajero2.id,
+            session_id=session1.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payments=[{"method": "efectivo", "amount": "58.00"}],
+        )
+
+
+# --- Regression Tests: Subfase 1.4.1 (H-05) ---
+
+
+def test_client_uuid_idempotencia_en_servicio(db):
+    """Llamar a create_sale dos veces con el mismo client_uuid devuelve la venta existente sin duplicar inventario."""
+    from app.services.sale_service import SaleService
+    from app.models.inventory import Stock
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H05-001", "Cinta Metrica", "100.00")
+
+    initial_stock = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    client_uuid = "550e8400-e29b-41d4-a716-446655440000"
+
+    items = [{"product_id": product.id, "quantity": 1}]
+    payments = [{"method": "efectivo", "amount": "116.00"}]
+
+    # Primer intento
+    sale1 = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=items,
+        payments=payments,
+        client_uuid=client_uuid,
+    )
+    assert sale1.client_uuid == client_uuid
+    stock_after_first = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    assert stock_after_first == initial_stock - Decimal("1.000")
+
+    # Segundo intento con el mismo client_uuid
+    sale2 = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=items,
+        payments=payments,
+        client_uuid=client_uuid,
+    )
+
+    assert sale2.id == sale1.id
+    assert sale2.folio == sale1.folio
+    stock_after_second = db.session.query(Stock).filter_by(product_id=product.id).first().quantity
+    assert stock_after_second == stock_after_first
+
+
+def test_client_uuid_idempotencia_en_api(client, admin_token, seed_open_session, seed_product_for_sale, db):
+    """POST /api/sales/ con el mismo client_uuid devuelve la venta existente."""
+    from app.models.inventory import Stock
+
+    initial_stock = db.session.query(Stock).filter_by(product_id=seed_product_for_sale.id).first().quantity
+    client_uuid = "550e8400-e29b-41d4-a716-446655440001"
+
+    payload = {
+        "session_id": seed_open_session.id,
+        "client_uuid": client_uuid,
+        "items": [{"product_id": seed_product_for_sale.id, "quantity": 1}],
+        "payments": [{"method": "efectivo", "amount": "116.00"}],
+    }
+
+    # Primer POST
+    resp1 = client.post("/api/sales/", headers={"Authorization": f"Bearer {admin_token}"}, json=payload)
+    assert resp1.status_code in (200, 201)
+    data1 = resp1.get_json()
+    assert data1["client_uuid"] == client_uuid
+
+    # Segundo POST idéntico (simulando reintento por doble clic o pérdida de conexión)
+    resp2 = client.post("/api/sales/", headers={"Authorization": f"Bearer {admin_token}"}, json=payload)
+    assert resp2.status_code in (200, 201)
+    data2 = resp2.get_json()
+    assert data2["id"] == data1["id"]
+    assert data2["folio"] == data1["folio"]
+
+    # Verificar que el stock solo se redujo una vez
+    stock_final = db.session.query(Stock).filter_by(product_id=seed_product_for_sale.id).first().quantity
+    assert stock_final == initial_stock - Decimal("1.000")
+
+
+# --- Regression Tests: Subfase 1.5.1 (H-06) ---
+
+
+def test_devolucion_duplicada_agrupada_rechazada(db):
+    """Devolver líneas repetidas del mismo sale_item_id cuya suma exceda lo disponible debe ser rechazado."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H06-001", "Tornillo", "10.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "11.60"}],
+    )
+
+    sale_item = sale.items[0]
+
+    # Intentar devolver 2 veces 1 unidad del mismo sale_item_id (total = 2 > 1 vendido)
+    with pytest.raises(ValueError, match="excede lo disponible"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Prueba duplicados",
+            items=[
+                {"sale_item_id": sale_item.id, "quantity": 1},
+                {"sale_item_id": sale_item.id, "quantity": 1},
+            ],
+        )
+
+
+# --- Regression Tests: Subfase 1.5.2 (H-07) ---
+
+
+def test_cancelar_venta_con_devolucion_rechazada(db):
+    """No se puede cancelar una venta que ya tiene devoluciones asociadas."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H07-001", "Desarmador", "50.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 2}],
+        payments=[{"method": "efectivo", "amount": "116.00"}],
+    )
+    sale_item = sale.items[0]
+
+    # Procesar devolución parcial de 1 unidad
+    SaleService.return_sale(
+        sale_id=sale.id,
+        user_id=user.id,
+        reason="Defecto menor",
+        items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+    )
+
+    assert sale.status == "devolucion_parcial"
+
+    # Intentar cancelar la venta completa debe fallar para evitar doble reingreso de stock
+    with pytest.raises(ValueError, match="devoluc"):
+        SaleService.cancel_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cancelación indebida",
+        )
+
+
+# --- Regression Tests: Subfase 1.5.3 (H-08) ---
+
+
+def test_devolucion_registra_session_id_y_refund_method(db):
+    """SaleReturn registra session_id y refund_method correctamente."""
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-001", "Martillo", "100.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 2}],
+        payments=[{"method": "efectivo", "amount": "232.00"}],
+    )
+    sale_item = sale.items[0]
+
+    # Devolución especificando sesión y método de reembolso
+    ret = SaleService.return_sale(
+        sale_id=sale.id,
+        user_id=user.id,
+        reason="Defecto",
+        items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+        session_id=session.id,
+        refund_method="tarjeta",
+    )
+
+    assert ret.session_id == session.id
+    assert ret.refund_method == "tarjeta"
+    assert ret.session.id == session.id
+
+
+def test_devolucion_sesion_cerrada_rechazada(db):
+    """No se puede registrar una devolución en una sesión de caja cerrada."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-002", "Pinzas", "80.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "92.80"}],
+    )
+    sale_item = sale.items[0]
+
+    # Cerramos la sesión
+    session.status = "cerrada"
+    db.session.commit()
+
+    with pytest.raises(ValueError, match="La sesión de caja no está abierta"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cambio",
+            items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+            session_id=session.id,
+            refund_method="efectivo",
+        )
+
+
+def test_devolucion_metodo_reembolso_invalido_rechazado(db):
+    """Método de reembolso desconocido debe ser rechazado."""
+    import pytest
+    from app.services.sale_service import SaleService
+
+    user, register, session = _seed_cash_register_session(db)
+    product = _seed_product_for_sale(db, "H08-003", "Cinta", "20.00")
+
+    sale = SaleService.create_sale(
+        user_id=user.id,
+        session_id=session.id,
+        items=[{"product_id": product.id, "quantity": 1}],
+        payments=[{"method": "efectivo", "amount": "23.20"}],
+    )
+    sale_item = sale.items[0]
+
+    with pytest.raises(ValueError, match="Método de reembolso inválido"):
+        SaleService.return_sale(
+            sale_id=sale.id,
+            user_id=user.id,
+            reason="Cambio",
+            items=[{"sale_item_id": sale_item.id, "quantity": 1}],
+            session_id=session.id,
+            refund_method="cripto",
+        )
+
+
+
+
+
+

@@ -132,3 +132,73 @@ def test_update_config_empty_body(client, admin_token, db):
         json={},
     )
     assert response.status_code == 400
+
+
+def test_config_rechaza_secretos_debiles():
+    import pytest
+    from app import create_app
+    from app.config import Config
+
+    class ShortSecretConfig(Config):
+        SECRET_KEY = "corta"
+        JWT_SECRET_KEY = "clave-suficientemente-larga-pero-la-otra-es-corta"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(ShortSecretConfig)
+
+    class EqualSecretConfig(Config):
+        SECRET_KEY = "clave-super-secreta-larga-y-aleatoria-12345"
+        JWT_SECRET_KEY = "clave-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(EqualSecretConfig)
+
+    class DefaultSecretConfig(Config):
+        SECRET_KEY = "cambiar-en-produccion-usar-valor-aleatorio"
+        JWT_SECRET_KEY = "clave-jwt-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(DefaultSecretConfig)
+
+    class MissingSecretConfig(Config):
+        SECRET_KEY = None
+        JWT_SECRET_KEY = "clave-jwt-super-secreta-larga-y-aleatoria-12345"
+
+    with pytest.raises((ValueError, RuntimeError)):
+        create_app(MissingSecretConfig)
+
+
+def test_install_scripts_no_usan_credenciales_hardcodeadas():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    setup_db = (root / "setup-db.ps1").read_text(encoding="utf-8")
+    install_prod = (root / "install-production.ps1").read_text(encoding="utf-8")
+
+    assert 'pos_pass' not in setup_db
+    assert 'secrets' in install_prod.lower()
+
+
+def test_run_py_no_expone_debug_ni_red():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    run_code = (root / "backend" / "run.py").read_text(encoding="utf-8")
+    assert "debug=True" not in run_code
+    assert 'host="0.0.0.0"' not in run_code
+
+
+def test_get_branding_is_public(client, db):
+    """H-19: GET /api/config/branding debe ser público y devolver nombre y logo."""
+    config_service.set_value("company_name", "Ferretería Central")
+    config_service.set_value("logo_url", "/assets/logo.png")
+    db.session.commit()
+
+    # Petición sin cabecera Authorization
+    response = client.get("/api/config/branding")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["business_name"] == "Ferretería Central"
+    assert data["logo_url"] == "/assets/logo.png"
+
+
+
+

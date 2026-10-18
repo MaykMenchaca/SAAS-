@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="height:100%; min-height:640px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+<sc-if value="{{ noSession }}" hint-placeholder-val="{{ false }}">
+  <div style="height:100%; display:grid; place-items:center; padding:40px">
+    <div style="width:100%; max-width:460px; display:flex; flex-direction:column; gap:20px">
+      <div>
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--acc-text)">Punto de venta</div>
+        <h1 style="margin:6px 0 0; font-size:40px; line-height:1">Abre una caja para vender</h1>
+      </div>
+      <section class="blueprint" style="display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="padding:12px 16px; border-bottom:1px solid var(--color-divider); font-family:var(--font-heading); font-weight:600; font-size:17px">Sesiones abiertas</div>
+        <button onClick="{{ joinSession }}" style="display:flex; align-items:center; gap:12px; padding:14px 16px; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer" style-hover="background:var(--line-soft)">
+          <div style="flex:1">
+            <div style="font-weight:500">Caja 1</div>
+            <div style="font-size:13px; color:var(--ink-2)">Jorge Pérez · Apertura $1,500.00 · 08:02</div>
+          </div>
+          <span class="tag" style="background:var(--ok-tint); color:var(--ok)">Abierta</span>
+          <lucide-icon name="arrow-right" size="16"></lucide-icon>
+        </button>
+      </section>
+      <section class="blueprint" style="display:flex; flex-direction:column; gap:14px; padding:16px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-family:var(--font-heading); font-weight:600; font-size:17px">Abrir nueva sesión</div>
+        <div class="field"><label>Caja registradora</label>
+          <select class="input"><option>Caja 2</option><option>Caja 3</option></select>
+        </div>
+        <div class="field"><label>Fondo de apertura</label>
+          <input class="input" type="number" value="{{ openingAmount }}" onChange="{{ setOpening }}" style="font-size:18px; font-variant-numeric:tabular-nums">
+        </div>
+        <button class="btn btn-primary" onClick="{{ joinSession }}" style="height:44px; font-size:16px">Abrir caja</button>
+      </section>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasSession }}" hint-placeholder-val="{{ true }}">
+<div style="height:100%; display:grid; grid-template-columns:minmax(0,1fr) clamp(340px, 32vw, 420px)">
+  <div style="display:flex; flex-direction:column; min-width:0; min-height:0">
+    <sc-if value="{{ offline }}">
+      <div style="flex:none; display:flex; align-items:center; gap:12px; padding:10px 24px; background:var(--bad-tint); border-bottom:1px solid var(--bad); color:var(--bad)">
+        <lucide-icon name="wifi-off" size="18"></lucide-icon>
+        <div style="flex:1; min-width:0; font-size:14px"><span style="font-weight:600">Sin conexión al servidor.</span> <span style="color:var(--color-text)">Puedes seguir vendiendo: las ventas se guardan en esta caja y se envían al volver la red.</span></div>
+        <span class="tag" style="background:var(--color-bg); color:var(--bad); border:1px solid var(--bad); white-space:nowrap">{{ pendingLabel }}</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ syncing }}">
+      <div style="flex:none; display:flex; align-items:center; gap:10px; padding:10px 24px; background:var(--ok-tint); border-bottom:1px solid var(--ok); color:var(--ok); font-size:14px">
+        <lucide-icon name="refresh-cw" size="16"></lucide-icon><span>{{ syncText }}</span>
+      </div>
+    </sc-if>
+    <div style="flex:none; padding:20px 24px 16px; display:flex; flex-direction:column; gap:10px; border-bottom:1px solid var(--color-divider)">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0">Escanear o buscar</span>
+        <span style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-2); white-space:nowrap; flex:none"><span style="width:8px; height:8px; border-radius:50%; background:var(--ok)"></span>Lector USB listo</span>
+      </div>
+      <label class="blueprint" style="display:flex; align-items:center; gap:14px; height:64px; padding:0 16px; background:var(--color-surface); border-color:var(--color-accent); cursor:text">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="display:inline-flex; color:var(--color-accent)"><lucide-icon name="scan-barcode" size="26"></lucide-icon></span>
+        <input ref="{{ searchRef }}" autoFocus="{{ true }}" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}" placeholder="Escanea el código o escribe nombre, SKU…" style="flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--color-text); font-family:var(--font-body); font-size:22px">
+        <sc-if value="{{ hasQ }}"><button class="btn btn-ghost btn-icon" onClick="{{ clearQ }}" title="Limpiar búsqueda" style="color:var(--ink-2)"><lucide-icon name="x" size="18"></lucide-icon></button></sc-if>
+        <span style="font-size:13px; padding:2px 8px; border:1px solid var(--color-divider); color:var(--ink-2)">F2</span>
+      </label>
+      <div style="min-height:20px; display:flex; align-items:center; gap:8px; font-size:14px; color:{{ fbColor }}">
+        <lucide-icon name="{{ fbIcon }}" size="15"></lucide-icon><span>{{ fbText }}</span>
+      </div>
+    </div>
+
+    <div style="flex:none; display:flex; gap:6px; padding:12px 24px; overflow-x:auto; border-bottom:1px solid var(--color-divider)">
+      <sc-for list="{{ cats }}" as="c" hint-placeholder-count="7">
+        <button onClick="{{ c.pick }}" style="flex:none; display:flex; align-items:center; gap:8px; height:36px; padding:0 14px; border:1px solid {{ c.border }}; background:{{ c.bg }}; color:{{ c.fg }}; font-family:var(--font-heading); font-weight:600; font-size:15px; cursor:pointer; white-space:nowrap">
+          {{ c.name }}<span style="font-family:var(--font-body); font-weight:400; font-size:12px; opacity:.75">{{ c.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="flex:1; min-height:0; overflow:auto; padding:20px 24px">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:1px; background:var(--color-divider); border:1px solid var(--color-divider)">
+        <sc-for list="{{ products }}" as="p" hint-placeholder-count="12">
+          <button onClick="{{ p.add }}" disabled="{{ p.out }}" style="display:flex; flex-direction:column; gap:8px; min-height:148px; padding:14px; border:0; background:{{ p.bg }}; color:var(--color-text); font:inherit; text-align:left; cursor:pointer; opacity:{{ p.opacity }}" style-hover="background:var(--acc-tint)">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%">
+              <span style="font-size:12px; letter-spacing:.05em; color:var(--ink-2)">{{ p.sku }}</span>
+              <span class="tag" style="background:{{ p.stockBg }}; color:{{ p.stockFg }}; padding:2px 8px">{{ p.stockLabel }}</span>
+            </div>
+            <div style="font-size:15px; font-weight:500; line-height:1.3; text-wrap:pretty">{{ p.name }}</div>
+            <div style="margin-top:auto; display:flex; align-items:baseline; justify-content:space-between; width:100%">
+              <span style="font-family:var(--font-heading); font-weight:600; font-size:24px; font-variant-numeric:tabular-nums">{{ p.price }}</span>
+              <span style="font-size:12px; color:var(--ink-2)">/ {{ p.unit }}</span>
+            </div>
+            <sc-if value="{{ p.inCart }}">
+              <div style="font-size:12px; color:var(--acc-text); font-weight:500">En ticket: {{ p.cartQty }}</div>
+            </sc-if>
+          </button>
+        </sc-for>
+      </div>
+      <sc-if value="{{ noProducts }}">
+        <div style="padding:48px 0; text-align:center; color:var(--ink-2)">Sin productos para “{{ q }}”. Revisa el código o busca por nombre.</div>
+      </sc-if>
+    </div>
+
+    <div style="flex:none; display:flex; align-items:center; gap:18px; padding:10px 24px; border-top:1px solid var(--color-divider); font-size:13px; color:var(--ink-2)">
+      <span style="display:flex; align-items:center; gap:6px"><span style="padding:0 6px; border:1px solid var(--color-divider); color:var(--color-text)">F2</span>Buscar</span>
+      <span style="display:flex; align-items:center; gap:6px"><span style="padding:0 6px; border:1px solid var(--color-divider); color:var(--color-text)">F5</span>Cobrar</span>
+      <span style="display:flex; align-items:center; gap:6px"><span style="padding:0 6px; border:1px solid var(--color-divider); color:var(--color-text)">F8</span>Último ticket</span>
+      <span style="display:flex; align-items:center; gap:6px"><span style="padding:0 6px; border:1px solid var(--color-divider); color:var(--color-text)">Esc</span>Vaciar</span>
+      <button class="btn btn-ghost" onClick="{{ exitPos }}" style="margin-left:auto; font-size:14px; color:var(--ink-2)"><lucide-icon name="log-out" size="15"></lucide-icon>Salir del POS</button>
+    </div>
+  </div>
+
+  <aside style="display:flex; flex-direction:column; min-height:0; border-left:1px solid var(--color-divider)">
+    <div style="flex:none; display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--color-divider)">
+      <div style="flex:1">
+        <h2 style="margin:0; font-size:24px; line-height:1.1">Venta en curso</h2>
+        <div style="font-size:13px; color:var(--ink-2)">Caja 1 · Ticket {{ ticketNo }} · Jorge Pérez</div>
+      </div>
+      <button class="btn btn-secondary btn-icon" onClick="{{ clearCart }}" title="Vaciar ticket (Esc)" disabled="{{ cartEmpty }}"><lucide-icon name="trash-2" size="16"></lucide-icon></button>
+    </div>
+
+    <div style="flex:1; min-height:0; overflow:auto">
+      <sc-if value="{{ showDone }}">
+        <div style="margin:16px 20px 0; padding:14px; border:1px solid var(--ok); background:var(--ok-tint); display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; align-items:center; gap:8px; color:var(--ok); font-family:var(--font-heading); font-weight:600; font-size:17px"><lucide-icon name="circle-check" size="18"></lucide-icon>Venta completada</div>
+          <div style="font-size:14px">{{ doneFolio }} · Total {{ doneTotal }}</div>
+          <div style="font-family:var(--font-heading); font-weight:600; font-size:28px; line-height:1; font-variant-numeric:tabular-nums">Cambio {{ doneChange }}</div>
+          <button class="btn btn-secondary" onClick="{{ printLast }}" style="align-self:flex-start; height:34px"><lucide-icon name="printer" size="15"></lucide-icon>Imprimir ticket · F8</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showEmpty }}">
+        <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:40px; text-align:center; color:var(--ink-2)">
+          <lucide-icon name="scan-barcode" size="34"></lucide-icon>
+          <div style="font-size:15px; color:var(--color-text)">El ticket está vacío</div>
+          <div style="font-size:13px">Escanea un producto o tócalo en el catálogo.</div>
+        </div>
+      </sc-if>
+      <sc-for list="{{ lines }}" as="l" hint-placeholder-count="3">
+        <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 12px; padding:14px 20px; border-bottom:1px solid var(--line-soft); background:{{ l.bg }}">
+          <div style="min-width:0">
+            <div style="font-weight:500; line-height:1.3">{{ l.name }}</div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-2); font-variant-numeric:tabular-nums">
+              <span>{{ l.unitPrice }} × {{ l.qtyShown }} {{ l.unit }}</span>
+              <sc-if value="{{ l.hasDisc }}"><span class="tag tag-accent" style="padding:1px 6px">−{{ l.disc }}%</span></sc-if>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-heading); font-weight:600; font-size:20px; font-variant-numeric:tabular-nums; white-space:nowrap">{{ l.total }}</div>
+            <sc-if value="{{ l.hasDisc }}"><div style="font-size:12px; color:var(--ink-2); text-decoration:line-through; font-variant-numeric:tabular-nums">{{ l.gross }}</div></sc-if>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+            <div style="display:flex; align-items:center">
+              <button class="btn btn-secondary btn-icon" onClick="{{ l.dec }}" title="{{ l.decTitle }}"><lucide-icon name="minus" size="15"></lucide-icon></button>
+              <input value="{{ l.qtyText }}" onChange="{{ l.setQty }}" onBlur="{{ l.commit }}" onFocus="{{ l.selectAll }}" inputMode="decimal" style="width:{{ l.qtyW }}; height:36px; border:1px solid var(--color-divider); border-left:0; border-right:0; background:var(--color-surface); color:var(--color-text); text-align:center; font:inherit; font-size:15px; font-weight:500; font-variant-numeric:tabular-nums; outline:none">
+              <button class="btn btn-secondary btn-icon" onClick="{{ l.inc }}" title="{{ l.incTitle }}"><lucide-icon name="plus" size="15"></lucide-icon></button>
+            </div>
+            <sc-if value="{{ l.frac }}"><span style="font-size:12px; color:var(--ink-2); white-space:nowrap">{{ l.unit }} · admite decimales</span></sc-if>
+          </div>
+          <div style="display:flex; gap:2px; justify-self:end">
+            <button class="btn btn-ghost" onClick="{{ l.toggleDisc }}" title="Aplicar descuento" style="font-size:14px"><lucide-icon name="percent" size="14"></lucide-icon>Desc.</button>
+            <button class="btn btn-ghost" onClick="{{ l.remove }}" style="color:var(--bad); font-size:14px">Quitar</button>
+          </div>
+          <sc-if value="{{ l.frac }}">
+            <div style="grid-column:1 / -1; display:flex; gap:6px; flex-wrap:wrap">
+              <sc-for list="{{ l.fracQuick }}" as="fq" hint-placeholder-count="5">
+                <button class="btn btn-secondary" onClick="{{ fq.set }}" style="height:30px; padding:0 10px; font-size:13px; font-variant-numeric:tabular-nums; background:{{ fq.bg }}">{{ fq.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ l.editing }}">
+            <div style="grid-column:1 / -1; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px; border:1px solid var(--color-accent); background:var(--color-bg)">
+              <span style="font-size:13px; color:var(--ink-2)">Descuento</span>
+              <div style="display:flex; border:1px solid var(--color-divider)">
+                <sc-for list="{{ l.discOpts }}" as="d" hint-placeholder-count="5">
+                  <button onClick="{{ d.pick }}" style="height:32px; padding:0 10px; border:0; border-left:{{ d.sep }}; background:{{ d.bg }}; color:{{ d.fg }}; font:inherit; font-size:13px; cursor:pointer">{{ d.label }}</button>
+                </sc-for>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px">
+                <input value="{{ l.discText }}" onChange="{{ l.setDisc }}" inputMode="decimal" placeholder="Otro" style="width:56px; height:32px; border:1px solid var(--color-divider); background:var(--color-surface); color:var(--color-text); text-align:right; font:inherit; font-size:13px; padding:0 6px; outline:none">
+                <span style="font-size:13px; color:var(--ink-2)">%</span>
+              </div>
+              <button class="btn btn-ghost" onClick="{{ l.toggleDisc }}" style="margin-left:auto; font-size:13px">Listo</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex:none; border-top:1px solid var(--color-divider); padding:14px 20px 16px; display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; flex-direction:column; gap:4px; font-size:14px; color:var(--ink-2)">
+        <div style="display:flex; justify-content:space-between; gap:12px; white-space:nowrap"><span>Subtotal · {{ itemCount }}</span><span style="font-variant-numeric:tabular-nums">{{ subtotal }}</span></div>
+        <sc-if value="{{ hasDiscount }}"><div style="display:flex; justify-content:space-between; gap:12px; white-space:nowrap; color:var(--acc-text)"><span>Descuentos</span><span style="font-variant-numeric:tabular-nums">−{{ discount }}</span></div></sc-if>
+        <div style="display:flex; justify-content:space-between; gap:12px; white-space:nowrap"><span>IVA (16%)</span><span style="font-variant-numeric:tabular-nums">{{ tax }}</span></div>
+      </div>
+      <div style="display:flex; align-items:baseline; justify-content:space-between; padding-top:10px; border-top:1px solid var(--color-divider)">
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:20px; text-transform:uppercase; letter-spacing:.06em">Total</span>
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:clamp(34px, 3.4vw, 52px); line-height:1; white-space:nowrap; font-variant-numeric:tabular-nums">{{ total }}</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider)">
+        <sc-for list="{{ methods }}" as="m" hint-placeholder-count="3">
+          <button onClick="{{ m.pick }}" style="display:flex; align-items:center; justify-content:center; gap:6px; height:40px; border:0; border-left:{{ m.sep }}; background:{{ m.bg }}; color:{{ m.fg }}; font:inherit; font-size:14px; font-weight:500; cursor:pointer">
+            <lucide-icon name="{{ m.icon }}" size="15"></lucide-icon>{{ m.label }}
+          </button>
+        </sc-for>
+      </div>
+      <button class="btn btn-primary blueprint" onClick="{{ openPay }}" disabled="{{ cartEmpty }}" style="height:60px; justify-content:space-between; padding:0 18px; font-size:22px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="display:flex; align-items:center; gap:10px">Cobrar<span style="font-family:var(--font-body); font-weight:500; font-size:13px; padding:0 6px; border:1px solid currentColor; opacity:.8">F5</span></span>
+        <span style="font-variant-numeric:tabular-nums">{{ total }}</span>
+      </button>
+    </div>
+  </aside>
+</div>
+
+<sc-if value="{{ payOpen }}">
+  <div class="dialog-backdrop" onClick="{{ closePay }}" style="z-index:40">
+    <div onClick="{{ stop }}" class="blueprint" style="width:min(880px, 100%); background:var(--color-bg); box-shadow:var(--shadow-lg); display:flex; flex-direction:column">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--color-divider)">
+        <h2 style="margin:0; font-size:26px">Cobrar venta</h2>
+        <button class="btn btn-ghost btn-icon" onClick="{{ closePay }}" title="Cerrar" style="color:var(--ink-2)"><lucide-icon name="x" size="18"></lucide-icon></button>
+      </div>
+      <div style="display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)">
+        <div style="padding:22px; display:flex; flex-direction:column; gap:16px; border-right:1px solid var(--color-divider)">
+          <div style="display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-family:var(--font-heading); font-weight:600; font-size:15px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)">Total a pagar</span>
+            <span style="font-family:var(--font-heading); font-weight:600; font-size:48px; line-height:1; font-variant-numeric:tabular-nums">{{ total }}</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--color-divider)">
+            <sc-for list="{{ payMethods }}" as="m" hint-placeholder-count="3">
+              <button onClick="{{ m.pick }}" style="display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 0; border:0; border-left:{{ m.sep }}; background:{{ m.bg }}; color:{{ m.fg }}; font:inherit; font-size:14px; font-weight:500; cursor:pointer">
+                <lucide-icon name="{{ m.icon }}" size="18"></lucide-icon>{{ m.label }}
+              </button>
+            </sc-for>
+          </div>
+          <div class="field">
+            <label>{{ amountLabel }}</label>
+            <div style="display:flex; align-items:center; gap:8px; height:60px; padding:0 14px; border:1px solid var(--color-accent); background:var(--color-surface)">
+              <span style="font-family:var(--font-heading); font-weight:600; font-size:28px; color:var(--ink-2)">$</span>
+              <input value="{{ activeAmount }}" onChange="{{ setAmount }}" inputMode="decimal" style="flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--color-text); font-family:var(--font-heading); font-weight:600; font-size:34px; font-variant-numeric:tabular-nums">
+            </div>
+          </div>
+          <sc-if value="{{ isCash }}">
+            <div style="display:flex; gap:6px; flex-wrap:wrap">
+              <sc-for list="{{ quick }}" as="b" hint-placeholder-count="4">
+                <button class="btn btn-secondary" onClick="{{ b.set }}" style="height:40px; flex:1; font-size:16px; font-variant-numeric:tabular-nums">{{ b.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isRef }}">
+            <div class="field"><label>Referencia de pago</label>
+              <input class="input" placeholder="Últimos 4 dígitos del voucher" style="min-height:44px; font-size:16px">
+            </div>
+          </sc-if>
+          <sc-if value="{{ isSplit }}">
+            <div style="display:flex; flex-direction:column; border:1px solid var(--color-divider)">
+              <sc-for list="{{ payList }}" as="pp" hint-placeholder-count="2">
+                <div onClick="{{ pp.select }}" style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:{{ pp.bg }}; border-bottom:1px solid var(--line-soft); cursor:pointer">
+                  <span style="flex:1">{{ pp.label }}</span>
+                  <span style="font-variant-numeric:tabular-nums; font-weight:500">{{ pp.amount }}</span>
+                  <button class="btn btn-ghost btn-icon" onClick="{{ pp.remove }}" title="Quitar pago" style="width:28px; height:28px; color:var(--ink-2)"><lucide-icon name="x" size="14"></lucide-icon></button>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <button class="btn btn-ghost" onClick="{{ addPayment }}" style="align-self:flex-start; font-size:14px"><lucide-icon name="plus" size="15"></lucide-icon>Dividir en otro método de pago</button>
+          <div style="margin-top:auto; padding:14px 16px; border:1px solid {{ statusColor }}; background:{{ statusBg }}; color:{{ statusColor }}; display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-family:var(--font-heading); font-weight:600; font-size:16px; letter-spacing:.08em; text-transform:uppercase">{{ statusLabel }}</span>
+            <span style="font-family:var(--font-heading); font-weight:600; font-size:38px; line-height:1; font-variant-numeric:tabular-nums">{{ statusValue }}</span>
+          </div>
+        </div>
+        <div style="padding:22px; display:flex; flex-direction:column; gap:8px">
+          <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:var(--color-divider); border:1px solid var(--color-divider)">
+            <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+              <button onClick="{{ k.press }}" style="height:64px; border:0; background:var(--color-bg); color:var(--color-text); font-family:var(--font-heading); font-weight:600; font-size:26px; cursor:pointer; display:grid; place-items:center" style-hover="background:var(--acc-tint)">
+                <sc-if value="{{ k.isIcon }}"><lucide-icon name="delete" size="22"></lucide-icon></sc-if>
+                <sc-if value="{{ k.isText }}">{{ k.label }}</sc-if>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+            <button class="btn btn-secondary" onClick="{{ setExact }}" style="height:44px; font-size:16px">Exacto</button>
+            <button class="btn btn-secondary" onClick="{{ clearAmount }}" style="height:44px; font-size:16px">Limpiar</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--color-divider)">
+        <button class="btn btn-secondary" onClick="{{ closePay }}" style="height:48px; padding:0 20px; font-size:16px">Cancelar</button>
+        <button class="btn btn-primary blueprint" onClick="{{ completeSale }}" disabled="{{ cannotPay }}" style="height:48px; padding:0 24px; font-size:18px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Completar cobro {{ total }}
+        </button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const PRODUCTS = [
+  { id: 1, sku: "MAR-016", code: "7501206612345", name: "Martillo uña curva 16 oz", cat: "Herramientas", unit: "pz", price: 189, stock: 24, min: 6 },
+  { id: 2, sku: "TOR-6X1", code: "7501031100221", name: "Tornillo tablaroca 6×1\" (caja 100)", cat: "Fijación", unit: "cja", price: 68, stock: 3, min: 10 },
+  { id: 3, sku: "CIN-AIS", code: "7501031987412", name: "Cinta de aislar negra 19 mm", cat: "Eléctrico", unit: "pz", price: 18, stock: 86, min: 20 },
+  { id: 4, sku: "PIN-V19", code: "7501045500190", name: "Pintura vinílica blanca 19 L", cat: "Pintura", unit: "pz", price: 1649, stock: 5, min: 4 },
+  { id: 5, sku: "PVC-12", code: "7501088812006", name: "Tubo PVC hidráulico ½\" × 6 m", cat: "Plomería", unit: "pz", price: 92, stock: 0, min: 8 },
+  { id: 6, sku: "CEM-50", code: "7501099950001", name: "Cemento gris 50 kg", cat: "Construcción", unit: "pz", price: 259, stock: 41, min: 15 },
+  { id: 7, sku: "LED-9W", code: "7501012300909", name: "Foco LED 9 W luz blanca", cat: "Eléctrico", unit: "pz", price: 39, stock: 7, min: 12 },
+  { id: 8, sku: "LLP-10", code: "7501206610102", name: "Llave perica 10\"", cat: "Herramientas", unit: "pz", price: 239, stock: 11, min: 4 },
+  { id: 9, sku: "BRO-3", code: "7501045503003", name: "Brocha 3\" cerda natural", cat: "Pintura", unit: "pz", price: 54, stock: 18, min: 6 },
+  { id: 10, sku: "TAQ-14", code: "7501031101414", name: "Taquete plástico ¼\" (bolsa 100)", cat: "Fijación", unit: "pz", price: 35, stock: 52, min: 10 },
+  { id: 11, sku: "CAB-12", code: "7501012312120", name: "Cable THW cal. 12", cat: "Eléctrico", unit: "m", price: 16.5, stock: 312.5, min: 100 },
+  { id: 12, sku: "PEG-PVC", code: "7501088825025", name: "Pegamento PVC 250 ml", cat: "Plomería", unit: "pz", price: 79, stock: 9, min: 10 },
+  { id: 13, sku: "DIS-45", code: "7501206645045", name: "Disco de corte 4½\" metal", cat: "Herramientas", unit: "pz", price: 28, stock: 4, min: 15 },
+  { id: 14, sku: "LIJ-120", code: "7501045512012", name: "Lija de agua #120", cat: "Pintura", unit: "pz", price: 9.5, stock: 6, min: 25 },
+  { id: 15, sku: "VAR-38", code: "7501099938038", name: "Varilla corrugada ⅜\" × 12 m", cat: "Construcción", unit: "pz", price: 168, stock: 60, min: 20 },
+  { id: 16, sku: "CON-12", code: "7501088812120", name: "Codo PVC 90° ½\"", cat: "Plomería", unit: "pz", price: 7, stock: 140, min: 30 },
+  { id: 17, sku: "CLA-212", code: "2000000021201", name: "Clavo estándar 2½\" a granel", cat: "Fijación", unit: "kg", price: 42, stock: 38.5, min: 10 },
+];
+const FRACTIONAL = ["m", "kg", "lt"];
+const CATS = ["Todos", "Herramientas", "Fijación", "Eléctrico", "Pintura", "Plomería", "Construcción"];
+const METHODS = [
+  { id: "efectivo", label: "Efectivo", icon: "banknote" },
+  { id: "tarjeta", label: "Tarjeta", icon: "credit-card" },
+  { id: "transferencia", label: "Transferencia", icon: "landmark" },
+];
+const KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "back"];
+let folioSeq = 49;
+
+class Component extends DCLogic {
+  searchRef = React.createRef();
+  state = {
+    session: true, openingAmount: "1000.00",
+    q: "", cat: "Todos",
+    cart: [{ id: 6, qty: 2, disc: 0 }, { id: 11, qty: 12.5, disc: 0 }, { id: 9, qty: 1, disc: 10 }],
+    drafts: {}, editDisc: null, pending: 0, syncing: null,
+    method: "efectivo",
+    payOpen: false, payments: [], active: 0,
+    lastSale: null,
+    fb: null,
+  };
+
+  componentDidMount() {
+    this.onKey = (e) => {
+      if (e.key === "F2") { e.preventDefault(); this.searchRef.current?.focus(); }
+      else if (e.key === "F5") { e.preventDefault(); this.openPay(); }
+      else if (e.key === "F8") { e.preventDefault(); this.printLast(); }
+      else if (e.key === "Escape") {
+        if (this.state.payOpen) this.setState({ payOpen: false });
+        else if (this.state.cart.length) this.setState({ cart: [], fb: { t: "info", msg: "Ticket vaciado." } });
+      }
+    };
+    window.addEventListener("keydown", this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener("keydown", this.onKey); clearTimeout(this.syncT); }
+  componentDidUpdate(prev) {
+    if (prev.offline && !this.props.offline && this.state.pending) {
+      const n = this.state.pending;
+      this.setState({ syncing: `Conexión restablecida. Sincronizando ${n} ${n === 1 ? "venta" : "ventas"} guardadas en esta caja…` });
+      clearTimeout(this.syncT);
+      this.syncT = setTimeout(() => this.setState({ syncing: `${n} ${n === 1 ? "venta sincronizada" : "ventas sincronizadas"} con el servidor.`, pending: 0 }), 1800);
+      this.syncT2 = setTimeout(() => this.setState({ syncing: null }), 5000);
+    }
+  }
+
+  totals() {
+    const sub = this.state.cart.reduce((a, c) => a + PRODUCTS.find((p) => p.id === c.id).price * c.qty, 0);
+    const disc = this.state.cart.reduce((a, c) => a + Math.round(PRODUCTS.find((p) => p.id === c.id).price * c.qty * (c.disc || 0)) / 100, 0);
+    const tax = Math.round((sub - disc) * 0.16 * 100) / 100;
+    return { sub, disc, tax, total: Math.round((sub - disc + tax) * 100) / 100 };
+  }
+  add(p) {
+    if (p.stock <= 0) { this.setState({ fb: { t: "bad", msg: `${p.name} está agotado.` } }); return; }
+    this.setState((s) => {
+      const ex = s.cart.find((c) => c.id === p.id);
+      const cart = ex ? s.cart.map((c) => (c.id === p.id ? { ...c, qty: c.qty + 1 } : c)) : [...s.cart, { id: p.id, qty: 1, disc: 0 }];
+      return { cart, lastSale: null, fb: { t: "ok", msg: `Agregado: ${p.name} · ${mx(p.price)}` } };
+    });
+  }
+  setQty(id, qty) {
+    qty = Math.round(qty * 1000) / 1000;
+    this.setState((s) => ({ cart: qty <= 0 ? s.cart.filter((c) => c.id !== id) : s.cart.map((c) => (c.id === id ? { ...c, qty } : c)), drafts: { ...s.drafts, [id]: undefined } }));
+  }
+  setDisc(id, disc) {
+    disc = Math.max(0, Math.min(100, disc));
+    this.setState((s) => ({ cart: s.cart.map((c) => (c.id === id ? { ...c, disc } : c)) }));
+  }
+  filtered() {
+    const q = norm(this.state.q.trim());
+    return PRODUCTS.filter((p) => (this.state.cat === "Todos" || p.cat === this.state.cat) && (!q || norm(p.name).includes(q) || norm(p.sku).includes(q) || p.code.includes(q)));
+  }
+  openPay = () => {
+    if (!this.state.cart.length) return;
+    const { total } = this.totals();
+    this.setState({ payOpen: true, payments: [{ method: this.state.method, amount: total.toFixed(2) }], active: 0 });
+  };
+  printLast = () => {
+    if (this.state.lastSale) this.setState({ fb: { t: "info", msg: `Ticket ${this.state.lastSale.folio} enviado a la impresora.` } });
+  };
+  updActive(patch) {
+    this.setState((s) => ({ payments: s.payments.map((p, i) => (i === s.active ? { ...p, ...patch } : p)) }));
+  }
+  press(k) {
+    const cur = this.state.payments[this.state.active]?.amount ?? "";
+    if (k === "back") return this.updActive({ amount: cur.slice(0, -1) });
+    if (k === "." && cur.includes(".")) return;
+    this.updActive({ amount: cur === "0" || cur === "0.00" || this.fresh ? k : cur + k });
+    this.fresh = false;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const { sub, disc, tax, total } = this.totals();
+    const list = this.filtered();
+    const cartMap = Object.fromEntries(s.cart.map((c) => [c.id, c.qty]));
+    const tone = (bg, fg) => ({ bg, fg });
+    const products = list.map((p) => {
+      const out = p.stock <= 0, low = !out && p.stock < p.min;
+      const t = out ? tone("var(--bad-tint)", "var(--bad)") : low ? tone("var(--warn-tint)", "var(--warn)") : tone("var(--line-soft)", "var(--ink-2)");
+      return {
+        sku: p.sku, name: p.name, unit: p.unit, price: mx(p.price), out,
+        opacity: out ? 0.5 : 1, bg: cartMap[p.id] ? "var(--acc-tint)" : "var(--color-bg)",
+        stockLabel: out ? "Agotado" : `${p.stock} ${p.unit}`, stockBg: t.bg, stockFg: t.fg,
+        inCart: !!cartMap[p.id], cartQty: cartMap[p.id] ? `${cartMap[p.id]} ${p.unit}` : "",
+        add: () => this.add(p),
+      };
+    });
+    const cats = CATS.map((c) => {
+      const on = s.cat === c;
+      return {
+        name: c, count: c === "Todos" ? PRODUCTS.length : PRODUCTS.filter((p) => p.cat === c).length,
+        pick: () => this.setState({ cat: c }),
+        bg: on ? "var(--color-accent)" : "transparent", fg: on ? "var(--on-acc)" : "var(--color-text)",
+        border: on ? "var(--color-accent)" : "var(--color-divider)",
+      };
+    });
+    const lines = s.cart.map((c) => {
+      const p = PRODUCTS.find((x) => x.id === c.id);
+      const frac = FRACTIONAL.includes(p.unit);
+      const step = frac ? 0.5 : 1;
+      const gross = p.price * c.qty;
+      const net = gross - Math.round(gross * (c.disc || 0)) / 100;
+      const draft = s.drafts[c.id];
+      const editing = s.editDisc === c.id;
+      const fmtQ = (q) => (Number.isInteger(q) ? String(q) : q.toFixed(frac ? 2 : 0).replace(/0+$/, "").replace(/\.$/, ""));
+      return {
+        name: p.name, unit: p.unit, qtyShown: fmtQ(c.qty), unitPrice: mx(p.price), total: mx(net), gross: mx(gross),
+        hasDisc: c.disc > 0, disc: c.disc, frac, qtyW: frac ? "72px" : "56px",
+        bg: editing ? "var(--acc-tint)" : "transparent",
+        qtyText: draft !== undefined ? draft : fmtQ(c.qty),
+        incTitle: frac ? "+0.5 " + p.unit : "Agregar uno", decTitle: frac ? "−0.5 " + p.unit : "Quitar uno",
+        inc: () => this.setQty(c.id, c.qty + step), dec: () => this.setQty(c.id, c.qty - step),
+        remove: () => this.setQty(c.id, 0),
+        setQty: (e) => { const v = e.target.value.replace(",", ".").replace(frac ? /[^0-9.]/g : /[^0-9]/g, ""); this.setState((st) => ({ drafts: { ...st.drafts, [c.id]: v } })); },
+        commit: () => { if (draft === undefined) return; const v = parseFloat(draft); this.setQty(c.id, v > 0 ? v : c.qty); },
+        selectAll: (e) => e.target.select(),
+        fracQuick: frac ? [0.25, 0.5, 1, 2.5, 5, 10].map((q) => ({ label: fmtQ(q) + " " + p.unit, set: () => this.setQty(c.id, q), bg: c.qty === q ? "var(--acc-tint)" : "transparent" })) : [],
+        editing,
+        toggleDisc: () => this.setState({ editDisc: editing ? null : c.id }),
+        discOpts: [0, 5, 10, 15, 20].map((d, i) => ({ label: d ? d + "%" : "Sin", sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setDisc(c.id, d), bg: c.disc === d ? "var(--color-accent)" : "transparent", fg: c.disc === d ? "var(--on-acc)" : "var(--color-text)" })),
+        discText: [0, 5, 10, 15, 20].includes(c.disc) ? "" : String(c.disc),
+        setDisc: (e) => { const v = parseFloat(e.target.value.replace(",", ".")); this.setDisc(c.id, isNaN(v) ? 0 : v); },
+      };
+    });
+    const fbMap = { ok: ["var(--ok)", "circle-check"], bad: ["var(--bad)", "circle-alert"], info: ["var(--ink-2)", "info"] };
+    const fb = s.fb || { t: "info", msg: "Escanea con el lector o escribe y presiona Enter para agregar." };
+    const methodSeg = (cur, pick) => METHODS.map((m, i) => ({
+      ...m, pick: () => pick(m.id), sep: i ? "1px solid var(--color-divider)" : "0",
+      bg: cur === m.id ? "var(--color-accent)" : "transparent", fg: cur === m.id ? "var(--on-acc)" : "var(--color-text)",
+    }));
+    // payment
+    const pays = s.payments;
+    const act = pays[s.active] || { method: "efectivo", amount: "" };
+    const paid = pays.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const remaining = Math.round((total - paid) * 100) / 100;
+    const change = remaining < 0 ? -remaining : 0;
+    const quick = [{ v: total, label: "Exacto" }, ...[100, 200, 500, 1000, 2000].filter((v) => v > total).slice(0, 3).map((v) => ({ v, label: "$" + v.toLocaleString("es-MX") }))]
+      .map((b) => ({ label: b.label, set: () => { this.updActive({ amount: b.v.toFixed(2) }); this.fresh = true; } }));
+
+    return {
+      noSession: !s.session, hasSession: s.session,
+      openingAmount: s.openingAmount, setOpening: (e) => this.setState({ openingAmount: e.target.value }),
+      joinSession: () => this.setState({ session: true }),
+      exitPos: () => this.setState({ session: false, payOpen: false }),
+      searchRef: this.searchRef,
+      q: s.q, hasQ: !!s.q,
+      setQ: (e) => this.setState({ q: e.target.value }),
+      clearQ: () => this.setState({ q: "" }),
+      searchKey: (e) => {
+        if (e.key !== "Enter") return;
+        const q = s.q.trim(); if (!q) return;
+        const exact = PRODUCTS.find((p) => p.code === q || norm(p.sku) === norm(q));
+        const hit = exact || (list.length === 1 ? list[0] : null);
+        if (hit) { this.add(hit); this.setState({ q: "" }); }
+        else this.setState({ fb: { t: "bad", msg: list.length ? `${list.length} coincidencias: elige una en el catálogo.` : `Producto no registrado: ${q}` } });
+      },
+      fbColor: fbMap[fb.t][0], fbIcon: fbMap[fb.t][1], fbText: fb.msg,
+      cats, products, noProducts: products.length === 0,
+      ticketNo: "#" + String(folioSeq).padStart(4, "0"),
+      lines, cartEmpty: s.cart.length === 0,
+      showEmpty: s.cart.length === 0 && !s.lastSale,
+      showDone: s.cart.length === 0 && !!s.lastSale,
+      doneFolio: s.lastSale?.folio, doneTotal: s.lastSale ? mx(s.lastSale.total) : "", doneChange: s.lastSale ? mx(s.lastSale.change) : "",
+      printLast: this.printLast,
+      clearCart: () => this.setState({ cart: [] }),
+      itemCount: s.cart.length + (s.cart.length === 1 ? " artículo" : " artículos"),
+      subtotal: mx(sub), tax: mx(tax), total: mx(total), hasDiscount: disc > 0, discount: mx(disc),
+      offline: !!this.props.offline,
+      pendingLabel: s.pending ? `${s.pending} ${s.pending === 1 ? "venta pendiente" : "ventas pendientes"} de enviar` : "0 ventas pendientes",
+      syncing: !this.props.offline && !!s.syncing, syncText: s.syncing,
+      methods: methodSeg(s.method, (id) => this.setState({ method: id })),
+      openPay: this.openPay,
+      payOpen: s.payOpen, closePay: () => this.setState({ payOpen: false }), stop: (e) => e.stopPropagation(),
+      payMethods: methodSeg(act.method, (id) => this.updActive({ method: id })),
+      amountLabel: act.method === "efectivo" ? "Monto recibido" : "Monto cobrado",
+      activeAmount: act.amount,
+      setAmount: (e) => this.updActive({ amount: e.target.value.replace(/[^0-9.]/g, "") }),
+      isCash: act.method === "efectivo", isRef: act.method !== "efectivo",
+      quick,
+      isSplit: pays.length > 1,
+      payList: pays.map((p, i) => ({
+        label: `${i + 1}. ${METHODS.find((m) => m.id === p.method).label}`, amount: mx(Number(p.amount) || 0),
+        bg: i === s.active ? "var(--acc-tint)" : "transparent",
+        select: () => this.setState({ active: i }),
+        remove: (e) => { e.stopPropagation(); this.setState((st) => ({ payments: st.payments.filter((_, j) => j !== i), active: 0 })); },
+      })),
+      addPayment: () => this.setState((st) => ({ payments: [...st.payments, { method: "tarjeta", amount: Math.max(0, remaining).toFixed(2) }], active: st.payments.length })),
+      statusLabel: remaining > 0 ? "Falta por cobrar" : change > 0 ? "Cambio a entregar" : "Cobro completo",
+      statusValue: mx(remaining > 0 ? remaining : change),
+      statusColor: remaining > 0 ? "var(--bad)" : "var(--ok)",
+      statusBg: remaining > 0 ? "var(--bad-tint)" : "var(--ok-tint)",
+      keys: KEYS.map((k) => ({ label: k, isIcon: k === "back", isText: k !== "back", press: () => this.press(k) })),
+      setExact: () => { this.updActive({ amount: Math.max(0, remaining + (Number(act.amount) || 0)).toFixed(2) }); this.fresh = true; },
+      clearAmount: () => this.updActive({ amount: "" }),
+      cannotPay: remaining > 0,
+      completeSale: () => {
+        if (remaining > 0) return;
+        const d = new Date();
+        const off = !!this.props.offline;
+        const folio = off ? `OFF-${String(Date.now()).slice(-6)}` : `V-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(folioSeq).padStart(4, "0")}`;
+        if (!off) folioSeq++;
+        this.setState((st) => ({ payOpen: false, cart: [], editDisc: null, drafts: {}, pending: st.pending + (off ? 1 : 0), lastSale: { folio, total, change }, fb: { t: off ? "info" : "ok", msg: off ? `Venta ${folio} guardada en esta caja. Se enviará al volver la conexión.` : `Venta ${folio} registrada.` } }));
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

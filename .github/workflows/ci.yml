@@ -1,0 +1,110 @@
+name: CI
+
+# Pruebas, build y auditoría de dependencias en cada push y pull request (6.3, H-50)
+on:
+  push:
+    branches: [main, "fix/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pos_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Solo para CI: base efímera del contenedor, no son credenciales reales
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_test_db?options=-csearch_path%3Dlane_ci,public
+      APP_TIMEZONE: America/Mexico_City
+      # pg_dump/pg_restore de la misma versión que el servidor (los de la imagen del runner son más viejos)
+      PG_BIN_DIR: /usr/lib/postgresql/18/bin
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Cliente de PostgreSQL 18 (pg_dump y pg_restore de la misma versión que el servidor)
+        working-directory: .
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_restore --version
+      - name: Esquema de pruebas lane_ci con pg_trgm en public (como en local)
+        working-directory: .
+        run: PGPASSWORD=postgres /usr/lib/postgresql/18/bin/psql -h localhost -U postgres -d pos_test_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public" -c "CREATE SCHEMA IF NOT EXISTS lane_ci"
+      - name: Pruebas
+        run: |
+          python -m pytest -q -p no:cacheprovider -rf > pytest.out 2>&1 && { tail -3 pytest.out; exit 0; }
+          tail -60 pytest.out
+          python ../.github/scripts/mostrar_fallos.py pytest.out
+          exit 1
+
+  frontend:
+    name: Frontend (build + Vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Build (TypeScript + Vite)
+        run: npm run build
+      - name: Pruebas unitarias
+        run: npm test
+
+  audit:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: npm audit (producción, severidad alta)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt -r backend/requirements-dev.txt

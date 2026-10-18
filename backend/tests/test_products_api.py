@@ -277,3 +277,101 @@ def test_cannot_delete_unit_in_use(client, admin_token, db):
 
     assert response.status_code == 422
     assert "error" in response.get_json()
+
+
+def test_update_product_requires_editar_precio_permission(client, db, seed_roles):
+    """H-19: Cambiar el precio de venta requiere el permiso productos:editar_precio."""
+    from app.models.user import Permission, Role, User
+    from app.models.product import Product, UnitOfMeasure
+
+    # Usuario con permiso productos:editar pero sin productos:editar_precio
+    perm_edit = Permission.query.filter_by(code="productos:editar").first()
+    role_editor = seed_roles["cajero"]
+    role_editor.permissions.append(perm_edit)
+    db.session.flush()
+
+    user = User(
+        username="editor_sin_precio",
+        email="editor_sp@test.com",
+        full_name="Editor Sin Precio",
+        role_id=role_editor.id,
+    )
+    user.set_password("pass123")
+    db.session.add(user)
+
+    unit = UnitOfMeasure(name="Pieza", abbreviation="pz")
+    db.session.add(unit)
+    db.session.flush()
+    product = Product(
+        sku="PROD-P-1",
+        name="Taladro",
+        unit_id=unit.id,
+        sale_price=Decimal("1500.00"),
+        avg_cost=Decimal("1000.00"),
+    )
+    db.session.add(product)
+    db.session.commit()
+
+    login_res = client.post("/api/auth/login", json={"username": "editor_sin_precio", "password": "pass123"})
+    token = login_res.get_json()["access_token"]
+
+    # 1. Modificar nombre sin tocar precio -> 200 OK
+    res_name = client.patch(
+        f"/api/products/{product.id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Taladro Percutor"},
+    )
+    assert res_name.status_code == 200
+    assert res_name.get_json()["name"] == "Taladro Percutor"
+
+    # 2. Modificar sale_price -> 403 Forbidden
+    res_price = client.patch(
+        f"/api/products/{product.id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"sale_price": "1800.00"},
+    )
+    assert res_price.status_code == 403
+
+    # 3. Otorgar productos:editar_precio y reintentar -> 200 OK
+    perm_price = Permission.query.filter_by(code="productos:editar_precio").first()
+    role_editor = db.session.get(Role, role_editor.id)  # el cliente aislado (6.1) cierra la sesión del test: se relee el objeto antes de modificarlo
+    role_editor.permissions.append(perm_price)
+    db.session.commit()
+
+    res_price_ok = client.patch(
+        f"/api/products/{product.id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"sale_price": "1800.00"},
+    )
+    assert res_price_ok.status_code == 200
+    assert res_price_ok.get_json()["sale_price"] == "1800.00"
+
+
+def test_update_product_avg_cost_is_readonly(client, admin_token, db):
+    """H-19: avg_cost debe ser de solo lectura y no modificable vía PATCH /products."""
+    from app.models.product import Product, UnitOfMeasure
+
+    unit = UnitOfMeasure(name="Kilo", abbreviation="kg")
+    db.session.add(unit)
+    db.session.flush()
+    product = Product(
+        sku="PROD-AVG-1",
+        name="Clavos 2in",
+        unit_id=unit.id,
+        sale_price=Decimal("50.00"),
+        avg_cost=Decimal("30.00"),
+    )
+    db.session.add(product)
+    db.session.commit()
+
+    # Intentar sobreescribir avg_cost arbitrariamente
+    res = client.patch(
+        f"/api/products/{product.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"avg_cost": "999.00", "name": "Clavos 2in Reforzados"},
+    )
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["name"] == "Clavos 2in Reforzados"
+    assert data["avg_cost"] == "30.00"  # Permanece inalterado
+

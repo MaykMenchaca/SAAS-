@@ -3,12 +3,30 @@ from decimal import Decimal
 
 from app.extensions import db
 from app.models.inventory import Stock, StockMovement
+from app.utils.decorators import with_rollback
 
 
 class InventoryService:
     """Handles all stock mutations with SELECT FOR UPDATE to prevent races."""
 
     @staticmethod
+    def lock_stock(product_ids) -> None:
+        """Bloquea las filas de stock en orden de product_id antes de moverlas.
+
+        Dos operaciones con los mismos productos en distinto orden ([A,B] y [B,A]) toman los
+        bloqueos en el mismo orden y no hacen deadlock (OPS-09).
+        """
+        ids = sorted({int(pid) for pid in product_ids})
+        if ids:
+            (
+                Stock.query.filter(Stock.product_id.in_(ids))
+                .order_by(Stock.product_id)
+                .with_for_update()
+                .all()
+            )
+
+    @staticmethod
+    @with_rollback
     def move_stock(
         product_id: int,
         quantity,
@@ -17,17 +35,20 @@ class InventoryService:
         reference_id: int,
         user_id: int,
         notes: str | None = None,
+        is_delta: bool = False,
     ) -> Stock:
         """Execute an atomic stock movement.
 
         Args:
             product_id: Product to move stock for.
-            quantity: Amount to add/subtract/set.
+            quantity: Amount to add/subtract/set, or delta if is_delta is True. En un ajuste, el movimiento
+                guarda el cambio con signo (RF-33).
             movement_type: "entrada" | "salida" | "ajuste".
             reference_type: Source of the movement (venta, compra, conteo, etc.).
             reference_id: ID of the source record.
             user_id: User performing the operation.
             notes: Optional notes.
+            is_delta: If True and movement_type is "ajuste", quantity is applied as a delta.
 
         Returns:
             The updated Stock record.
@@ -54,6 +75,7 @@ class InventoryService:
 
         if movement_type == "entrada":
             stock.quantity += quantity
+            movement_qty = quantity
         elif movement_type == "salida":
             if stock.quantity < quantity:
                 raise ValueError(
@@ -61,15 +83,25 @@ class InventoryService:
                     f"{quantity} solicitado"
                 )
             stock.quantity -= quantity
+            movement_qty = quantity
         elif movement_type == "ajuste":
-            stock.quantity = quantity
+            new_quantity = previous_stock + quantity if is_delta else quantity
+            if new_quantity < 0:
+                # Antes chocaba con el CHECK de la BD y salía un 409 genérico sin decir qué producto (RF-32)
+                raise ValueError(
+                    f"El ajuste dejaría el stock en {new_quantity} (actual: {previous_stock})"
+                )
+            stock.quantity = new_quantity
+            # En un ajuste, `quantity` es el cambio con signo (nuevo − anterior), no el stock nuevo ni el
+            # valor absoluto de la diferencia (RF-33). Entradas y salidas siguen siendo positivas
+            movement_qty = new_quantity - previous_stock
         else:
             raise ValueError(f"Tipo de movimiento no válido: {movement_type}")
 
         movement = StockMovement(
             product_id=product_id,
             movement_type=movement_type,
-            quantity=quantity,
+            quantity=movement_qty,
             previous_stock=previous_stock,
             new_stock=stock.quantity,
             reference_type=reference_type,

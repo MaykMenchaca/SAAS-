@@ -278,3 +278,25 @@ def test_backup_verify_api(client, admin_token, db, tmp_path, app):
     data = response.get_json()
     assert data["verified"] is True
     assert data["entries"] == 1
+
+
+def test_backups_ignorados_por_git():
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    res = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "backend/backups/x.dump"],
+        capture_output=True,
+    )
+    assert res.returncode == 0
+
+
+def test_backup_dir_default_outside_repo(app):
+    from app.services.backup_service import _get_backup_dir
+    from pathlib import Path
+    app.config["BACKUP_DIR"] = None
+    backup_path = _get_backup_dir()
+    repo_root = Path(app.root_path).parent.resolve()
+    assert backup_path.is_absolute()
+    assert not str(backup_path).startswith(str(repo_root / "backend"))
+

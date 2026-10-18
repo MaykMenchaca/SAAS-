@@ -4,8 +4,12 @@ import type { AxiosRequestConfig } from "axios";
 const ACCESS_TOKEN_KEY = "pos_access_token";
 const REFRESH_TOKEN_KEY = "pos_refresh_token";
 
+/** Sin timeout, un servidor colgado deja la venta "Procesando..." para siempre (H-24). */
+export const API_TIMEOUT_MS = 15000;
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "/api",
+  timeout: API_TIMEOUT_MS,
   headers: {
     "Content-Type": "application/json",
   },
@@ -71,6 +75,19 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
+    // Contraseña temporal: el backend exige cambiarla antes de cualquier otra acción (FE-101)
+    if (error.response?.status === 403 && error.response.data?.code === "password_change_required") {
+      window.dispatchEvent(new Event("auth:password-change-required"));
+      return Promise.reject(error);
+    }
+
+    // flask-jwt-extended responde 422 {"msg": ...} ante un token mal formado o con firma inválida;
+    // no confundir con el 422 de validación ({"error": "Datos inválidos", "details": ...})
+    if (error.response?.status === 422 && typeof error.response.data?.msg === "string" && !error.response.data?.error) {
+      window.dispatchEvent(new Event("auth:expired"));
+      return Promise.reject(error);
+    }
+
     if (
       error.response?.status === 401 &&
       !originalRequest.url?.includes("/auth/refresh") &&
@@ -103,7 +120,7 @@ apiClient.interceptors.response.use(
         const { data } = await axios.post<{ access_token: string }>(
           `${apiClient.defaults.baseURL}/auth/refresh`,
           undefined,
-          { headers: { Authorization: `Bearer ${refreshToken}` } },
+          { headers: { Authorization: `Bearer ${refreshToken}` }, timeout: API_TIMEOUT_MS },
         );
 
         setStoredAccessToken(data.access_token);
@@ -115,7 +132,10 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        window.dispatchEvent(new Event("auth:expired"));
+        // Solo se cierra la sesión si el servidor rechazó el refresh; un error de red no la invalida.
+        if (axios.isAxiosError(refreshError) && refreshError.response) {
+          window.dispatchEvent(new Event("auth:expired"));
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

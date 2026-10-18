@@ -1,4 +1,4 @@
-from marshmallow import EXCLUDE, Schema, fields, validate
+from marshmallow import pre_load, EXCLUDE, Schema, fields, validate
 
 
 class UserSchema(Schema):
@@ -10,6 +10,7 @@ class UserSchema(Schema):
     role = fields.Method("get_role", dump_only=True)
     permissions = fields.Method("get_permissions", dump_only=True)
     is_active = fields.Bool(dump_only=True)
+    must_change_password = fields.Bool(dump_only=True)
     last_login_at = fields.DateTime(dump_only=True, allow_none=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
@@ -21,12 +22,30 @@ class UserSchema(Schema):
         return user.permissions
 
 
+def _normalize_user_input(data):
+    """Recorta username y email (RF-42: " x " se creaba y nunca podía entrar); email vacío -> NULL (H-28)."""
+    if not isinstance(data, dict):
+        return data
+    data = dict(data)
+    for field in ("username", "email"):
+        if isinstance(data.get(field), str):
+            data[field] = data[field].strip()
+    if data.get("email") == "":
+        data["email"] = None
+    return data
+
+
 class UserCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    @pre_load
+    def normalize(self, data, **kwargs):
+        return _normalize_user_input(data)
+
     username = fields.Str(required=True, validate=validate.Length(min=3, max=80))
-    email = fields.Email(required=True)
+    # El email es opcional (H-28): "" o null se guardan como NULL
+    email = fields.Email(load_default=None, allow_none=True)
     full_name = fields.Str(required=True, validate=validate.Length(min=1, max=150))
     password = fields.Str(required=True, load_only=True, validate=validate.Length(min=8, max=128))
     role_id = fields.Int(required=True, validate=validate.Range(min=1))
@@ -36,16 +55,27 @@ class UserUpdateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    @pre_load
+    def normalize(self, data, **kwargs):
+        return _normalize_user_input(data)
+
     username = fields.Str(validate=validate.Length(min=3, max=80))
-    email = fields.Email()
+    email = fields.Email(allow_none=True)
     full_name = fields.Str(validate=validate.Length(min=1, max=150))
     password = fields.Str(load_only=True, validate=validate.Length(min=8, max=128))
     role_id = fields.Int(validate=validate.Range(min=1))
     is_active = fields.Bool()
 
 
+class PermissionSchema(Schema):
+    code = fields.Str(dump_only=True)
+    module = fields.Str(dump_only=True)
+    description = fields.Str(dump_only=True, allow_none=True)
+
+
 class RoleSchema(Schema):
     id = fields.Int(dump_only=True)
+    permissions = fields.Nested(PermissionSchema, many=True, dump_only=True)
     name = fields.Str(dump_only=True)
     description = fields.Str(dump_only=True, allow_none=True)
     is_active = fields.Bool(dump_only=True)

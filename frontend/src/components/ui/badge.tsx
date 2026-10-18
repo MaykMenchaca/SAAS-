@@ -2,26 +2,30 @@ import type { HTMLAttributes } from "react";
 
 import { cn } from "../../lib/cn";
 
-type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
+// `info` se conserva por compatibilidad y se muestra como `accent` (Industry no tiene un tono "info").
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info" | "outline";
 
 type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   dot?: boolean;
   tone?: BadgeTone;
 };
 
+// Tinte translúcido + texto del mismo tono: todos los pares miden ≥4.5:1 (tools/contrast_check.py)
 const tones: Record<BadgeTone, string> = {
-  neutral: "bg-neutral-bg text-neutral-text-secondary border-neutral-border",
-  success: "bg-success/10 text-success border-success/30",
-  warning: "bg-warning/10 text-warning border-warning/30",
-  danger: "bg-danger/10 text-danger border-danger/30",
-  info: "bg-info/10 text-info border-info/30",
+  neutral: "bg-line-soft text-ink-2",
+  accent: "bg-acc-tint text-acc-text",
+  info: "bg-acc-tint text-acc-text",
+  success: "bg-ok-tint text-ok",
+  warning: "bg-warn-tint text-warn",
+  danger: "bg-bad-tint text-bad",
+  outline: "border border-accent text-acc-text",
 };
 
 export function Badge({ children, className, dot, tone = "neutral", ...rest }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-semibold",
+        "inline-flex min-h-7 items-center gap-1.5 px-2 text-xs font-medium tracking-wide",
         tones[tone],
         className,
       )}

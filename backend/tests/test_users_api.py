@@ -89,3 +89,62 @@ def test_create_user_validates_password_length(client, admin_token, seed_roles):
     )
 
     assert response.status_code == 422
+
+
+def test_admin_cannot_deactivate_self(client, admin_token, seed_admin, seed_roles):
+    """Admin cannot deactivate their own user account even if other admins exist."""
+    # Create another admin first so seed_admin is not the only admin
+    manager_resp = client.post(
+        "/api/users/",
+        json={
+            "username": "otro_admin",
+            "email": "otro_admin@test.com",
+            "full_name": "Otro Admin",
+            "password": "securepassword123",
+            "role_id": seed_roles["admin"].id,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert manager_resp.status_code == 201
+
+    # Now seed_admin tries to deactivate self
+    response = client.delete(
+        f"/api/users/{seed_admin.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "propia cuenta" in data["error"].lower()
+
+
+def test_cannot_deactivate_last_admin(client, admin_token, seed_admin):
+    """System prevents deactivating the last active admin."""
+    # seed_admin is the ONLY active admin
+    response = client.delete(
+        f"/api/users/{seed_admin.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "único administrador" in data["error"].lower()
+
+    # Also test via PATCH
+    patch_resp = client.patch(
+        f"/api/users/{seed_admin.id}",
+        json={"is_active": False},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert patch_resp.status_code == 400
+    assert "único administrador" in patch_resp.get_json()["error"].lower()
+
+
+def test_cannot_demote_last_admin(client, admin_token, seed_admin, seed_roles):
+    """System prevents changing role away from admin for the last active admin."""
+    patch_resp = client.patch(
+        f"/api/users/{seed_admin.id}",
+        json={"role_id": seed_roles["cajero"].id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert patch_resp.status_code == 400
+    assert "único administrador" in patch_resp.get_json()["error"].lower()
+

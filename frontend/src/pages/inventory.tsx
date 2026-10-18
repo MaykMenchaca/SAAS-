@@ -1,29 +1,51 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
-import { ArrowDownUp, Boxes, ClipboardList, Package, Search } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import type { StockAdjustPayload, StockItem, StockMovement } from "../api/inventory";
-import { adjustStock, listMovements, listStock } from "../api/inventory";
-import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Input, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
-import { formatStock } from "../lib/formatters";
+import { invalidateInventory } from "../api/invalidate";
+import type { StockItem } from "../api/inventory";
+import { getInventorySummary, listStock } from "../api/inventory";
+import { qk } from "../api/query-keys";
+import { fetchInventoryValuation } from "../api/reports";
+import { useCan } from "../components/auth/require-permission";
+import { Button, ErrorState, FilterChip, Input, PageHeader, Pagination, SkeletonKPI, SkeletonTable } from "../components/ui";
+import { formatCurrency } from "../lib/formatters";
+import { InventoryTabs } from "./inventory/inventory-tabs";
+import { isBelowMin } from "./inventory/stock-level";
+import { StockKpis } from "./inventory/stock-kpis";
+import { StockPanel } from "./inventory/stock-panel";
+import { StockTable } from "./inventory/stock-table";
 
-// ── Main Page ──────────────────────────────────────────────────────
+type StockFilter = "all" | "low" | "normal";
 
 export function InventoryPage() {
+  const can = useCan();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
-  const [adjustProduct, setAdjustProduct] = useState<StockItem | null>(null);
-  const [stockFilter, setStockFilter] = useState<"all" | "low" | "normal">("all");
+  const [selected, setSelected] = useState<StockItem | null>(null);
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+
+  const canAdjust = can("inventario:ajustar");
 
   const stockQuery = useQuery({
-    queryKey: ["stock", page, search],
+    queryKey: qk.stock(page, search),
     queryFn: () => listStock({ page, search }),
+  });
+
+  // Indicadores: conteos exactos del servidor (RF-23; antes salían de las primeras 100 filas de low-stock)
+  // y valor a costo (valuación)
+  const summaryQuery = useQuery({
+    queryKey: qk.inventorySummary(),
+    queryFn: getInventorySummary,
+  });
+  const valuationQuery = useQuery({
+    queryKey: qk.reportInventoryValuation(),
+    queryFn: fetchInventoryValuation,
+    enabled: can("reportes:ver"),
   });
 
   const stocks = stockQuery.data?.items ?? [];
@@ -31,11 +53,23 @@ export function InventoryPage() {
 
   const filteredStocks = stocks.filter((item) => {
     if (stockFilter === "all") return true;
-    const qty = Number(item.quantity);
-    const min = Number(item.min_stock);
-    const isLow = min > 0 && qty < min;
-    return stockFilter === "low" ? isLow : !isLow;
+    const below = isBelowMin(Number(item.quantity), Number(item.min_stock));
+    return stockFilter === "low" ? below : !below;
   });
+
+  // Si el producto elegido está en la lista actual, se usa el dato fresco (tras ajustar)
+  const panelItem = selected ? stocks.find((item) => item.id === selected.id) ?? selected : null;
+
+  const summary = summaryQuery.data;
+  const kpis = [
+    { label: "Productos", value: summary ? String(summary.total_products) : "—" },
+    { label: "Bajo mínimo", tone: "warn" as const, value: summary ? String(summary.below_min) : "—" },
+    { label: "Agotados", tone: "bad" as const, value: summary ? String(summary.out_of_stock) : "—" },
+    {
+      label: "Valor a costo",
+      value: valuationQuery.data ? formatCurrency(valuationQuery.data.total_valuation) : "—",
+    },
+  ];
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,315 +78,91 @@ export function InventoryPage() {
   }
 
   return (
-    <div className="grid gap-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Inventario</h1>
-          <p className="text-sm text-neutral-text-secondary">Stock actual y movimientos</p>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      <PageHeader
+        title="Inventario"
+        subtitle="Existencias, ajustes y conteos físicos"
+        actions={
+          canAdjust ? (
+            <Link to="/inventario/conteo">
+              <Button frame icon={<ClipboardList aria-hidden="true" size={18} />}>
+                Conteo físico
+              </Button>
+            </Link>
+          ) : undefined
+        }
+      />
+
+      <InventoryTabs active="existencias" />
+
+      {summaryQuery.isLoading ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SkeletonKPI />
+          <SkeletonKPI />
+          <SkeletonKPI />
+          <SkeletonKPI />
         </div>
-        <Link to="/inventario/conteo">
-          <Button icon={<ClipboardList aria-hidden="true" size={18} />} variant="secondary">
-            Conteo físico
-          </Button>
-        </Link>
-      </div>
+      ) : (
+        <StockKpis items={kpis} />
+      )}
 
-      {/* Filter Chips */}
-      <div className="flex flex-wrap gap-2">
-        <FilterChip active={stockFilter === "all"} label="Todo stock" onClick={() => setStockFilter("all")} />
-        <FilterChip active={stockFilter === "low"} label="Stock bajo" onClick={() => setStockFilter("low")} />
-        <FilterChip active={stockFilter === "normal"} label="Stock normal" onClick={() => setStockFilter("normal")} />
-      </div>
-
-      {/* Search + Table */}
-      <section className="grid gap-3">
-        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
-          <Input
-            label="Buscar"
-            name="search"
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Nombre, SKU o código"
-            value={searchInput}
-          />
-          <div className="flex items-end">
-            <Button className="w-full sm:w-auto" icon={<Search aria-hidden="true" size={18} />} type="submit">
-              Buscar
-            </Button>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div aria-label="Filtrar por nivel de stock" className="flex flex-wrap gap-2" role="group">
+          <FilterChip active={stockFilter === "all"} label="Todo" onClick={() => setStockFilter("all")} />
+          <FilterChip active={stockFilter === "low"} label="Bajo mínimo" onClick={() => setStockFilter("low")} />
+          <FilterChip active={stockFilter === "normal"} label="Normal" onClick={() => setStockFilter("normal")} />
+        </div>
+        <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={handleSearch}>
+          <div className="min-w-0 sm:w-80 sm:max-w-full">
+            <Input
+              icon={<Search aria-hidden="true" size={16} />}
+              label="Buscar"
+              name="search"
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Nombre, SKU o código"
+              value={searchInput}
+            />
           </div>
+          <Button className="w-full sm:w-auto" type="submit" variant="secondary">
+            Buscar
+          </Button>
         </form>
-
-        {stockQuery.isLoading ? (
-          <SkeletonTable rows={8} cols={5} />
-        ) : stockQuery.isError ? (
-          <ErrorState onRetry={() => void stockQuery.refetch()} />
-        ) : (
-          <Card className="overflow-hidden">
-            <Table>
-              <caption className="sr-only">Tabla de inventario</caption>
-              <thead>
-                <tr>
-                  <th className={tableHeadClass}>Producto</th>
-                  <th className={`${tableHeadClass} text-right`}>Stock</th>
-                  <th className={tableHeadClass}>Min / Max</th>
-                  <th className={tableHeadClass}>Estado</th>
-                  <th className={tableHeadClass}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStocks.map((item) => {
-                  const qty = Number(item.quantity);
-                  const min = Number(item.min_stock);
-                  const isLow = min > 0 && qty < min;
-
-                  return (
-                    <tr className={tableRowClass} key={item.id}>
-                      <td className={tableCellClass}>
-                        <div className="font-semibold text-neutral-text-primary">{item.product_name}</div>
-                        <div className="font-mono text-xs text-neutral-text-secondary">{item.sku}</div>
-                      </td>
-                      <td className={`${tableCellClass} text-right font-mono font-semibold ${isLow ? "text-danger" : ""}`}>
-                        {formatStock(item.quantity)} {item.unit_abbreviation}
-                      </td>
-                      <td className={`${tableCellClass} text-neutral-text-secondary`}>
-                        {formatStock(item.min_stock)} / {formatStock(item.max_stock)}
-                      </td>
-                      <td className={tableCellClass}>
-                        {isLow ? (
-                          <Badge dot tone="warning">Bajo</Badge>
-                        ) : (
-                          <Badge dot tone="success">Normal</Badge>
-                        )}
-                      </td>
-                      <td className={tableCellClass}>
-                        <div className="flex gap-2">
-                          <Tooltip content="Movimientos">
-                            <Button
-                              aria-label={`Movimientos de ${item.product_name}`}
-                              className="h-11 w-11 px-0"
-                              onClick={() => setSelectedProduct(item)}
-                              variant="secondary"
-                            >
-                              <ArrowDownUp aria-hidden="true" size={17} />
-                            </Button>
-                          </Tooltip>
-                          <Tooltip content="Ajustar stock">
-                            <Button
-                              aria-label={`Ajustar stock de ${item.product_name}`}
-                              className="h-11 w-11 px-0"
-                              onClick={() => setAdjustProduct(item)}
-                              variant="secondary"
-                            >
-                              <Package aria-hidden="true" size={17} />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {filteredStocks.length === 0 ? (
-                  <tr>
-                    <td colSpan={5}>
-                      <EmptyState icon={<Boxes size={32} />} message="Sin productos en inventario." actionLabel="Ir a Productos" actionHref="/productos" />
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </Table>
-          </Card>
-        )}
-
-        {/* Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-          <span>Página {stockQuery.data?.page ?? page} de {totalPages}</span>
-          <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
-        </div>
-      </section>
-
-      {/* Movement History Modal */}
-      {selectedProduct ? (
-        <MovementHistoryModal onClose={() => setSelectedProduct(null)} product={selectedProduct} />
-      ) : null}
-
-      {/* Adjust Stock Modal */}
-      {adjustProduct ? (
-        <AdjustStockModal
-          onClose={() => setAdjustProduct(null)}
-          onSuccess={async () => {
-            await queryClient.invalidateQueries({ queryKey: ["stock"] });
-            setAdjustProduct(null);
-          }}
-          product={adjustProduct}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// ── Movement History Modal ─────────────────────────────────────────
-
-function MovementHistoryModal({ product, onClose }: { product: StockItem; onClose: () => void }) {
-  const movementsQuery = useQuery({
-    queryKey: ["movements", product.product_id],
-    queryFn: () => listMovements(product.product_id),
-  });
-
-  const movements = movementsQuery.data ?? [];
-
-  const typeLabels: Record<string, string> = {
-    entrada: "Entrada",
-    salida: "Salida",
-    ajuste: "Ajuste",
-  };
-
-  const refLabels: Record<string, string> = {
-    venta: "Venta",
-    compra: "Compra",
-    ajuste_manual: "Ajuste manual",
-    cancelacion: "Cancelación",
-    devolucion: "Devolución",
-    conteo: "Conteo físico",
-  };
-
-  function typeTone(type: string): "success" | "danger" | "warning" {
-    if (type === "entrada") return "success";
-    if (type === "salida") return "danger";
-    return "warning";
-  }
-
-  return (
-    <Modal onClose={onClose} open title={`Movimientos — ${product.product_name}`}>
-      <div className="max-h-96 overflow-auto">
-        {movementsQuery.isLoading ? (
-          <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando...</p>
-        ) : movements.length === 0 ? (
-          <p className="py-6 text-center text-sm text-neutral-text-secondary">Sin movimientos registrados.</p>
-        ) : (
-          <Table>
-            <caption className="sr-only">Tabla de movimientos</caption>
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Tipo</th>
-                <th className={`${tableHeadClass} text-right`}>Cant.</th>
-                <th className={`${tableHeadClass} text-right`}>Anterior</th>
-                <th className={`${tableHeadClass} text-right`}>Nuevo</th>
-                <th className={tableHeadClass}>Referencia</th>
-                <th className={tableHeadClass}>Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movements.map((m: StockMovement) => (
-                <tr className={tableRowClass} key={m.id}>
-                  <td className={tableCellClass}>
-                    <Badge tone={typeTone(m.movement_type)}>{typeLabels[m.movement_type] ?? m.movement_type}</Badge>
-                  </td>
-                  <td className={`${tableCellClass} text-right font-mono`}>{m.quantity}</td>
-                  <td className={`${tableCellClass} text-right font-mono text-neutral-text-secondary`}>{m.previous_stock}</td>
-                  <td className={`${tableCellClass} text-right font-mono font-semibold`}>{m.new_stock}</td>
-                  <td className={`${tableCellClass} text-xs`}>
-                    {refLabels[m.reference_type] ?? m.reference_type}
-                    {m.notes ? <div className="text-neutral-text-secondary">{m.notes}</div> : null}
-                  </td>
-                  <td className={`${tableCellClass} text-xs text-neutral-text-secondary`}>
-                    {new Date(m.created_at).toLocaleString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
       </div>
-    </Modal>
-  );
-}
 
-// ── Adjust Stock Modal ─────────────────────────────────────────────
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+          {stockQuery.isLoading ? (
+            <SkeletonTable cols={5} rows={8} />
+          ) : stockQuery.isError ? (
+            <ErrorState onRetry={() => void stockQuery.refetch()} />
+          ) : (
+            <StockTable canAdjust={canAdjust} items={filteredStocks} onSelect={setSelected} selectedId={panelItem?.id ?? null} />
+          )}
 
-function AdjustStockModal({
-  product,
-  onClose,
-  onSuccess,
-}: {
-  product: StockItem;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [quantity, setQuantity] = useState(product.quantity);
-  const [notes, setNotes] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: (payload: StockAdjustPayload) => adjustStock(payload),
-    onSuccess,
-  });
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    mutation.mutate({
-      product_id: product.product_id,
-      quantity,
-      notes: notes.trim() || undefined,
-    });
-  }
-
-  const errorMessage = mutation.error
-    ? mutation.error instanceof AxiosError
-      ? mutation.error.response?.data?.error ?? "No se pudo ajustar."
-      : "No se pudo ajustar."
-    : "";
-
-  return (
-    <Modal
-      footer={
-        <>
-          <Button onClick={onClose} variant="secondary">
-            Cancelar
-          </Button>
-          <Button disabled={mutation.isPending || !quantity} form="adjust-form" type="submit">
-            {mutation.isPending ? "Guardando" : "Ajustar"}
-          </Button>
-        </>
-      }
-      onClose={onClose}
-      open
-      title={`Ajustar stock — ${product.product_name}`}
-    >
-      <form className="grid gap-4" id="adjust-form" onSubmit={handleSubmit}>
-        <div className="rounded-md border border-neutral-border bg-neutral-bg px-3 py-2 text-sm">
-          <span className="text-neutral-text-secondary">Stock actual: </span>
-          <span className="font-mono font-semibold">
-            {formatStock(product.quantity)} {product.unit_abbreviation}
-          </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-2">
+            <span>
+              Página {stockQuery.data?.page ?? page} de {totalPages}
+            </span>
+            <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
+          </div>
         </div>
 
-        <Input
-          label="Nueva cantidad"
-          name="quantity"
-          onChange={(e) => setQuantity(e.target.value)}
-          type="number"
-          value={quantity}
-        />
-
-        <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-          <span>Notas (opcional)</span>
-          <textarea
-            className="min-h-20 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Razón del ajuste..."
-            value={notes}
-          />
-        </label>
-
-        {errorMessage ? (
-          <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">{errorMessage}</div>
-        ) : null}
-      </form>
-    </Modal>
+        <div className="min-w-0 xl:sticky xl:top-5">
+          {panelItem ? (
+            <StockPanel
+              canAdjust={canAdjust}
+              item={panelItem}
+              key={panelItem.id}
+              onAdjusted={() => invalidateInventory(queryClient)}
+              onClose={() => setSelected(null)}
+            />
+          ) : (
+            <div className="border border-divider p-6 text-sm text-ink-2">
+              Elige un producto de la tabla para ver sus movimientos{canAdjust ? " y ajustar su stock" : ""}.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

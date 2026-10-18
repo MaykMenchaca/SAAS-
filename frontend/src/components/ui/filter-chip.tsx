@@ -7,14 +7,16 @@ type FilterChipProps = {
   onClick: () => void;
 };
 
+/** Chip de filtro/categoría Industry: cuadrado, borde fino; el activo se rellena de acento. */
 export function FilterChip({ active, className, label, onClick }: FilterChipProps) {
   return (
     <button
+      aria-pressed={active}
       className={cn(
-        "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
+        "inline-flex min-h-9 items-center whitespace-nowrap border px-3 font-heading text-base font-semibold transition-colors duration-150",
         active
-          ? "border-outline bg-neutral-surface-raised text-neutral-text-primary"
-          : "border-neutral-border bg-transparent text-neutral-text-secondary hover:bg-neutral-surface-raised/50",
+          ? "border-accent bg-accent text-on-acc"
+          : "border-divider bg-transparent text-text hover:bg-line-soft",
         className,
       )}
       onClick={onClick}

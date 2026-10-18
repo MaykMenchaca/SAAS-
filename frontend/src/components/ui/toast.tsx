@@ -6,18 +6,21 @@ type ToastProps = HTMLAttributes<HTMLDivElement> & {
   tone?: "neutral" | "success" | "danger" | "warning" | "info";
 };
 
+// El tinte es translúcido: se apoya sobre el color de fondo para que el texto no se mezcle con lo que haya detrás
+const tint = (token: string) => `[background:linear-gradient(var(--color-${token}),var(--color-${token})),var(--color-bg)]`;
+
 const tones = {
-  neutral: "border-neutral-border bg-neutral-surface text-neutral-text-primary",
-  success: "border-success/30 bg-success/10 text-success",
-  danger: "border-danger/30 bg-danger/10 text-danger",
-  warning: "border-warning/30 bg-warning/10 text-warning",
-  info: "border-info/30 bg-info/10 text-info",
+  neutral: "border-divider bg-bg text-text",
+  success: `border-ok text-ok ${tint("ok-tint")}`,
+  danger: `border-bad text-bad ${tint("bad-tint")}`,
+  warning: `border-warn text-warn ${tint("warn-tint")}`,
+  info: `border-accent text-acc-text ${tint("acc-tint")}`,
 };
 
 export function Toast({ className, tone = "neutral", ...props }: ToastProps) {
   return (
     <div
-      className={cn("rounded-lg border px-4 py-3 text-sm font-medium", tones[tone], className)}
+      className={cn("border px-4 py-3 text-sm font-medium shadow-md", tones[tone], className)}
       role="status"
       {...props}
     />

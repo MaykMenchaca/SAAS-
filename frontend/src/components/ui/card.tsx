@@ -1,12 +1,19 @@
 import type { HTMLAttributes } from "react";
 
 import { cn } from "../../lib/cn";
+import { Corners } from "./corners";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+type CardProps = HTMLAttributes<HTMLDivElement> & {
+  /** Marcas de registro "+" en las esquinas (paneles destacados: totales, diálogos, formularios principales). */
+  frame?: boolean;
+};
+
+/** Panel Industry: transparente, borde fino, sin sombra ni esquinas redondeadas. */
+export function Card({ children, className, frame, ...props }: CardProps) {
   return (
-    <section
-      className={cn("rounded-lg border border-neutral-border bg-neutral-surface text-neutral-text-primary", className)}
-      {...props}
-    />
+    <section className={cn("border border-divider text-text", frame && "blueprint", className)} {...props}>
+      {frame ? <Corners /> : null}
+      {children}
+    </section>
   );
 }

@@ -14,14 +14,14 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
         return (
           <span className="flex items-center gap-1.5" key={item.label}>
             {idx > 0 ? (
-              <ChevronRight aria-hidden="true" className="text-neutral-text-muted" size={14} />
+              <ChevronRight aria-hidden="true" className="text-ink-2" size={14} />
             ) : null}
             {isLast || !item.href ? (
-              <span className={isLast ? "font-semibold text-neutral-text-primary" : "text-neutral-text-secondary"}>
+              <span className={isLast ? "font-medium text-text" : "text-ink-2"}>
                 {item.label}
               </span>
             ) : (
-              <Link className="text-neutral-text-secondary transition-colors hover:text-primary" to={item.href}>
+              <Link className="text-ink-2 transition-colors hover:text-acc-text" to={item.href}>
                 {item.label}
               </Link>
             )}

@@ -1,8 +1,12 @@
+import secrets
+import string
+
 from marshmallow import ValidationError
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.extensions import db
-from app.models.user import Role, User
+from app.models.user import Permission, Role, User
+from app.utils.decorators import with_rollback
 
 
 class UserService:
@@ -30,6 +34,10 @@ class UserService:
         return Role.query.filter_by(is_active=True).order_by(Role.name.asc()).all()
 
     @staticmethod
+    def list_permissions():
+        return Permission.query.order_by(Permission.module.asc(), Permission.code.asc()).all()
+
+    @staticmethod
     def get_user(user_id, include_inactive=True):
         query = User.query.filter_by(id=user_id)
         if not include_inactive:
@@ -37,27 +45,45 @@ class UserService:
         return query.first()
 
     @staticmethod
+    @with_rollback
     def create_user(data):
         UserService._validate_role(data["role_id"])
         UserService._validate_unique_user(
             username=data["username"],
-            email=data["email"],
+            email=data.get("email"),
         )
 
         user = User(
             username=data["username"],
-            email=data["email"],
+            email=data.get("email"),
             full_name=data["full_name"],
             role_id=data["role_id"],
         )
         user.set_password(data["password"])
 
         db.session.add(user)
+        db.session.flush()
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="crear",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username, "role_id": user.role_id},
+            new_value={
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "role_id": user.role_id,
+            },
+        )
+
         db.session.commit()
         return user
 
     @staticmethod
-    def update_user(user, data):
+    @with_rollback
+    def update_user(user, data, current_user_id=None):
         if "role_id" in data:
             UserService._validate_role(data["role_id"])
 
@@ -67,21 +93,131 @@ class UserService:
             exclude_user_id=user.id,
         )
 
+        # Protección: No desactivar al último admin ni desactivarse a uno mismo (H-40)
+        if "is_active" in data and not data["is_active"] and user.is_active:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError("No se puede desactivar al único administrador activo del sistema")
+            if current_user_id and user.id == current_user_id:
+                raise ValueError("No puedes desactivar tu propia cuenta de usuario")
+
+        # Protección: No quitar rol de admin al último admin (H-40)
+        if "role_id" in data and user.is_active:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id and data["role_id"] != admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError("No se puede cambiar el rol al único administrador activo del sistema")
+
+        previous_value = {
+            field: getattr(user, field)
+            for field in ("username", "email", "full_name", "role_id", "is_active")
+            if field in data
+        }
+
         for field in ("username", "email", "full_name", "role_id", "is_active"):
             if field in data:
                 setattr(user, field, data[field])
 
+        new_value = {
+            field: getattr(user, field)
+            for field in ("username", "email", "full_name", "role_id", "is_active")
+            if field in data
+        }
+
         if "password" in data:
             user.set_password(data["password"])
+            new_value["password"] = "[CHANGED]"
+
+        role_changed = "role_id" in data and data["role_id"] != previous_value.get("role_id")
+        deactivated = "is_active" in data and not data["is_active"] and previous_value.get("is_active")
+        if role_changed or deactivated:
+            user.token_version = (user.token_version or 1) + 1
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="editar",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            previous_value=previous_value,
+            new_value=new_value,
+        )
 
         db.session.commit()
         return user
 
     @staticmethod
-    def deactivate_user(user):
+    @with_rollback
+    def deactivate_user(user, current_user_id=None):
+        admin_role = Role.query.filter_by(name="admin").first()
+        if admin_role and user.role_id == admin_role.id and user.is_active:
+            active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+            if active_admins <= 1:
+                raise ValueError("No se puede desactivar al único administrador activo del sistema")
+
+        if current_user_id and user.id == current_user_id:
+            raise ValueError("No puedes desactivar tu propia cuenta de usuario")
+
+        prev_active = user.is_active
         user.is_active = False
+        user.token_version = (user.token_version or 1) + 1
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="desactivar",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            previous_value={"is_active": prev_active},
+            new_value={"is_active": False},
+        )
+
         db.session.commit()
         return user
+
+    @staticmethod
+    def generate_temporary_password(length=14):
+        """Contraseña aleatoria legible (sin caracteres ambiguos) con al menos un dígito."""
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+        while True:
+            candidate = "".join(secrets.choice(alphabet) for _ in range(length))
+            if any(c.isdigit() for c in candidate) and any(c.islower() for c in candidate) and any(c.isupper() for c in candidate):
+                return candidate
+
+    @staticmethod
+    @with_rollback
+    def reset_password(user, current_user_id=None):
+        """Fija una contraseña temporal; devuelve (usuario, contraseña). Se muestra una sola vez."""
+        if not user.is_active:
+            raise ValueError("No se puede restablecer la contraseña de un usuario inactivo")
+
+        if current_user_id and user.id == current_user_id:
+            admin_role = Role.query.filter_by(name="admin").first()
+            if admin_role and user.role_id == admin_role.id:
+                active_admins = User.query.filter_by(role_id=admin_role.id, is_active=True).count()
+                if active_admins <= 1:
+                    raise ValueError(
+                        "No puedes restablecer tu propia contraseña siendo el único administrador activo"
+                    )
+
+        temporary = UserService.generate_temporary_password()
+        user.set_password(temporary)  # incrementa token_version: revoca sus sesiones
+        user.must_change_password = True
+
+        from app.services.audit_service import log_action
+        log_action(
+            action="restablecer_contrasena",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+            new_value={"must_change_password": True, "password": "[RESET]"},
+        )
+
+        db.session.commit()
+        return user, temporary
 
     @staticmethod
     def _validate_role(role_id):
@@ -91,17 +227,19 @@ class UserService:
 
     @staticmethod
     def _validate_unique_user(username=None, email=None, exclude_user_id=None):
+        # Unicidad sin distinguir mayúsculas (RF-42): "QA_AUTH" choca con "qa_auth". Se valida aquí
+        # porque el UNIQUE de la BD distingue mayúsculas (sin migración)
         errors = {}
 
         if username:
-            query = User.query.filter_by(username=username)
+            query = User.query.filter(func.lower(User.username) == username.lower())
             if exclude_user_id is not None:
                 query = query.filter(User.id != exclude_user_id)
             if query.first():
                 errors["username"] = ["Username ya existe"]
 
         if email:
-            query = User.query.filter_by(email=email)
+            query = User.query.filter(func.lower(User.email) == email.lower())
             if exclude_user_id is not None:
                 query = query.filter(User.id != exclude_user_id)
             if query.first():

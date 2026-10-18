@@ -28,9 +28,21 @@ export type StockMovement = {
   created_at: string;
 };
 
+/** Catálogo cerrado de motivos de ajuste (mismos códigos que valida el backend). */
+export const ADJUST_REASONS = [
+  { value: "merma_dano", label: "Merma o daño" },
+  { value: "error_captura", label: "Error de captura" },
+  { value: "devolucion_proveedor", label: "Devolución a proveedor" },
+  { value: "uso_interno", label: "Uso interno" },
+  { value: "otro", label: "Otro" },
+] as const;
+
+export type AdjustReason = (typeof ADJUST_REASONS)[number]["value"];
+
 export type StockAdjustPayload = {
   product_id: number;
   quantity: string;
+  reason?: AdjustReason;
   notes?: string;
 };
 
@@ -51,16 +63,38 @@ export async function listStock({ page = 1, perPage = 20, search = "" }: ListSto
   return response.data;
 }
 
-export async function getLowStock() {
-  const response = await apiClient.get<StockItem[]>("/inventory/low-stock");
+/** Conteos exactos de los indicadores de inventario (RF-23). */
+export type InventorySummary = {
+  total_products: number;
+  out_of_stock: number;
+  below_min: number;
+};
+
+export async function getInventorySummary() {
+  const response = await apiClient.get<InventorySummary>("/inventory/summary");
   return response.data;
 }
 
+/** Stock bajo paginado (H-45). Por defecto la primera página de 100, los más escasos primero. */
+export async function getLowStock(params: { page?: number; perPage?: number } = {}) {
+  const response = await apiClient.get<PaginatedResponse<StockItem>>("/inventory/low-stock", {
+    params: { page: params.page ?? 1, per_page: params.perPage ?? 100 },
+  });
+  return response.data;
+}
+
+export type StockAdjustResult = {
+  product_id: number;
+  previous_stock: string;
+  new_stock: string;
+  movement_type: string;
+  reason: AdjustReason | null;
+  /** Conteo abierto cuya captura de este producto quedó anulada por el ajuste (RF-32); null si no había. */
+  count_capture_reset: number | null;
+};
+
 export async function adjustStock(payload: StockAdjustPayload) {
-  const response = await apiClient.post<{ product_id: number; new_stock: string; movement_type: string }>(
-    "/inventory/adjust",
-    payload,
-  );
+  const response = await apiClient.post<StockAdjustResult>("/inventory/adjust", payload);
   return response.data;
 }
 

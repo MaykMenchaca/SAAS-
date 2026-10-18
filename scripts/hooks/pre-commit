@@ -1,0 +1,48 @@
+#!/bin/sh
+# Hook pre-commit versionado (H-50). Instálalo con: powershell -File scripts/instalar-hooks.ps1
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+echo "============================================================"
+echo "          POS Retail VRNTAS - Pre-Commit Check"
+echo "============================================================"
+echo
+
+# Intérprete de Python: en Windows "python3" suele ser el acceso directo de la Microsoft Store
+PY=""
+for candidate in python python3 py; do
+    if "$candidate" -c "import sys" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+if [ -z "$PY" ]; then
+    echo "[!] ERROR: no se encontró Python (python, python3 ni py)."
+    exit 1
+fi
+
+# 1. Verificación estática de diseño (tokens de MASTER.md y antipatrones)
+echo "[*] Ejecutando verificación de diseño..."
+"$PY" "$PROJECT_ROOT/tools/verify_design.py"
+if [ $? -ne 0 ]; then
+    echo "[!] ERROR: hay desviaciones de diseño en index.css o en los componentes."
+    exit 1
+fi
+echo "[OK] Verificación de diseño aprobada."
+echo
+
+# 2. Compilación del frontend (TypeScript + Vite)
+echo "[*] Compilando el frontend (Vite + TS)..."
+cd "$PROJECT_ROOT/frontend" || exit 1
+npm run build
+BUILD_EXIT=$?
+cd "$PROJECT_ROOT" || exit 1
+if [ $BUILD_EXIT -ne 0 ]; then
+    echo "[!] ERROR: falló la compilación o la verificación de tipos del frontend."
+    exit 1
+fi
+echo "[OK] Compilación del frontend aprobada."
+echo
+echo "============================================================"
+echo "      Todos los chequeos de pre-commit pasaron con éxito"
+echo "============================================================"
+exit 0

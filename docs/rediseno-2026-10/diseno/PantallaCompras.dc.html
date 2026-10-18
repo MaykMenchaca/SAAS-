@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/styles.css">
+<script src="_ds/industry-17aaf077-77b8-4f80-8ca5-ad7357aab670/_ds_bundle.js"></script>
+<link rel="stylesheet" href="./vrntas-theme.css">
+<script src="./lucide-icon.js"></script>
+</helmet>
+<div style="padding:28px 32px 48px; display:flex; flex-direction:column; gap:20px; color:var(--color-text); font-family:var(--font-body); font-size:14px">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0; font-size:38px; line-height:1">Compras</h1>
+      <p style="margin:6px 0 0; color:var(--ink-2)">Órdenes de compra, recepción de mercancía y proveedores</p>
+    </div>
+    <button class="btn btn-primary blueprint" style="height:40px; padding:0 16px; font-size:16px">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <lucide-icon name="plus" size="16"></lucide-icon>{{ newLabel }}
+    </button>
+  </div>
+
+  <div style="display:flex; gap:28px; border-bottom:1px solid var(--color-divider)">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+      <button onClick="{{ t.pick }}" style="height:42px; padding:0; border:0; border-bottom:2px solid {{ t.line }}; margin-bottom:-1px; background:transparent; color:{{ t.fg }}; font-family:var(--font-heading); font-weight:600; font-size:18px; cursor:pointer">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ isOrders }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; border:1px solid var(--color-divider); width:fit-content; flex-wrap:wrap">
+      <sc-for list="{{ statusChips }}" as="c" hint-placeholder-count="6">
+        <button onClick="{{ c.pick }}" style="height:36px; padding:0 14px; border:0; border-left:{{ c.sep }}; background:{{ c.bg }}; color:{{ c.fg }}; font:inherit; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:6px">{{ c.label }}<span style="font-size:12px; opacity:.75">{{ c.count }}</span></button>
+      </sc-for>
+    </div>
+
+    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section class="blueprint" style="flex:1 1 560px; min-width:0; min-width:0">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="overflow:auto; padding:2px 8px 8px">
+          <table class="table">
+            <thead><tr><th>Folio</th><th>Proveedor</th><th>Creada</th><th>Esperada</th><th style="text-align:right">Total</th><th>Estado</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ orders }}" as="o" hint-placeholder-count="7">
+                <tr onClick="{{ o.select }}" style="cursor:pointer; background:{{ o.bg }}; box-shadow:{{ o.bar }}">
+                  <td style="font-weight:500; color:var(--acc-text); white-space:nowrap">{{ o.folio }}</td>
+                  <td>{{ o.supplier }}</td>
+                  <td style="color:var(--ink-2); white-space:nowrap">{{ o.created }}</td>
+                  <td style="color:var(--ink-2); white-space:nowrap">{{ o.expected }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ o.total }}</td>
+                  <td><span class="tag" style="background:{{ o.tagBg }}; color:{{ o.tagFg }}">{{ o.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="blueprint" style="position:sticky; top:20px; flex:1 1 340px; max-width:440px; display:flex; flex-direction:column">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <header style="display:flex; align-items:flex-start; gap:12px; padding:14px 18px; border-bottom:1px solid var(--color-divider)">
+          <div style="flex:1">
+            <div style="font-family:var(--font-heading); font-weight:600; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc-text)">{{ sel.folio }}</div>
+            <h2 style="margin:2px 0 0; font-size:22px; line-height:1.15">{{ sel.supplier }}</h2>
+            <div style="font-size:13px; color:var(--ink-2)">Creada {{ sel.created }} · Esperada {{ sel.expected }}</div>
+          </div>
+          <span class="tag" style="background:{{ sel.tagBg }}; color:{{ sel.tagFg }}">{{ sel.status }}</span>
+        </header>
+        <div style="overflow:auto; padding:2px 8px 4px">
+          <table class="table">
+            <thead><tr><th>Producto</th><th style="text-align:right">Pedido</th><th style="text-align:right">Recibido</th><th style="text-align:right">Costo u.</th><th style="width:90px">Recibir</th><th style="text-align:right">Subtotal</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ lines }}" as="l" hint-placeholder-count="4">
+                <tr>
+                  <td><div style="font-weight:500">{{ l.name }}</div><div style="font-size:12px; color:var(--ink-2)">{{ l.sku }}</div></td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums">{{ l.ordered }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; color:{{ l.recColor }}">{{ l.received }}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums">{{ l.cost }}</td>
+                  <td><sc-if value="{{ canReceive }}"><input class="input" value="{{ l.toReceive }}" onChange="{{ l.change }}" type="number" style="min-height:32px; text-align:right"></sc-if><sc-if value="{{ cannotReceive }}"><span style="color:var(--ink-3)">—</span></sc-if></td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500">{{ l.subtotal }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; padding:12px 18px; border-top:1px solid var(--color-divider); font-size:14px">
+          <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums">{{ sel.sub }}</span></div>
+          <div style="display:flex; justify-content:space-between; color:var(--ink-2)"><span>IVA</span><span style="font-variant-numeric:tabular-nums">{{ sel.tax }}</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline"><span style="font-family:var(--font-heading); font-weight:600; font-size:17px">Total</span><span style="font-family:var(--font-heading); font-weight:600; font-size:28px; font-variant-numeric:tabular-nums">{{ sel.total }}</span></div>
+        </div>
+        <div style="display:flex; gap:8px; padding:0 18px 16px; flex-wrap:wrap">
+          <sc-if value="{{ canReceive }}">
+            <button class="btn btn-primary" onClick="{{ receive }}" style="height:38px; flex:1; font-size:15px"><lucide-icon name="package-check" size="16"></lucide-icon>Registrar recepción</button>
+          </sc-if>
+          <sc-if value="{{ isDraft }}">
+            <button class="btn btn-primary" style="height:38px; flex:1; font-size:15px"><lucide-icon name="send" size="16"></lucide-icon>Enviar al proveedor</button>
+          </sc-if>
+          <button class="btn btn-secondary" style="height:38px"><lucide-icon name="printer" size="15"></lucide-icon>Imprimir</button>
+        </div>
+        <sc-if value="{{ received }}">
+          <div style="margin:0 18px 16px; font-size:13px; color:var(--ok); display:flex; gap:6px; align-items:center"><lucide-icon name="circle-check" size="14"></lucide-icon>Recepción registrada. El inventario se actualizó.</div>
+        </sc-if>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSuppliers }}">
+    <section class="blueprint">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="overflow:auto; padding:2px 8px 8px">
+        <table class="table">
+          <thead><tr><th>Proveedor</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Condiciones</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            <sc-for list="{{ suppliers }}" as="p" hint-placeholder-count="5">
+              <tr>
+                <td><div style="font-weight:500">{{ p.name }}</div><div style="font-size:12px; color:var(--ink-2); letter-spacing:.04em">{{ p.rfc }}</div></td>
+                <td>{{ p.contact }}</td>
+                <td style="font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap">{{ p.phone }}</td>
+                <td style="color:var(--ink-2)">{{ p.email }}</td>
+                <td>{{ p.terms }}</td>
+                <td><span class="tag" style="background:var(--ok-tint); color:var(--ok)">Activo</span></td>
+                <td style="text-align:right"><button class="btn btn-ghost" style="font-size:14px">Editar</button></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const mx = (n) => "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const TONE = {
+  Borrador: ["var(--line-soft)", "var(--ink-2)"], Enviada: ["var(--acc-tint)", "var(--acc-text)"], Parcial: ["var(--warn-tint)", "var(--warn)"],
+  Recibida: ["var(--ok-tint)", "var(--ok)"], Cancelada: ["var(--bad-tint)", "var(--bad)"],
+};
+const ORDERS = [
+  { id: 31, folio: "OC-2026-0031", supplier: "Distribuidora Ferretera del Bajío", created: "10 oct", expected: "14 oct", status: "Enviada",
+    lines: [["TOR-6X1", "Tornillo tablaroca 6×1\" (caja 100)", 40, 0, 42.5], ["DIS-45", "Disco de corte 4½\" metal", 50, 0, 17.9], ["PVC-12", "Tubo PVC hidráulico ½\" × 6 m", 30, 0, 58]] },
+  { id: 30, folio: "OC-2026-0030", supplier: "Eléctricos Industriales Ramírez", created: "08 oct", expected: "12 oct", status: "Parcial",
+    lines: [["LED-9W", "Foco LED 9 W luz blanca", 60, 36, 22], ["CAB-12", "Cable THW cal. 12", 300, 300, 9.4]] },
+  { id: 29, folio: "OC-2026-0029", supplier: "Pinturas y Recubrimientos MX", created: "07 oct", expected: "—", status: "Borrador",
+    lines: [["PIN-V19", "Pintura vinílica blanca 19 L", 6, 0, 1180], ["LIJ-120", "Lija de agua #120", 100, 0, 4.2]] },
+  { id: 28, folio: "OC-2026-0028", supplier: "Distribuidora Ferretera del Bajío", created: "03 oct", expected: "08 oct", status: "Recibida",
+    lines: [["MAR-016", "Martillo uña curva 16 oz", 20, 20, 128], ["TAQ-14", "Taquete plástico ¼\" (bolsa 100)", 40, 40, 19]] },
+  { id: 27, folio: "OC-2026-0027", supplier: "Cementos y Agregados del Centro", created: "01 oct", expected: "03 oct", status: "Recibida",
+    lines: [["CEM-50", "Cemento gris 50 kg", 60, 60, 205], ["VAR-38", "Varilla corrugada ⅜\" × 12 m", 40, 40, 121]] },
+  { id: 26, folio: "OC-2026-0026", supplier: "Plomería Hidráulica Norte", created: "28 sep", expected: "02 oct", status: "Cancelada",
+    lines: [["PEG-PVC", "Pegamento PVC 250 ml", 24, 0, 48]] },
+];
+
+class Component extends DCLogic {
+  state = { tab: "orders", status: "Todas", sel: 31, recv: {}, received: false };
+  renderVals() {
+    const s = this.state;
+    const calc = (o) => { const sub = o.lines.reduce((a, l) => a + l[2] * l[4], 0); return { sub, tax: sub * 0.16, total: sub * 1.16 }; };
+    const orders = ORDERS.filter((o) => s.status === "Todas" || o.status === s.status).map((o) => {
+      const on = o.id === s.sel;
+      return { ...o, total: mx(calc(o).total), tagBg: TONE[o.status][0], tagFg: TONE[o.status][1],
+        bg: on ? "var(--acc-tint)" : "transparent", bar: on ? "inset 2px 0 0 var(--color-accent)" : "none",
+        select: () => this.setState({ sel: o.id, recv: {}, received: false }) };
+    });
+    const o = ORDERS.find((x) => x.id === s.sel);
+    const c = calc(o);
+    const canReceive = o.status === "Enviada" || o.status === "Parcial";
+    const tabs = [["orders", "Órdenes"], ["suppliers", "Proveedores"]].map(([id, label]) => ({
+      label, pick: () => this.setState({ tab: id }), line: s.tab === id ? "var(--color-accent)" : "transparent", fg: s.tab === id ? "var(--color-text)" : "var(--ink-2)",
+    }));
+    return {
+      tabs, isOrders: s.tab === "orders", isSuppliers: s.tab === "suppliers",
+      newLabel: s.tab === "orders" ? "Nueva orden" : "Nuevo proveedor",
+      statusChips: ["Todas", "Borrador", "Enviada", "Parcial", "Recibida", "Cancelada"].map((st, i) => ({
+        label: st, count: st === "Todas" ? ORDERS.length : ORDERS.filter((x) => x.status === st).length,
+        sep: i ? "1px solid var(--color-divider)" : "0", pick: () => this.setState({ status: st }),
+        bg: s.status === st ? "var(--color-accent)" : "transparent", fg: s.status === st ? "var(--on-acc)" : "var(--color-text)",
+      })),
+      orders,
+      sel: { ...o, sub: mx(c.sub), tax: mx(c.tax), total: mx(c.total), tagBg: TONE[o.status][0], tagFg: TONE[o.status][1] },
+      canReceive, cannotReceive: !canReceive, isDraft: o.status === "Borrador",
+      lines: o.lines.map(([sku, name, ord, rec, cost], i) => {
+        const pending = ord - rec;
+        const v = s.recv[i] ?? (canReceive ? String(pending) : "");
+        return { sku, name, ordered: ord, received: rec, cost: mx(cost), subtotal: mx(ord * cost), toReceive: v,
+          recColor: rec >= ord ? "var(--ok)" : rec > 0 ? "var(--warn)" : "var(--ink-2)",
+          change: (e) => { const val = e.target.value; this.setState((st) => ({ recv: { ...st.recv, [i]: val } })); } };
+      }),
+      receive: () => this.setState({ received: true }), received: s.received,
+      suppliers: [
+        ["Distribuidora Ferretera del Bajío", "DFB120304KJ7", "Ricardo Salinas", "(477) 712 4400", "ventas@dfbajio.mx", "Crédito 30 días"],
+        ["Eléctricos Industriales Ramírez", "EIR090811TT2", "Patricia Ramírez", "(33) 3615 2290", "pedidos@eiramirez.mx", "Crédito 15 días"],
+        ["Pinturas y Recubrimientos MX", "PRM150622AB1", "Héctor Lugo", "(55) 5530 8812", "hlugo@prmx.com.mx", "Contado"],
+        ["Cementos y Agregados del Centro", "CAC010915QW3", "Sofía Treviño", "(442) 214 0077", "s.trevino@cacentro.mx", "Crédito 30 días"],
+        ["Plomería Hidráulica Norte", "PHN180207LM5", "Raúl Garza", "(81) 8340 1166", "raul@phnorte.mx", "Contado"],
+      ].map(([name, rfc, contact, phone, email, terms]) => ({ name, rfc, contact, phone, email, terms })),
+    };
+  }
+}
+</script>
+</body>
+</html>

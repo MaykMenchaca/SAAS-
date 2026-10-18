@@ -1,0 +1,267 @@
+"""Hallazgos de la re-revisión final (cierre del plan)."""
+from decimal import Decimal
+
+import pytest
+
+
+@pytest.fixture
+def producto_por_metro(db):
+    from app.models.inventory import Stock
+    from app.models.product import Product, UnitOfMeasure
+
+    unit = UnitOfMeasure(name="Metro", abbreviation="m", allows_fractions=True)
+    db.session.add(unit)
+    db.session.flush()
+    product = Product(sku="CABLE-12", name="Cable calibre 12", unit_id=unit.id,
+                      sale_price=Decimal("12.99"), tax_rate=Decimal("16.00"))
+    db.session.add(product)
+    db.session.flush()
+    db.session.add(Stock(product_id=product.id, quantity=Decimal("100")))
+    db.session.commit()
+    return product
+
+
+# ── FE-103: cantidades fraccionarias con total en centavos exactos ─────────
+
+def test_total_con_fraccion_queda_en_centavos(client, admin_token, seed_open_session, producto_por_metro):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    items = [{"product_id": producto_por_metro.id, "quantity": "1.500"}]
+
+    quote = client.post("/api/sales/quote", json={"items": items}, headers=headers).get_json()
+    # 1.5 × 12.99 = 19.485 → 19.48 (HALF_EVEN por línea); IVA 16 % = 3.12; total 22.60
+    assert quote["subtotal"] == "19.48" and quote["tax_total"] == "3.12" and quote["total"] == "22.60"
+
+    for method in ("efectivo", "tarjeta"):
+        response = client.post(
+            "/api/sales/",
+            json={"session_id": seed_open_session.id, "items": items,
+                  "payments": [{"method": method, "amount": quote["total"], "reference": "1234"}]},
+            headers=headers,
+        )
+        assert response.status_code == 201, (method, response.get_json())
+        assert response.get_json()["total"] == "22.60"
+
+
+# ── OPS-25 / OPS-27 / OPS-26: scripts de PowerShell ────────────────────────
+
+import re as _re
+import shutil as _shutil
+import subprocess as _subprocess
+from pathlib import Path as _Path
+
+_ROOT = _Path(__file__).parents[2]
+_POWERSHELL = _shutil.which("powershell") or _shutil.which("pwsh")
+
+
+def _ps_arrays_join_path(script: str) -> list[str]:
+    """Bloques @( ... ) cuyos elementos son llamadas Join-Path sin paréntesis (el bug de OPS-25)."""
+    return _re.findall(r"@\(\s*\n(?:[^\n]*\n)*?\s*Join-Path [^\n]*,\s*\n", script)
+
+
+@pytest.mark.parametrize("name", ["restore-backup.ps1", "install-service.ps1"])
+def test_arreglos_de_join_path_con_parentesis(name):
+    assert _ps_arrays_join_path((_ROOT / name).read_text(encoding="utf-8")) == [], name
+
+
+@pytest.mark.skipif(_POWERSHELL is None, reason="requiere PowerShell")
+def test_restore_backup_llega_a_validar_la_conexion(tmp_path):
+    """Con un respaldo existente y una URL vacía, el script debe pasar la lectura de .env sin errores
+    de sintaxis (antes abortaba siempre en la línea 25)."""
+    dummy = tmp_path / "vacio.dump"
+    dummy.write_bytes(b"PGDMP")
+    script = (_ROOT / "restore-backup.ps1").read_text(encoding="utf-8")
+    bloque = script[: script.index("# 2. Localizar binarios")]
+    copia = tmp_path / "restore-hasta-env.ps1"
+    copia.write_text(bloque + '\nWrite-Output "ENV-OK"\n', encoding="utf-8-sig")
+    r = _subprocess.run([_POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(copia),
+                         "-BackupFile", str(dummy)], capture_output=True, text=True, timeout=60)
+    assert "ENV-OK" in r.stdout, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("name", ["install-production.ps1", "start.ps1"])
+def test_flask_se_ejecuta_desde_backend(name):
+    script = (_ROOT / name).read_text(encoding="utf-8")
+    push, pop = script.find("Push-Location $backendDir"), script.rfind("Pop-Location")
+    llamadas = [m.start() for m in _re.finditer(r"-m flask --app run", script)]
+    assert llamadas and push != -1
+    assert all(push < pos < pop for pos in llamadas), (
+        f"{name}: flask --app run debe correr dentro de Push-Location $backendDir ... Pop-Location"
+    )
+
+
+# ── FE-100 / BE-100: devolución desde la UI (sin session_id) cuadra el corte ─
+
+def _venta_efectivo(client, token, session_id, product_id):
+    r = client.post("/api/sales/", headers={"Authorization": f"Bearer {token}"},
+                    json={"session_id": session_id, "items": [{"product_id": product_id, "quantity": 1}],
+                          "payments": [{"method": "efectivo", "amount": "116.00"}]})
+    assert r.status_code == 201, r.get_json()
+    return r.get_json()
+
+
+def test_devolucion_en_efectivo_sin_sesion_usa_la_caja_abierta_del_usuario(
+    client, admin_token, seed_open_session, seed_product_for_sale
+):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    # Payload que manda la pantalla de Devoluciones antes de la corrección: sin session_id
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "No funciona", "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code in (200, 201), r.get_json()
+    assert r.get_json()["session_id"] == seed_open_session.id
+
+    corte = client.post(f"/api/cash-register/{seed_open_session.id}/close", headers=headers,
+                        json={"closing_amount": "1000.00"}).get_json()
+    # 1000 de apertura + 116 cobrados − 116 reembolsados = 1000: sin faltante falso
+    assert Decimal(corte["expected_cash"]) == Decimal("1000.00")
+    assert Decimal(corte["difference"]) == Decimal("0.00")
+
+
+def test_devolucion_en_efectivo_sin_caja_abierta_se_rechaza(
+    client, admin_token, db, seed_open_session, seed_product_for_sale
+):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    db.session.get(CashRegisterSession, seed_open_session.id).status = "cerrada"
+    db.session.commit()
+
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "x", "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code == 400
+    assert "caja abierta" in r.get_json()["error"]
+
+
+def test_devolucion_con_tarjeta_no_exige_caja(client, admin_token, db, seed_open_session, seed_product_for_sale):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    db.session.get(CashRegisterSession, seed_open_session.id).status = "cerrada"
+    db.session.commit()
+    r = client.post(f"/api/sales/{sale['id']}/return", headers=headers,
+                    json={"reason": "x", "refund_method": "tarjeta",
+                          "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code in (200, 201), r.get_json()
+
+
+# ── FE-102: buscar cualquier venta por folio, no solo las últimas 20 ───────
+
+def test_buscar_venta_por_folio_fuera_de_las_ultimas_20(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    primera = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    for _ in range(21):
+        _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    data = client.get("/api/sales/", query_string={"folio": primera["folio"].lower()}, headers=headers).get_json()
+    assert [s["id"] for s in data["items"]] == [primera["id"]]
+
+
+def test_filtrar_ventas_devolvibles_por_estado(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    otra = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+
+    data = client.get("/api/sales/", query_string={"status": "completada,devolucion_parcial"}, headers=headers).get_json()
+    assert [s["id"] for s in data["items"]] == [otra["id"]]
+
+
+# ── BE-103 / BE-102: conteo físico ──────────────────────────────────────────
+
+def _stock(db, product_id):
+    from app.models.inventory import Stock
+
+    db.session.remove()
+    return Stock.query.filter_by(product_id=product_id).one().quantity
+
+
+def test_conteo_no_descuenta_dos_veces_una_venta_previa_a_la_captura(
+    db, seed_admin, seed_open_session, seed_product_for_sale
+):
+    from app.services.inventory_count_service import InventoryCountService
+    from app.services.sale_service import SaleService
+
+    admin_id, session_id, pid = seed_admin.id, seed_open_session.id, seed_product_for_sale.id
+    db.session.commit()
+    count = InventoryCountService.create_count(user_id=admin_id)  # esperado: 100
+    count_id = count.id
+
+    # Se venden 5 después de crear el conteo y ANTES de contar: quedan 95 en anaquel
+    SaleService.create_sale(user_id=admin_id, session_id=session_id,
+                            items=[{"product_id": pid, "quantity": 5}],
+                            payments=[{"method": "efectivo", "amount": "580.00"}])
+    InventoryCountService.capture_item(count_id, pid, Decimal("95"))
+
+    # Y otra venta después de contar: debe preservarse
+    SaleService.create_sale(user_id=admin_id, session_id=session_id,
+                            items=[{"product_id": pid, "quantity": 2}],
+                            payments=[{"method": "efectivo", "amount": "232.00"}])
+    InventoryCountService.close_count(count_id, admin_id)
+
+    # Contado 95 sin diferencia real, menos las 2 vendidas después de contar = 93 (antes daba 88)
+    assert _stock(db, pid) == Decimal("93")
+
+
+def test_cerrar_el_conteo_dos_veces_no_duplica_el_ajuste(db, seed_admin, seed_product_for_sale):
+    from app.services.inventory_count_service import InventoryCountService
+
+    admin_id, pid = seed_admin.id, seed_product_for_sale.id
+    db.session.commit()
+    count = InventoryCountService.create_count(user_id=admin_id)
+    count_id = count.id
+    InventoryCountService.capture_item(count_id, pid, Decimal("90"))
+    InventoryCountService.close_count(count_id, admin_id)
+    with pytest.raises(ValueError, match="cerrado"):
+        InventoryCountService.close_count(count_id, admin_id)
+    assert _stock(db, pid) == Decimal("90")
+
+
+# ── SEC-100: datos con caracteres de control no inyectan comandos ESC/POS ──
+
+def test_ticket_no_inyecta_comandos_escpos_desde_los_datos(db, seed_admin, seed_open_session, seed_product_for_sale):
+    from app.services.printer_service import PrinterService
+    from app.services.sale_service import SaleService
+
+    seed_product_for_sale.name = "Martillo\x1bp0\x19\x96"  # sin NUL: PostgreSQL lo rechaza
+    db.session.commit()
+    sale = SaleService.create_sale(
+        user_id=seed_admin.id, session_id=seed_open_session.id,
+        items=[{"product_id": seed_product_for_sale.id, "quantity": 1}],
+        payments=[{"method": "tarjeta", "amount": "116.00", "reference": "1234\x1bp0\x19\x96"}],
+    )
+    payload = PrinterService.build_payload(PrinterService.format_sale_ticket(sale), "cp850")
+    # Solo el ESC @ y el ESC t iniciales, y el ESC d del corte: ningún ESC p (pulso de cajón)
+    assert b"\x1bp" not in payload
+    assert payload.count(b"\x1b") == 3
+
+
+# ── BE-101: cancelar una venta de una caja ya cerrada no altera el corte histórico ─
+
+def test_no_se_cancela_una_venta_de_una_caja_cerrada(client, admin_token, db, seed_open_session, seed_product_for_sale):
+    from app.models.sale import CashRegisterSession
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    corte = client.post(f"/api/cash-register/{seed_open_session.id}/close", headers=headers,
+                        json={"closing_amount": "1116.00"}).get_json()
+    assert Decimal(corte["difference"]) == Decimal("0.00")
+
+    r = client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    assert r.status_code == 400
+    assert "Devoluciones" in r.get_json()["error"]
+
+    db.session.remove()
+    assert client.get(f"/api/sales/{sale['id']}", headers=headers).get_json()["status"] == "completada"
+    assert Decimal(db.session.get(CashRegisterSession, seed_open_session.id).expected_cash) == Decimal("1116.00")
+    assert _stock(db, seed_product_for_sale.id) == Decimal("99")
+
+
+def test_se_cancela_una_venta_de_la_caja_abierta(client, admin_token, seed_open_session, seed_product_for_sale):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    sale = _venta_efectivo(client, admin_token, seed_open_session.id, seed_product_for_sale.id)
+    r = client.post(f"/api/sales/{sale['id']}/cancel", json={"reason": "x"}, headers=headers)
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["status"] == "cancelada"

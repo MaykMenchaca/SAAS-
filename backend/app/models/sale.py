@@ -11,6 +11,15 @@ class CashRegister(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="true")
+    # Impresora de tickets de esta caja (ruta absoluta o puerto COM/LPT), configurada por el admin
+    printer_path = db.Column(db.String(255), nullable=True)
+    printer_codepage = db.Column(
+        db.String(10), nullable=False, default="cp850", server_default="cp850"
+    )
+    # Impresora USB en la propia caja: el servidor encola y el agente local imprime (OPS-03)
+    print_via_agent = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
+    agent_key_hash = db.Column(db.String(64), nullable=True)
+    agent_last_seen_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -25,6 +34,15 @@ class CashRegister(db.Model):
 
 class CashRegisterSession(db.Model):
     __tablename__ = "cash_register_sessions"
+    __table_args__ = (
+        # Una sola sesión abierta por caja, garantizado por la BD aunque dos aperturas compitan (H-31)
+        db.Index(
+            "uq_cash_session_open",
+            "cash_register_id",
+            unique=True,
+            postgresql_where=db.text("status = 'abierta'"),
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     cash_register_id = db.Column(
@@ -52,13 +70,16 @@ class CashRegisterSession(db.Model):
     cash_register = db.relationship("CashRegister", back_populates="sessions")
     user = db.relationship("User", foreign_keys=[user_id])
     sales = db.relationship("Sale", back_populates="session", lazy="dynamic")
+    returns = db.relationship("SaleReturn", back_populates="session", lazy="dynamic")
 
 
 class Sale(db.Model):
     __tablename__ = "sales"
+    __table_args__ = (db.Index("ix_sales_created_at", "created_at"),)  # reportes por rango (H-33)
 
     id = db.Column(db.Integer, primary_key=True)
     folio = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    client_uuid = db.Column(db.String(36), unique=True, nullable=True, index=True)
     session_id = db.Column(
         db.Integer,
         db.ForeignKey("cash_register_sessions.id"),
@@ -125,8 +146,8 @@ class SaleItem(db.Model):
     tax_rate = db.Column(db.Numeric(5, 2), nullable=False)
     subtotal = db.Column(db.Numeric(12, 2), nullable=False)
     cost_at_sale = db.Column(
-        db.Numeric(12, 2), nullable=False, default=Decimal("0.00"), server_default="0"
-    )
+        db.Numeric(12, 4), nullable=False, default=Decimal("0.00"), server_default="0"
+    )  # misma precisión que products.avg_cost
 
     sale = db.relationship("Sale", back_populates="items")
     product = db.relationship("Product")
@@ -134,6 +155,10 @@ class SaleItem(db.Model):
 
 class Payment(db.Model):
     __tablename__ = "payments"
+    __table_args__ = (
+        db.CheckConstraint("amount > 0", name="ck_payments_amount_pos"),
+        db.CheckConstraint("change_amount >= 0", name="ck_payments_change_nonneg"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(
@@ -165,7 +190,23 @@ class SaleReturn(db.Model):
         db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
     )
     reason = db.Column(db.Text, nullable=False)
+    session_id = db.Column(
+        db.Integer,
+        db.ForeignKey("cash_register_sessions.id"),
+        nullable=True,
+        index=True,
+    )
+    refund_method = db.Column(
+        db.String(30),
+        nullable=False,
+        default="efectivo",
+        server_default="efectivo",
+    )  # efectivo, tarjeta, transferencia
     refund_total = db.Column(db.Numeric(12, 2), nullable=False)
+    # False = producto dañado: el stock no se reingresa, pero el reembolso y el corte no cambian
+    restocked = db.Column(
+        db.Boolean, nullable=False, default=True, server_default=db.true()
+    )
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -175,6 +216,7 @@ class SaleReturn(db.Model):
 
     sale = db.relationship("Sale")
     user = db.relationship("User", foreign_keys=[user_id])
+    session = db.relationship("CashRegisterSession", back_populates="returns")
     items = db.relationship(
         "SaleReturnItem", back_populates="sale_return", cascade="all, delete-orphan"
     )
@@ -182,6 +224,7 @@ class SaleReturn(db.Model):
 
 class SaleReturnItem(db.Model):
     __tablename__ = "sale_return_items"
+    __table_args__ = (db.Index("ix_sale_return_items_sale_item_id", "sale_item_id"),)
 
     id = db.Column(db.Integer, primary_key=True)
     sale_return_id = db.Column(

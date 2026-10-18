@@ -6,6 +6,11 @@ from app.extensions import db
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (
+        # Nombres únicos sin distinguir mayúsculas ni espacios (H-54)
+        # Forma canónica con la que PostgreSQL guarda trim(name): así `flask db check` no ve diferencias
+        db.Index("uq_categories_name_ci", db.text("lower(TRIM(BOTH FROM name))"), unique=True),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
@@ -34,6 +39,15 @@ class UnitOfMeasure(db.Model):
 
 class Product(db.Model):
     __tablename__ = "products"
+    __table_args__ = (
+        # Búsqueda por similitud (H-38); antes solo existía en la migración 786e5fd0177a
+        db.Index(
+            "idx_products_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     sku = db.Column(db.String(50), unique=True, nullable=False, index=True)
@@ -49,7 +63,7 @@ class Product(db.Model):
         server_default="0",
     )
     avg_cost = db.Column(
-        db.Numeric(12, 2),
+        db.Numeric(12, 4),  # 4 decimales: el promedio ponderado no pierde precisión por recepción (H-31)
         nullable=False,
         default=Decimal("0.00"),
         server_default="0",

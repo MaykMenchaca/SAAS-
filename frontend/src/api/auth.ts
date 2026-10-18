@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, getStoredRefreshToken } from "./client";
 
 export type AuthUser = {
   id: number;
@@ -8,12 +8,14 @@ export type AuthUser = {
   role: string;
   permissions: string[];
   is_active?: boolean;
+  must_change_password?: boolean;
 };
 
 export type LoginResponse = {
   access_token: string;
   refresh_token: string;
   user: AuthUser;
+  must_change_password?: boolean;
 };
 
 export async function loginRequest(username: string, password: string) {
@@ -21,6 +23,20 @@ export async function loginRequest(username: string, password: string) {
     username,
     password,
   });
+  return response.data;
+}
+
+export async function changePasswordRequest(current_password: string, new_password: string) {
+  // El cambio revoca el refresh anterior y entrega un par nuevo (RF-24)
+  const response = await apiClient.post<{
+    message: string;
+    access_token: string;
+    refresh_token: string;
+    must_change_password: boolean;
+  }>(
+    "/auth/change-password",
+    { current_password, new_password }
+  );
   return response.data;
 }
 
@@ -43,5 +59,7 @@ export async function refreshRequest(refreshToken: string) {
 }
 
 export async function logoutRequest() {
-  await apiClient.post("/auth/logout");
+  // Se envía el refresh token para que el servidor también lo revoque (SEC-103); si no, seguiría
+  // sirviendo 7 días para obtener tokens nuevos aunque se haya cerrado la sesión
+  await apiClient.post("/auth/logout", { refresh_token: getStoredRefreshToken() ?? undefined });
 }

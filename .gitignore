@@ -20,3 +20,13 @@ Thumbs.db
 # Generated output / QA screenshots
 artifacts/
 graphify-out/
+
+# Backups and database dumps (H-14)
+backend/backups/
+backups/
+*.dump
+*.sql
+*.backup
+backend/logs/
+bug_report.md
+

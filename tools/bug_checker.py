@@ -95,7 +95,8 @@ def scan_file(file_path, patterns):
 def main():
     print_header("POS Retail VRNTAS - Agente Checador de Bugs Autónomo")
     
-    script_root = os.path.dirname(os.path.abspath(__file__))
+    # Raíz del proyecto: el padre de tools/ (6.3)
+    script_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     backend_dir = os.path.join(script_root, "backend", "app")
     frontend_dir = os.path.join(script_root, "frontend", "src")
     

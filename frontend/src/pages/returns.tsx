@@ -1,401 +1,191 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
-import { CornerDownLeft, Search, Undo2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CornerDownLeft, ScanBarcode } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
-import type { ReturnItemInput, SaleItem } from "../api/sales";
-import { getSale, listSales, returnSale } from "../api/sales";
-import { Badge, Button, Card, ErrorState, Input, Modal, SkeletonTable, Table, tableCellClass, tableHeadClass, tableRowClass, Toast } from "../components/ui";
+import type { SaleReturn } from "../api/sales";
+import { findSaleByFolio, listSales } from "../api/sales";
+import { Button, Card, ErrorState, PageHeader, SkeletonTable, Table, tableCellClass, tableHeadClass, tableNumClass, tableRowClass } from "../components/ui";
+import { qk } from "../api/query-keys";
+import { formatCurrency } from "../lib/formatters";
+import { ReturnReceipt } from "./returns/receipt";
+import { ReturnWorkspace } from "./returns/return-workspace";
+import { StepBar } from "./returns/step-bar";
 
-// ── Main Page ────────────────────────────────────────────────────
+// ── Página: tres pasos (buscar venta → seleccionar artículos → confirmación) ─────────────
 
 export function ReturnsPage() {
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetId = Number(searchParams.get("venta"));
   const [searchFolio, setSearchFolio] = useState("");
-  const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
+  const [selectedSaleId, setSelectedSaleId] = useState<number | null>(Number.isInteger(presetId) && presetId > 0 ? presetId : null);
+  const [receipt, setReceipt] = useState<SaleReturn | null>(null);
 
-  // Search for recent completed sales to show as quick picks
+  const [searchError, setSearchError] = useState("");
+  const [searching, setSearching] = useState(false);
+
+  // Ventas recientes que todavía admiten devolución (completadas o con devolución parcial)
   const recentQuery = useQuery({
-    queryKey: ["sales-history", 1],
-    queryFn: () => listSales(1, 20),
+    queryKey: qk.salesHistory("devolvibles"),
+    queryFn: () => listSales(1, 20, { status: "completada,devolucion_parcial" }),
   });
+  const recent = recentQuery.data?.items ?? [];
 
-  const recentCompleted = (recentQuery.data?.items ?? []).filter(
-    (s) => s.status === "completada",
-  );
+  const step: 1 | 2 | 3 = receipt ? 3 : selectedSaleId !== null ? 2 : 1;
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
+  function clearPreset() {
+    if (searchParams.has("venta")) setSearchParams({}, { replace: true });
+  }
+
+  function restart() {
+    clearPreset();
+    setReceipt(null);
+    setSelectedSaleId(null);
+    setSearchFolio("");
+    setSearchError("");
+    void queryClient.invalidateQueries({ queryKey: qk.salesHistory() });
+  }
+
+  /** Busca el folio en todo el historial del servidor, no solo en las últimas 20 (FE-102). */
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Find by folio among recent sales
-    const found = recentQuery.data?.items.find(
-      (s) => s.folio.toLowerCase() === searchFolio.trim().toLowerCase(),
-    );
-    if (found) {
-      setSelectedSaleId(found.id);
+    const folio = searchFolio.trim();
+    if (!folio) return;
+    setSearchError("");
+    setSearching(true);
+    try {
+      const found = await findSaleByFolio(folio);
+      if (!found) {
+        setSearchError(`No se encontró ninguna venta con el folio ${folio}.`);
+      } else if (found.status === "cancelada" || found.status === "devolucion_total") {
+        setSearchError(
+          `La venta ${found.folio} ya no admite devoluciones (${found.status === "cancelada" ? "cancelada" : "devuelta por completo"}).`,
+        );
+      } else {
+        setSelectedSaleId(found.id);
+      }
+    } catch {
+      setSearchError("No se pudo buscar la venta. Revisa la conexión e intenta de nuevo.");
+    } finally {
+      setSearching(false);
     }
   }
 
   return (
-    <div className="grid gap-5">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-text-primary">Devoluciones</h1>
-        <p className="text-sm text-neutral-text-secondary">
-          Busca una venta por folio para devolver productos
-        </p>
-      </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      <PageHeader
+        className="mb-0"
+        subtitle="Busca la venta, elige qué regresa el cliente y registra el reembolso."
+        title="Devoluciones"
+      />
 
-      {/* Search by folio */}
-      <Card className="p-4">
-        <form className="flex gap-2" onSubmit={handleSearch}>
-          <div className="flex-1">
-            <Input
-              label="Buscar por folio"
-              name="folio"
-              onChange={(e) => setSearchFolio(e.target.value)}
-              placeholder="V-20260607-0001"
-              value={searchFolio}
-            />
-          </div>
-          <div className="flex items-end">
-            <Button icon={<Search aria-hidden="true" size={17} />} type="submit">
-              Buscar
+      <StepBar step={step} />
+
+      {step === 1 ? (
+        <div className="grid max-w-5xl gap-5">
+          <form className="flex flex-wrap items-stretch gap-2.5" onSubmit={handleSearch}>
+            <label className="blueprint flex min-h-14 min-w-0 flex-1 basis-72 items-center gap-3 border border-accent bg-surface px-3.5">
+              <i aria-hidden="true" className="corner tl" />
+              <i aria-hidden="true" className="corner tr" />
+              <i aria-hidden="true" className="corner bl" />
+              <i aria-hidden="true" className="corner br" />
+              <ScanBarcode aria-hidden="true" className="shrink-0 text-accent" size={22} />
+              <span className="sr-only">Buscar por folio</span>
+              <input
+                autoComplete="off"
+                className="min-w-0 flex-1 bg-transparent text-lg tabular-nums text-text placeholder:text-ink-2 focus-visible:outline-none"
+                name="folio"
+                onChange={(e) => setSearchFolio(e.target.value)}
+                placeholder="V-20261011-0001 · escanea el código del ticket"
+                value={searchFolio}
+              />
+            </label>
+            <Button disabled={searching || !searchFolio.trim()} size="lg" type="submit">
+              {searching ? "Buscando..." : "Buscar venta"}
             </Button>
-          </div>
-        </form>
-      </Card>
-
-      {/* Recent completed sales for quick selection */}
-      <section className="grid gap-3">
-        <h2 className="text-sm font-semibold uppercase text-neutral-text-secondary">
-          Ventas recientes completadas
-        </h2>
-        {recentQuery.isLoading ? (
-          <SkeletonTable rows={6} cols={4} />
-        ) : recentQuery.isError ? (
-          <ErrorState onRetry={() => void recentQuery.refetch()} />
-        ) : (
-          <Card className="overflow-hidden">
-            <Table>
-              <caption className="sr-only">Tabla de ventas recientes</caption>
-              <thead>
-                <tr>
-                  <th className={tableHeadClass}>Folio</th>
-                  <th className={tableHeadClass}>Fecha</th>
-                  <th className={tableHeadClass}>Cajero</th>
-                  <th className={`${tableHeadClass} text-right`}>Total</th>
-                  <th className={tableHeadClass}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentCompleted.map((sale) => (
-                  <tr className={tableRowClass} key={sale.id}>
-                    <td className={tableCellClass}>
-                      <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
-                    </td>
-                    <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                      {new Date(sale.created_at).toLocaleString("es-MX", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className={tableCellClass}>{sale.username}</td>
-                    <td className={`${tableCellClass} text-right font-mono font-semibold`}>
-                      ${sale.total}
-                    </td>
-                    <td className={tableCellClass}>
-                      <Button
-                        aria-label={`Devolver ${sale.folio}`}
-                        icon={<Undo2 aria-hidden="true" size={17} />}
-                        onClick={() => setSelectedSaleId(sale.id)}
-                        variant="secondary"
-                      >
-                        Devolver
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-
-                {recentCompleted.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-8 text-center text-sm text-neutral-text-secondary" colSpan={5}>
-                      <CornerDownLeft aria-hidden="true" className="mx-auto mb-2 text-neutral-text-secondary" size={32} />
-                      Sin ventas completadas recientes.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </Table>
-          </Card>
-        )}
-      </section>
-
-      {/* Return modal */}
-      {selectedSaleId !== null ? (
-        <ReturnModal onClose={() => setSelectedSaleId(null)} saleId={selectedSaleId} />
-      ) : null}
-    </div>
-  );
-}
-
-// ── Return Modal ─────────────────────────────────────────────────
-
-type ReturnSelection = {
-  sale_item_id: number;
-  maxQty: number;
-  quantity: string;
-  selected: boolean;
-};
-
-function ReturnModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [reason, setReason] = useState("");
-  const [selections, setSelections] = useState<ReturnSelection[]>([]);
-  const [success, setSuccess] = useState(false);
-
-  const saleQuery = useQuery({
-    queryKey: ["sale-detail", saleId],
-    queryFn: () => getSale(saleId),
-    // Initialize selections when data loads
-  });
-
-  const sale = saleQuery.data;
-
-  // Initialize selections when sale data arrives
-  if (sale && selections.length === 0 && sale.items.length > 0) {
-    const initial: ReturnSelection[] = sale.items.map((item: SaleItem) => ({
-      sale_item_id: item.id,
-      maxQty: Number(item.quantity),
-      quantity: item.quantity,
-      selected: false,
-    }));
-    setSelections(initial);
-  }
-
-  const returnMutation = useMutation({
-    mutationFn: (data: { reason: string; items: ReturnItemInput[] }) =>
-      returnSale(saleId, data.reason, data.items),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["sales-history"] });
-      await queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
-      setSuccess(true);
-    },
-  });
-
-  function toggleItem(saleItemId: number) {
-    setSelections((prev) =>
-      prev.map((s) =>
-        s.sale_item_id === saleItemId ? { ...s, selected: !s.selected } : s,
-      ),
-    );
-  }
-
-  function updateQuantity(saleItemId: number, qty: string) {
-    setSelections((prev) =>
-      prev.map((s) =>
-        s.sale_item_id === saleItemId ? { ...s, quantity: qty } : s,
-      ),
-    );
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!reason.trim()) return;
-
-    const items: ReturnItemInput[] = selections
-      .filter((s) => s.selected && Number(s.quantity) > 0)
-      .map((s) => ({
-        sale_item_id: s.sale_item_id,
-        quantity: s.quantity,
-      }));
-
-    if (items.length === 0) return;
-    returnMutation.mutate({ reason, items });
-  }
-
-  const selectedItems = selections.filter((s) => s.selected && Number(s.quantity) > 0);
-
-  // Estimate refund total
-  const estimatedRefund = selectedItems.reduce((sum, sel) => {
-    if (!sale) return sum;
-    const item = sale.items.find((i: SaleItem) => i.id === sel.sale_item_id);
-    if (!item) return sum;
-    const pricePerUnit = Number(item.subtotal) / Number(item.quantity);
-    const taxPerUnit = pricePerUnit * Number(item.tax_rate) / 100;
-    return sum + (pricePerUnit + taxPerUnit) * Number(sel.quantity);
-  }, 0);
-
-  const returnError = returnMutation.error
-    ? returnMutation.error instanceof AxiosError
-      ? returnMutation.error.response?.data?.error ?? "No se pudo procesar la devolución."
-      : "No se pudo procesar la devolución."
-    : "";
-
-  return (
-    <Modal
-      onClose={onClose}
-      open
-      title={sale ? `Devolución — ${sale.folio}` : "Cargando..."}
-    >
-      {saleQuery.isLoading ? (
-        <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando venta...</p>
-      ) : !sale ? (
-        <p className="py-6 text-center text-sm text-danger">No se encontró la venta.</p>
-      ) : sale.status === "cancelada" ? (
-        <p className="py-6 text-center text-sm text-danger">
-          Esta venta está cancelada y no admite devoluciones.
-        </p>
-      ) : success ? (
-        <div className="grid gap-4 py-4">
-          <Toast tone="success">
-            Devolución procesada correctamente. El inventario ha sido restaurado.
-          </Toast>
-          <div className="flex justify-end">
-            <Button onClick={onClose} variant="secondary">
-              Cerrar
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <form className="grid gap-4" onSubmit={handleSubmit}>
-          {/* Sale header */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-neutral-text-secondary">Cajero: </span>
-              <span className="font-medium">{sale.username}</span>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Total: </span>
-              <span className="font-mono font-semibold">${sale.total}</span>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Fecha: </span>
-              <span className="font-medium">
-                {new Date(sale.created_at).toLocaleString("es-MX", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Estado: </span>
-              <Badge tone="success">Completada</Badge>
-            </div>
-          </div>
-
-          {/* Item selection */}
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase text-neutral-text-secondary">
-              Selecciona productos a devolver
+          </form>
+          {searchError ? (
+            <p className="text-sm font-medium text-bad" role="alert">
+              {searchError}
             </p>
-            <div className="grid gap-2">
-              {sale.items.map((item: SaleItem) => {
-                const sel = selections.find((s) => s.sale_item_id === item.id);
-                if (!sel) return null;
+          ) : null}
 
-                return (
-                  <div
-                    className={`rounded-md border p-3 transition-colors ${
-                      sel.selected
-                        ? "border-primary bg-primary/5"
-                        : "border-neutral-border bg-neutral-surface"
-                    }`}
-                    key={item.id}
-                  >
-                    <div className="mb-2 flex items-center gap-3">
-                      <input
-                        checked={sel.selected}
-                        className="h-4 w-4 rounded border-neutral-border accent-primary"
-                        onChange={() => toggleItem(item.id)}
-                        type="checkbox"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-neutral-text-primary">
-                          {item.product_name}
-                        </div>
-                        <div className="text-xs text-neutral-text-secondary">
-                          SKU: {item.product_sku} — Vendido: {item.quantity} a ${item.unit_price} c/u
-                        </div>
-                      </div>
-                      <div className="text-right font-mono text-sm font-semibold">
-                        ${item.subtotal}
-                      </div>
-                    </div>
+          <section className="grid gap-3">
+            <h2 className="text-xl">Ventas recientes que admiten devolución</h2>
+            {recentQuery.isLoading ? (
+              <SkeletonTable cols={5} rows={6} />
+            ) : recentQuery.isError ? (
+              <ErrorState onRetry={() => void recentQuery.refetch()} />
+            ) : (
+              <Card className="overflow-hidden">
+                <Table>
+                  <caption className="sr-only">Tabla de ventas recientes</caption>
+                  <thead>
+                    <tr>
+                      <th className={tableHeadClass}>Folio</th>
+                      <th className={tableHeadClass}>Fecha</th>
+                      <th className={tableHeadClass}>Cajero</th>
+                      <th className={`${tableHeadClass} ${tableNumClass}`}>Total</th>
+                      <th className={tableHeadClass}>
+                        <span className="sr-only">Acciones</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((sale) => (
+                      <tr className={tableRowClass} key={sale.id}>
+                        <td className={`${tableCellClass} whitespace-nowrap font-medium tabular-nums text-acc-text`}>{sale.folio}</td>
+                        <td className={`${tableCellClass} whitespace-nowrap text-ink-2`}>
+                          {new Date(sale.created_at).toLocaleString("es-MX", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className={tableCellClass}>{sale.username}</td>
+                        <td className={`${tableCellClass} ${tableNumClass} font-medium`}>{formatCurrency(sale.total)}</td>
+                        <td className={`${tableCellClass} text-right`}>
+                          <Button aria-label={`Devolver ${sale.folio}`} onClick={() => setSelectedSaleId(sale.id)} size="sm" variant="secondary">
+                            Seleccionar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
 
-                    {sel.selected ? (
-                      <div className="ml-7 flex items-center gap-2">
-                        <label className="text-xs text-neutral-text-secondary">Cantidad a devolver:</label>
-                        <input
-                          className="h-8 w-20 rounded border border-neutral-border bg-neutral-bg text-center font-mono text-sm outline-none focus:border-primary"
-                          max={sel.maxQty}
-                          min="0.001"
-                          onChange={(e) => updateQuantity(item.id, e.target.value)}
-                          step="1"
-                          type="number"
-                          value={sel.quantity}
-                        />
-                        <span className="text-xs text-neutral-text-secondary">
-                          de {sel.maxQty}
-                        </span>
-                      </div>
+                    {recent.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-10 text-center text-sm text-ink-2" colSpan={5}>
+                          <CornerDownLeft aria-hidden="true" className="mx-auto mb-2 text-ink-2" size={32} />
+                          Sin ventas completadas recientes.
+                        </td>
+                      </tr>
                     ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  </tbody>
+                </Table>
+              </Card>
+            )}
+          </section>
+        </div>
+      ) : null}
 
-          {/* Estimated refund */}
-          {selectedItems.length > 0 ? (
-            <div className="rounded-md bg-neutral-text-primary px-4 py-3 text-white">
-              <div className="flex justify-between">
-                <span className="text-sm text-neutral-text-muted">
-                  {selectedItems.length} producto{selectedItems.length > 1 ? "s" : ""} a devolver
-                </span>
-                <span className="font-mono text-lg font-bold">
-                  ${estimatedRefund.toFixed(2)}
-                </span>
-              </div>
-              <div className="text-xs text-neutral-text-muted">Reembolso estimado (incluye impuestos)</div>
-            </div>
-          ) : null}
+      {step === 2 && selectedSaleId !== null ? (
+        <ReturnWorkspace
+          onBack={() => {
+            clearPreset();
+            setSelectedSaleId(null);
+          }}
+          onDone={(result) => {
+            clearPreset();
+            setReceipt(result);
+          }}
+          saleId={selectedSaleId}
+        />
+      ) : null}
 
-          {/* Reason */}
-          <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-            <span>Razón de la devolución</span>
-            <textarea
-              className="min-h-16 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20"
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Producto defectuoso, error en cantidad..."
-              value={reason}
-            />
-          </label>
-
-          {returnError ? (
-            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger" role="alert">
-              {returnError}
-            </div>
-          ) : null}
-
-          <div className="flex gap-2">
-            <Button onClick={onClose} variant="secondary">
-              Cancelar
-            </Button>
-            <Button
-              disabled={selectedItems.length === 0 || !reason.trim() || returnMutation.isPending}
-              icon={<Undo2 aria-hidden="true" size={17} />}
-              type="submit"
-              variant="danger"
-            >
-              {returnMutation.isPending ? "Procesando..." : "Confirmar devolución"}
-            </Button>
-          </div>
-        </form>
-      )}
-    </Modal>
+      {step === 3 && receipt ? <ReturnReceipt onRestart={restart} result={receipt} /> : null}
+    </div>
   );
 }

@@ -27,4 +27,5 @@ DEFAULTS = {
     "ticket_footer": ("Gracias por su compra", "Texto al pie del ticket"),
     "currency_symbol": ("$", "Simbolo de moneda"),
     "allow_negative_stock": ("false", "Permitir ventas con stock negativo"),
+    "max_discount_percent": ("0", "Porcentaje maximo de descuento permitido a cajeros sin permiso especial"),
 }

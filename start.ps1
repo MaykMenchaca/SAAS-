@@ -1,7 +1,9 @@
-# POS System — Local Development Startup
+# POS System — Local Development Startup (SOLO DESARROLLO)
 # Starts both backend (Flask) and frontend (Vite) servers
+# Para uso en tienda o produccion ejecute start-production.ps1
 
-Write-Host "=== POS System - Inicio Local ===" -ForegroundColor Cyan
+Write-Host "=== POS System - SOLO DESARROLLO (Para produccion use start-production.ps1) ===" -ForegroundColor Yellow
+Write-Host "Aviso: Este script es exclusivamente para desarrollo local.`n" -ForegroundColor Gray
 
 # Check PostgreSQL is running
 try {
@@ -18,13 +20,16 @@ try {
 $backendDir = Join-Path $PSScriptRoot "backend"
 $frontendDir = Join-Path $PSScriptRoot "frontend"
 
-# Run migrations and seed
+# Run migrations and seed (desde backend\: ahí está run.py, OPS-26)
 Write-Host "`n--- Aplicando migraciones ---" -ForegroundColor Yellow
+Push-Location $backendDir
 & "$backendDir\venv\Scripts\python.exe" -m flask --app run db upgrade 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Migraciones aplicadas" -ForegroundColor Green
 } else {
-    Write-Host "[!] Error en migraciones" -ForegroundColor Red
+    Write-Host "[!] Error en migraciones: no se arranca con un esquema incompleto." -ForegroundColor Red
+    Pop-Location
+    exit 1
 }
 
 Write-Host "`n--- Sembrando datos iniciales ---" -ForegroundColor Yellow
@@ -32,6 +37,7 @@ Write-Host "`n--- Sembrando datos iniciales ---" -ForegroundColor Yellow
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Datos sembrados" -ForegroundColor Green
 }
+Pop-Location
 
 # Start backend in background
 Write-Host "`n--- Iniciando Backend (Flask :5000) ---" -ForegroundColor Yellow
@@ -51,7 +57,7 @@ Write-Host "`n=== Sistema POS Listo ===" -ForegroundColor Green
 Write-Host "  Backend:  http://localhost:5000" -ForegroundColor White
 Write-Host "  Frontend: http://localhost:5173" -ForegroundColor White
 Write-Host "  API Health: http://localhost:5000/api/health" -ForegroundColor White
-Write-Host "`n  Login: admin / admin123" -ForegroundColor Cyan
+Write-Host "`n  Login: admin (contrasena configurada en seed o instalador)" -ForegroundColor Cyan
 Write-Host "`nPresiona Ctrl+C para detener ambos servidores...`n" -ForegroundColor Gray
 
 try {

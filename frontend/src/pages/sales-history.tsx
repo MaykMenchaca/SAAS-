@@ -1,317 +1,223 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
-import { Ban, Eye, FileText, ReceiptText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, ReceiptText, Search } from "lucide-react";
+import { toast } from "sonner";
 
 import type { SaleListItem } from "../api/sales";
-import { cancelSale, getSale, listSales } from "../api/sales";
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Modal, Pagination, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../components/ui";
+import { listAllSales, listSaleCashiers, listSales, saleStatusMeta } from "../api/sales";
+import { qk } from "../api/query-keys";
+import { Badge, Button, Card, EmptyState, ErrorState, Input, PageHeader, Pagination, Segmented, Select, SkeletonTable, Table, tableCellClass, tableHeadClass, tableNumClass, tableRowClass } from "../components/ui";
+import { cn } from "../lib/cn";
+import { formatCurrency } from "../lib/formatters";
+import { localISODate } from "../lib/dates";
+import { downloadTextFile, methodsLabel, salesToCsv } from "./sales-history/csv";
+import type { FilterState, RangeKey, StatusKey } from "./sales-history/filters";
+import { INITIAL_FILTERS, RANGE_OPTIONS, STATUS_OPTIONS, rangeError, toApiFilters } from "./sales-history/filters";
+import { SaleDetail } from "./sales-history/sale-detail";
 
-// ── Main Page ──────────────────────────────────────────────────────
+// ── Página ─────────────────────────────────────────────────────────
 
 export function SalesHistoryPage() {
   const [page, setPage] = useState(1);
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
+  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+  const [folioDraft, setFolioDraft] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  const apiFilters = toApiFilters(filters);
+  const dateError = rangeError(filters);
 
   const salesQuery = useQuery({
-    queryKey: ["sales-history", page],
-    queryFn: () => listSales(page, 20),
+    queryKey: qk.salesHistory(page, filters.range, filters.status, filters.userId, filters.folio, apiFilters.dateFrom, apiFilters.dateTo),
+    queryFn: () => listSales(page, 20, apiFilters),
+    enabled: !dateError,
   });
+  const cashiersQuery = useQuery({ queryKey: qk.salesHistory("cajeros"), queryFn: listSaleCashiers, staleTime: 60_000 });
 
   const sales = salesQuery.data?.items ?? [];
   const totalPages = salesQuery.data?.pages ?? 1;
+  const total = salesQuery.data?.total ?? 0;
 
-  function statusTone(status: string): "success" | "danger" | "neutral" {
-    if (status === "completada") return "success";
-    if (status === "cancelada") return "danger";
-    return "neutral";
+  function change(next: Partial<FilterState>) {
+    setFilters((prev) => ({ ...prev, ...next }));
+    setPage(1);
   }
 
-  return (
-    <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-text-primary">Historial de Ventas</h1>
-          <p className="text-sm text-neutral-text-secondary">Todas las transacciones registradas</p>
-        </div>
-      </div>
-
-      <section className="grid gap-3">
-        {salesQuery.isLoading ? (
-          <SkeletonTable rows={8} cols={5} />
-        ) : salesQuery.isError ? (
-          <ErrorState onRetry={() => void salesQuery.refetch()} />
-        ) : sales.length === 0 ? (
-          <EmptyState
-            icon={<ReceiptText size={32} />}
-            message="Sin ventas registradas."
-            actionLabel="Ir al POS"
-            actionHref="/pos"
-          />
-        ) : (
-          <>
-            <Card className="overflow-hidden">
-              <Table>
-                <caption className="sr-only">Tabla de ventas</caption>
-                <thead>
-                  <tr>
-                    <th className={tableHeadClass}>Folio</th>
-                    <th className={tableHeadClass}>Fecha</th>
-                    <th className={tableHeadClass}>Cajero</th>
-                    <th className={`${tableHeadClass} text-right`}>Total</th>
-                    <th className={tableHeadClass}>Estado</th>
-                    <th className={tableHeadClass}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sales.map((sale: SaleListItem) => (
-                    <tr className={tableRowClass} key={sale.id}>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-sm font-semibold text-primary">{sale.folio}</span>
-                      </td>
-                      <td className={`${tableCellClass} text-sm text-neutral-text-secondary`}>
-                        {new Date(sale.created_at).toLocaleString("es-MX", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className={tableCellClass}>
-                        <div className="flex items-center gap-2">
-                          <Avatar name={sale.username} size="sm" />
-                          <span>{sale.username}</span>
-                        </div>
-                      </td>
-                      <td className={`${tableCellClass} text-right font-mono font-semibold`}>${sale.total}</td>
-                      <td className={tableCellClass}>
-                        <Badge dot tone={statusTone(sale.status)}>
-                          {sale.status === "completada" ? "Completada" : "Cancelada"}
-                        </Badge>
-                      </td>
-                      <td className={tableCellClass}>
-                        <Tooltip content="Ver detalle">
-                          <Button
-                            aria-label={`Ver venta ${sale.folio}`}
-                            className="h-11 w-11 px-0"
-                            onClick={() => setSelectedSaleId(sale.id)}
-                            variant="secondary"
-                          >
-                            <Eye aria-hidden="true" size={17} />
-                          </Button>
-                        </Tooltip>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </Card>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-text-secondary">
-              <span>Página {salesQuery.data?.page ?? page} de {totalPages}</span>
-              <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
-            </div>
-          </>
-        )}
-      </section>
-
-      {selectedSaleId !== null ? (
-        <SaleDetailModal onClose={() => setSelectedSaleId(null)} saleId={selectedSaleId} />
-      ) : null}
-    </div>
-  );
-}
-
-// ── Sale Detail Modal ─────────────────────────────────────────────
-
-function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [cancelReason, setCancelReason] = useState("");
-  const [showCancel, setShowCancel] = useState(false);
-
-  const saleQuery = useQuery({
-    queryKey: ["sale-detail", saleId],
-    queryFn: () => getSale(saleId),
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: () => cancelSale(saleId, cancelReason),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["sales-history"] });
-      await queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
-      setShowCancel(false);
-    },
-  });
-
-  const sale = saleQuery.data;
-
-  function handleCancel(event: FormEvent<HTMLFormElement>) {
+  function submitFolio(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (cancelReason.trim()) {
-      cancelMutation.mutate();
+    change({ folio: folioDraft });
+  }
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const all = await listAllSales(apiFilters);
+      downloadTextFile(`ventas-${localISODate()}.csv`, salesToCsv(all));
+      toast.success(`Se exportaron ${all.length} ${all.length === 1 ? "venta" : "ventas"}.`);
+    } catch {
+      toast.error("No se pudo exportar el historial. Intenta de nuevo.");
+    } finally {
+      setExporting(false);
     }
   }
 
-  const cancelError = cancelMutation.error
-    ? cancelMutation.error instanceof AxiosError
-      ? cancelMutation.error.response?.data?.error ?? "No se pudo cancelar."
-      : "No se pudo cancelar."
-    : "";
-
   return (
-    <Modal onClose={onClose} open title={sale ? `Venta ${sale.folio}` : "Cargando..."}>
-      {saleQuery.isLoading ? (
-        <p className="py-6 text-center text-sm text-neutral-text-secondary">Cargando detalle...</p>
-      ) : !sale ? (
-        <p className="py-6 text-center text-sm text-danger">No se encontró la venta.</p>
-      ) : (
-        <div className="grid gap-4">
-          {/* Header info */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-neutral-text-secondary">Cajero: </span>
-              <span className="font-medium">{sale.username}</span>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Estado: </span>
-              <Badge tone={sale.status === "completada" ? "success" : "danger"}>
-                {sale.status === "completada" ? "Completada" : "Cancelada"}
-              </Badge>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Fecha: </span>
-              <span className="font-medium">
-                {new Date(sale.created_at).toLocaleString("es-MX", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-            <div>
-              <span className="text-neutral-text-secondary">Folio: </span>
-              <span className="font-mono font-semibold text-primary">{sale.folio}</span>
-            </div>
-          </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      <PageHeader
+        actions={
+          <Button disabled={exporting || Boolean(dateError)} icon={<Download aria-hidden="true" size={16} />} onClick={() => void exportCsv()} variant="secondary">
+            {exporting ? "Exportando..." : "Exportar CSV"}
+          </Button>
+        }
+        className="mb-0"
+        subtitle={salesQuery.data ? `${total} ${total === 1 ? "venta" : "ventas"} · transacciones registradas y reimpresión de tickets` : "Transacciones registradas y reimpresión de tickets"}
+        title="Historial de ventas"
+      />
 
-          {sale.cancel_reason ? (
-            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              <span className="font-semibold">Razón de cancelación: </span>
-              {sale.cancel_reason}
-            </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <Segmented<RangeKey>
+          aria-label="Periodo"
+          onChange={(range) => change({ range })}
+          options={RANGE_OPTIONS}
+          size="sm"
+          value={filters.range}
+        />
+        <Segmented<StatusKey>
+          aria-label="Estado"
+          onChange={(status) => change({ status })}
+          options={STATUS_OPTIONS}
+          size="sm"
+          value={filters.status}
+        />
+        <div className="w-48">
+          <Select
+            aria-label="Cajero"
+            name="cajero"
+            onChange={(e) => change({ userId: e.target.value ? Number(e.target.value) : null })}
+            options={[{ label: "Todos los cajeros", value: "" }, ...(cashiersQuery.data ?? []).map((c) => ({ label: c.username, value: c.id }))]}
+            value={filters.userId ?? ""}
+          />
+        </div>
+        <form className="flex items-end gap-2" onSubmit={submitFolio}>
+          <div className="w-56">
+            <Input
+              icon={<Search aria-hidden="true" size={16} />}
+              label="Folio"
+              name="folio"
+              onChange={(e) => setFolioDraft(e.target.value)}
+              placeholder="V-20261011-0001"
+              value={folioDraft}
+            />
+          </div>
+          <Button type="submit" variant="secondary">Buscar</Button>
+          {filters.folio ? (
+            <Button onClick={() => { setFolioDraft(""); change({ folio: "" }); }} variant="ghost">Quitar</Button>
           ) : null}
+        </form>
+      </div>
 
-          {/* Items */}
-          <div className="max-h-64 overflow-auto">
-            <Table>
-              <caption className="sr-only">Tabla de items de la venta</caption>
-              <thead>
-                <tr>
-                  <th className={tableHeadClass}>Producto</th>
-                  <th className={`${tableHeadClass} text-right`}>Cant.</th>
-                  <th className={`${tableHeadClass} text-right`}>Precio</th>
-                  <th className={`${tableHeadClass} text-right`}>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sale.items.map((item) => (
-                  <tr className={tableRowClass} key={item.id}>
-                    <td className={tableCellClass}>
-                      <div className="font-medium">{item.product_name}</div>
-                      <div className="font-mono text-xs text-neutral-text-secondary">{item.product_sku}</div>
-                    </td>
-                    <td className={`${tableCellClass} text-right font-mono`}>{item.quantity}</td>
-                    <td className={`${tableCellClass} text-right font-mono`}>${item.unit_price}</td>
-                    <td className={`${tableCellClass} text-right font-mono font-semibold`}>${item.subtotal}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+      {filters.range === "rango" ? (
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="w-44">
+            <Input label="Desde" name="desde" onChange={(e) => change({ from: e.target.value })} type="date" value={filters.from} />
           </div>
-
-          {/* Totals */}
-          <div className="rounded-md bg-pos-total-bg px-4 py-3 text-pos-total-text fade-in">
-            <div className="flex justify-between text-sm">
-              <span className="opacity-75">Subtotal</span>
-              <span className="font-mono">${sale.subtotal}</span>
-            </div>
-            {Number(sale.discount_total) > 0 ? (
-              <div className="flex justify-between text-sm">
-                <span className="opacity-75">Descuento</span>
-                <span className="font-mono text-warning">-${sale.discount_total}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between text-sm">
-              <span className="opacity-75">Impuestos</span>
-              <span className="font-mono">${sale.tax_total}</span>
-            </div>
-            <div className="mt-2 flex justify-between border-t border-white/10 pt-2">
-              <span className="text-lg font-bold">Total</span>
-              <span className="font-mono text-xl font-bold">${sale.total}</span>
-            </div>
+          <div className="w-44">
+            <Input label="Hasta" name="hasta" onChange={(e) => change({ to: e.target.value })} type="date" value={filters.to} />
           </div>
-
-          {/* Payments */}
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase text-neutral-text-secondary">Pagos</p>
-            <div className="grid gap-1.5">
-              {sale.payments.map((payment) => (
-                <div className="flex items-center justify-between rounded-md border border-neutral-border px-3 py-2 text-sm" key={payment.id}>
-                  <div className="flex items-center gap-2">
-                    <FileText aria-hidden="true" className="text-neutral-text-secondary" size={15} />
-                    <span className="capitalize">{payment.method}</span>
-                    {payment.reference ? (
-                      <span className="font-mono text-xs text-neutral-text-secondary">ref: {payment.reference}</span>
-                    ) : null}
-                  </div>
-                  <span className="font-mono font-semibold">${payment.amount}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Cancel action */}
-          {sale.status === "completada" && !showCancel ? (
-            <Button
-              className="w-full"
-              icon={<Ban aria-hidden="true" size={17} />}
-              onClick={() => setShowCancel(true)}
-              variant="danger"
-            >
-              Cancelar venta
-            </Button>
-          ) : null}
-
-          {showCancel ? (
-            <form className="grid gap-3 rounded-md border border-danger/30 bg-danger/10 p-3" onSubmit={handleCancel}>
-              <label className="grid gap-1.5 text-sm font-medium text-neutral-text-primary">
-                <span>Razón de cancelación</span>
-                <textarea
-                  className="min-h-16 rounded-md border border-neutral-border bg-neutral-surface px-3 py-2 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20"
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Ingresa el motivo..."
-                  value={cancelReason}
-                />
-              </label>
-              {cancelError ? (
-                <div className="text-sm font-medium text-danger">{cancelError}</div>
-              ) : null}
-              <div className="flex gap-2">
-                <Button onClick={() => setShowCancel(false)} variant="secondary">
-                  Cerrar
-                </Button>
-                <Button disabled={!cancelReason.trim() || cancelMutation.isPending} type="submit" variant="danger">
-                  {cancelMutation.isPending ? "Cancelando..." : "Confirmar cancelación"}
-                </Button>
-              </div>
-            </form>
+          {dateError ? (
+            <p className="self-end pb-2.5 text-sm font-medium text-bad" role="alert">{dateError}</p>
           ) : null}
         </div>
-      )}
-    </Modal>
+      ) : null}
+
+      <div className="flex flex-wrap items-start gap-6">
+        <section className="grid min-w-0 flex-1 basis-[34rem] gap-3">
+          {salesQuery.isLoading ? (
+            <SkeletonTable cols={7} rows={8} />
+          ) : salesQuery.isError ? (
+            <ErrorState onRetry={() => void salesQuery.refetch()} />
+          ) : sales.length === 0 ? (
+            <Card>
+              <EmptyState
+                actionHref={filters === INITIAL_FILTERS ? "/pos" : undefined}
+                actionLabel={filters === INITIAL_FILTERS ? "Ir al POS" : undefined}
+                icon={<ReceiptText size={32} />}
+                message={filters === INITIAL_FILTERS ? "Sin ventas registradas." : "Sin ventas con estos filtros."}
+              />
+            </Card>
+          ) : (
+            <>
+              <Card className="overflow-hidden" frame>
+                <Table>
+                  <caption className="sr-only">Tabla de ventas</caption>
+                  <thead>
+                    <tr>
+                      <th className={tableHeadClass}>Folio</th>
+                      <th className={tableHeadClass}>Fecha</th>
+                      <th className={tableHeadClass}>Cajero</th>
+                      <th className={`${tableHeadClass} ${tableNumClass}`}>Art.</th>
+                      <th className={tableHeadClass}>Método</th>
+                      <th className={`${tableHeadClass} ${tableNumClass}`}>Total</th>
+                      <th className={tableHeadClass}>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales.map((sale: SaleListItem) => {
+                      const meta = saleStatusMeta(sale.status);
+                      const active = sale.id === selectedSaleId;
+                      return (
+                        <tr
+                          aria-selected={active}
+                          className={cn(tableRowClass, "cursor-pointer", active && "bg-acc-tint shadow-[inset_2px_0_0_var(--color-accent)]")}
+                          key={sale.id}
+                          onClick={() => setSelectedSaleId(sale.id)}
+                        >
+                          <td className={tableCellClass}>
+                            <button
+                              aria-label={`Ver venta ${sale.folio}`}
+                              className="min-h-11 whitespace-nowrap font-medium tabular-nums text-acc-text lg:min-h-0"
+                              onClick={(e) => { e.stopPropagation(); setSelectedSaleId(sale.id); }}
+                              type="button"
+                            >
+                              {sale.folio}
+                            </button>
+                          </td>
+                          <td className={`${tableCellClass} whitespace-nowrap text-ink-2`}>
+                            {new Date(sale.created_at).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className={tableCellClass}>{sale.username}</td>
+                          <td className={`${tableCellClass} ${tableNumClass}`}>{sale.items_count == null ? "—" : parseFloat(sale.items_count)}</td>
+                          <td className={`${tableCellClass} text-ink-2`}>{methodsLabel(sale.payment_methods) || "—"}</td>
+                          <td className={`${tableCellClass} ${tableNumClass} font-medium ${sale.status === "cancelada" ? "line-through" : ""}`}>
+                            {formatCurrency(sale.total)}
+                          </td>
+                          <td className={tableCellClass}>
+                            <Badge dot tone={meta.tone}>{meta.label}</Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </Card>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-2">
+                <span>Página {salesQuery.data?.page ?? page} de {totalPages}</span>
+                <Pagination onPageChange={setPage} page={page} totalPages={totalPages} />
+              </div>
+            </>
+          )}
+        </section>
+
+        <aside aria-label="Detalle de la venta" className="flex-1 basis-80 lg:sticky lg:top-5 lg:max-w-md">
+          {selectedSaleId !== null ? (
+            <SaleDetail key={selectedSaleId} saleId={selectedSaleId} />
+          ) : (
+            <Card className="p-6 text-center text-ink-2">Selecciona una venta para ver su ticket.</Card>
+          )}
+        </aside>
+      </div>
+    </div>
   );
 }
