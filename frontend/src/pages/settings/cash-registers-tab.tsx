@@ -2,12 +2,12 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Save } from "lucide-react";
+import { Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { qk } from "../../api/query-keys";
 import type { CashRegisterInfo } from "../../api/sales";
-import { createAgentKey, listCashRegisters, updateCashRegister } from "../../api/sales";
+import { createAgentKey, createCashRegister, listCashRegisters, updateCashRegister } from "../../api/sales";
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Select, SkeletonTable } from "../../components/ui";
 
 const codepageOptions = [
@@ -37,12 +37,15 @@ export function CashRegistersTab() {
 
   return (
     <div className="grid gap-4">
-      <Card className="p-4">
-        <h2 className="mb-1 text-lg">Impresora de tickets por caja</h2>
-        <p className="text-sm text-ink-2">
-          Ruta absoluta del dispositivo o puerto (por ejemplo <span className="font-mono">COM3</span>). El cajón se abre
-          automáticamente al cobrar en efectivo.
-        </p>
+      <Card className="flex flex-wrap items-start justify-between gap-3 p-4">
+        <div className="min-w-0 flex-1 basis-64">
+          <h2 className="mb-1 text-lg">Cajas e impresora de tickets</h2>
+          <p className="text-sm text-ink-2">
+            Ruta absoluta del dispositivo o puerto (por ejemplo <span className="font-mono">COM3</span>). El cajón se abre
+            automáticamente al cobrar en efectivo.
+          </p>
+        </div>
+        <NewRegisterButton />
       </Card>
       {registers.length === 0 ? (
         <Card><EmptyState message="No hay cajas registradas." /></Card>
@@ -50,6 +53,71 @@ export function CashRegistersTab() {
         registers.map((register) => <CashRegisterPrinterForm key={register.id} register={register} />)
       )}
     </div>
+  );
+}
+
+/** Alta de una caja registradora: cada equipo de cobro necesita la suya para abrir turno (RF-09). */
+function NewRegisterButton() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () => createCashRegister(name.trim()),
+    onSuccess: async (register) => {
+      await queryClient.invalidateQueries({ queryKey: qk.cashRegisters() });
+      toast.success(`Caja «${register.name}» creada.`);
+      setOpen(false);
+      setName("");
+    },
+    onError: (err) => {
+      setError(err instanceof AxiosError ? (err.response?.data?.error ?? "No se pudo crear la caja.") : "No se pudo crear la caja.");
+    },
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (!name.trim()) {
+      setError("Escribe el nombre de la caja.");
+      return;
+    }
+    mutation.mutate();
+  }
+
+  return (
+    <>
+      <Button icon={<Plus aria-hidden="true" size={16} />} onClick={() => setOpen(true)} variant="secondary">
+        Nueva caja
+      </Button>
+      <Modal
+        footer={
+          <>
+            <Button onClick={() => setOpen(false)} variant="secondary">Cancelar</Button>
+            <Button disabled={mutation.isPending} form="new-register-form" type="submit">
+              {mutation.isPending ? "Creando..." : "Crear caja"}
+            </Button>
+          </>
+        }
+        onClose={() => setOpen(false)}
+        open={open}
+        title="Nueva caja registradora"
+      >
+        <form className="grid gap-3" id="new-register-form" onSubmit={submit}>
+          <Input
+            autoFocus
+            error={error || undefined}
+            label="Nombre de la caja"
+            maxLength={50}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Caja 2"
+            value={name}
+          />
+          <p className="text-sm text-ink-2">Después podrás configurar su impresora y su agente de impresión aquí mismo.</p>
+        </form>
+      </Modal>
+    </>
   );
 }
 

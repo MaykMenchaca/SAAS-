@@ -141,6 +141,12 @@ export async function createAgentKey(registerId: number) {
   return response.data;
 }
 
+/** Da de alta una caja registradora (solo admin, RF-09). */
+export async function createCashRegister(name: string) {
+  const response = await apiClient.post<CashRegisterInfo>("/cash-register/registers", { name });
+  return response.data;
+}
+
 export async function updateCashRegister(registerId: number, payload: CashRegisterUpdate) {
   const response = await apiClient.patch<CashRegisterInfo>(`/cash-register/registers/${registerId}`, payload);
   return response.data;

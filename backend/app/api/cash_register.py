@@ -47,6 +47,45 @@ def _register_dict(register: CashRegister) -> dict:
     }
 
 
+def _validate_register_name(raw, exclude_id: int | None = None) -> str:
+    """Nombre obligatorio, máximo 50 caracteres y sin repetir (sin distinguir mayúsculas) entre las cajas."""
+    name = (raw or "").strip() if isinstance(raw, str) else ""
+    if not name or len(name) > 50:
+        raise ValueError("El nombre de la caja es obligatorio (máximo 50 caracteres)")
+    query = CashRegister.query.filter(db.func.lower(CashRegister.name) == name.lower())
+    if exclude_id is not None:
+        query = query.filter(CashRegister.id != exclude_id)
+    if query.first():
+        raise ValueError(f"Ya existe una caja llamada «{name}»")
+    return name
+
+
+@cash_register_bp.route("/registers", methods=["POST"])
+@require_role("admin")
+def create_register():
+    """Da de alta una caja registradora (solo admin). Antes solo existía la "Caja 1" de la siembra (RF-09)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        name = _validate_register_name(data.get("name"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    register = CashRegister(name=name)
+    db.session.add(register)
+    db.session.flush()
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="crear",
+        entity_type="cash_register",
+        entity_id=register.id,
+        new_value=_register_dict(register),
+        user_id=int(get_jwt_identity()),
+    )
+    db.session.commit()
+    return jsonify(_register_dict(register)), 201
+
+
 @cash_register_bp.route("/registers/<int:register_id>", methods=["PATCH"])
 @require_role("admin")
 def update_register(register_id):
@@ -66,10 +105,7 @@ def update_register(register_id):
         if "print_via_agent" in data:
             register.print_via_agent = bool(data.get("print_via_agent"))
         if "name" in data:
-            name = (data.get("name") or "").strip()
-            if not name or len(name) > 50:
-                raise ValueError("El nombre de la caja es obligatorio (máximo 50 caracteres)")
-            register.name = name
+            register.name = _validate_register_name(data.get("name"), exclude_id=register.id)
     except ValueError as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400

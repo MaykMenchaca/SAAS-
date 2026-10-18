@@ -26,7 +26,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [x] 2.1 RF-06 Validación de configuración
 - [x] 2.2 RF-07 Costo promedio inicial
 - [x] 2.3 RF-08 Desactivar por PATCH exige permiso
-- [ ] 2.4 RF-09 Alta de cajas
+- [x] 2.4 RF-09 Alta de cajas
 - [ ] 2.5 RF-10 Modo sin conexión ante 5xx / base caída
 - [ ] 2.6 RF-52 "Algo salió mal" persistente: reintento de carga de páginas y ErrorBoundary por ruta
 - [ ] **Gate 2**

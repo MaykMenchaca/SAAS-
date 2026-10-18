@@ -14,6 +14,7 @@ const verifyBackup = vi.fn();
 const listAuditLogs = vi.fn();
 const listCashRegisters = vi.fn();
 const downloadBackup = vi.fn();
+const createCashRegister = vi.fn();
 
 vi.mock("../../../api/config", () => ({
   getConfig: () => getConfig(),
@@ -31,6 +32,7 @@ vi.mock("../../../api/sales", () => ({
   listCashRegisters: () => listCashRegisters(),
   updateCashRegister: vi.fn(),
   createAgentKey: vi.fn(),
+  createCashRegister: (n: string) => createCashRegister(n),
 }));
 
 const CONFIG = {
@@ -190,5 +192,21 @@ describe("Configuración", () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: /Respaldos/ }));
     expect(await screen.findByRole("button", { name: /reintentar/i })).toBeTruthy();
+  });
+
+  it("Cajas: alta de una caja nueva (RF-09)", async () => {
+    createCashRegister.mockResolvedValue({ id: 2, name: "Caja 2", is_active: true, printer_path: null, printer_codepage: "cp850",
+      print_via_agent: false, agent_configured: false, agent_last_seen_at: null });
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: /Cajas/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Nueva caja/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Nueva caja registradora" });
+    fireEvent.click(screen.getByRole("button", { name: "Crear caja" }));
+    expect(await screen.findByText("Escribe el nombre de la caja.")).toBeTruthy();
+    expect(createCashRegister).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/Nombre de la caja/), { target: { value: "  Caja 2 " } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear caja" }));
+    await waitFor(() => expect(createCashRegister).toHaveBeenCalledWith("Caja 2"));
+    await waitFor(() => expect(dialog.isConnected).toBe(false));
   });
 });
