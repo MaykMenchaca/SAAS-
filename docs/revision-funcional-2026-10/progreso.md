@@ -15,6 +15,8 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 | RF-02/03 | Producto `TO-002` "Tuerca hexagonal 1/4 (50pz)" | stock 79.500 en unidad sin fracciones | venta id 3 con cantidad 0.500 (QA del 2026-10-07) |
 | RF-04 | Venta `V-20261007-0011` | total $115.77, reembolsado $231.54 (el doble) | devoluciones de QA del 2026-10-07 |
 
+Script de reparación (2026-10-18): `tools/reparar_datos_2026_10.py` — sin argumentos muestra el plan; `--probar` aplica en una transacción, corre los chequeos y deshace; `--aplicar` crea un respaldo `pre-reparacion` y repara (quita la partida duplicada de la devolución #4 → reembolso $115.77; ajuste +0.500 de TO-002 → 80 pz; ambos auditados como `reparacion_datos`). Probado con `--probar` sobre `pos_db`: deja 1 aviso esperado (la partida histórica de 0.5 pz de V-20261007-0003). **Pendiente: aplicar con aprobación del usuario.**
+
 ## Fase 1: Críticos
 - [x] 1.1 RF-01 Escaneo `by-code` prioriza código de barras; SKU ≠ código de barras de otro
 - [x] 1.2 RF-02, RF-03 Cantidades: máximo 3 decimales y `allows_fractions` en ventas y devoluciones
@@ -47,4 +49,4 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
     - Regla del conteo (RF-32): la diferencia se calcula contra el stock AL CAPTURAR y al cerrar se aplica sobre el stock actual (las ventas posteriores se respetan). Un ajuste manual (absoluto) durante el conteo anula la captura de ese producto (queda sin contar, con nota) porque es una existencia física más reciente; si se recaptura, la diferencia es contra el stock ajustado. Si una diferencia dejaría stock negativo, el cierre responde 409 `count_negative_stock` con el producto y no aplica nada. El conteo incluye inactivos con existencias
     - Movimientos (RF-33): en un `ajuste`, `quantity` es el cambio con signo (nuevo − anterior); entradas y salidas siguen positivas. Los movimientos viejos en `pos_db` conservan el valor anterior (stock nuevo o `abs(delta)`); ningún reporte suma `quantity` y el historial del frontend usa `new_stock − previous_stock`
     - RF-38: la cantidad 0.0004 ya la rechazaba RF-12 (se deja la prueba); el folio de OC se pide después de validar
-- [ ] **Gate 4**
+- [x] **Gate 4** (aprobado 2026-10-18: pytest completo local, CI y Playwright en verde)
