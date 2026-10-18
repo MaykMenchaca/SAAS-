@@ -1,6 +1,7 @@
 """Restauración de un respaldo desde la web (subfase 7.4).
 
 Protocolo (cada paso es obligatorio):
+  0. Candado exclusivo (``.restore.lock``) y estado "en curso": una segunda restauración recibe 409 (RF-27).
   1. Se valida el nombre contra la lista de respaldos y se verifica que pg_restore lo pueda leer.
   2. Respaldo previo automático ``pre-restore-<fecha>.dump``; si falla, se aborta sin tocar nada.
   3. Modo mantenimiento (toda la API responde 503 salvo /api/health y el estado).
@@ -29,6 +30,7 @@ from app.utils import maintenance
 
 RESTORE_TIMEOUT_SECONDS = 30 * 60
 STATUS_FILE = ".restore-status.json"
+LOCK_FILE = ".restore.lock"
 STALE_AFTER_SECONDS = 2 * 60 * 60
 
 STATE_IDLE = "inactivo"
@@ -37,6 +39,7 @@ STATE_OK = "ok"
 STATE_ERROR = "error"
 
 _lock = threading.Lock()
+_start_lock = threading.Lock()  # revisar y marcar "en curso" es atómico dentro del proceso (RF-27)
 _status: dict | None = None
 _thread: threading.Thread | None = None
 
@@ -63,6 +66,55 @@ def _write_status(**changes) -> dict:
         except OSError:
             pass
         return dict(current)
+
+
+def _replace_status(status: dict) -> None:
+    """Vuelve a un estado anterior completo (una restauración que no llegó a empezar)."""
+    global _status
+    with _lock:
+        _status = dict(status)
+        try:
+            _status_path().write_text(json.dumps(_status, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+
+
+# ── Candado de restauración (RF-27): hilo (lock en memoria) y proceso (archivo creado con O_EXCL) ──────
+
+
+def _lock_path() -> Path:
+    return backup_service._get_backup_dir() / LOCK_FILE
+
+
+def _acquire_file_lock(path: Path) -> bool:
+    """Crea el archivo candado de forma exclusiva. False si otra restauración (de este u otro proceso) lo tiene.
+
+    Un candado más viejo que STALE_AFTER_SECONDS es de un proceso que murió a mitad: se descarta, igual que el
+    estado "en curso" caducado.
+    """
+    for _ in range(2):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                age = time.time() - path.stat().st_mtime
+            except OSError:
+                continue  # se liberó justo ahora
+            if age < STALE_AFTER_SECONDS:
+                return False
+            path.unlink(missing_ok=True)
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(f"pid={os.getpid()} {datetime.now(timezone.utc).isoformat()}")
+        return True
+    return False
+
+
+def _release_file_lock(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def get_status() -> dict:
@@ -214,7 +266,18 @@ def _audit(actor: dict, action: str, details: dict) -> None:
     )
 
 
-def _execute(app, filename: str, backup_path: Path, pre_path: Path, actor: dict) -> None:
+def _execute(
+    app, filename: str, backup_path: Path, pre_path: Path, actor: dict, lock_path: Path | None = None
+) -> None:
+    try:
+        _execute_steps(app, filename, backup_path, pre_path, actor)
+    finally:
+        # Se libera al final, cuando el estado ya dice cómo terminó (RF-27)
+        if lock_path is not None:
+            _release_file_lock(lock_path)
+
+
+def _execute_steps(app, filename: str, backup_path: Path, pre_path: Path, actor: dict) -> None:
     with app.app_context():
         error: str | None = None
         rolled_back: bool | None = None
@@ -289,38 +352,55 @@ def start_restore(filename: str, actor: dict) -> dict:
     """
     global _thread
     backup_path = backup_service.resolve_listed_backup(filename)
-    if _is_running():
-        raise RestoreBusyError("Ya hay una restauración en curso.")
+    lock_path = _lock_path()
 
-    # El archivo debe poder leerse antes de tocar nada
-    backup_service.verify_backup(filename)
+    # Candado y estado "en curso" ANTES de verificar y del respaldo previo: entre la revisión y el cambio de
+    # estado corrían segundos y dos restauraciones simultáneas se aceptaban (202 + 202) (RF-27)
+    with _start_lock:
+        if _is_running() or not _acquire_file_lock(lock_path):
+            raise RestoreBusyError("Ya hay una restauración en curso.")
+        previous = get_status()
+        _write_status(
+            state=STATE_RUNNING,
+            step="Verificando el respaldo...",
+            message="Restauración en curso. No cierres esta ventana.",
+            filename=filename,
+            pre_restore_file=None,
+            started_at=datetime.now(timezone.utc).isoformat(),
+            started_ts=time.time(),
+            finished_at=None,
+        )
 
-    # Respaldo previo: si falla, no se hace nada más
+    in_maintenance = False
     try:
-        pre = backup_service.create_backup(prefix="pre-restore")
-    except RuntimeError as exc:
-        raise RuntimeError(f"No se pudo crear el respaldo previo; no se restauró nada. {exc}") from exc
-    pre_path = Path(pre["path"])
+        # El archivo debe poder leerse antes de tocar nada
+        backup_service.verify_backup(filename)
 
-    maintenance.enter("restauracion")
-    _write_status(
-        state=STATE_RUNNING,
-        step="Preparando la restauración...",
-        message="Restauración en curso. No cierres esta ventana.",
-        filename=filename,
-        pre_restore_file=pre_path.name,
-        started_at=datetime.now(timezone.utc).isoformat(),
-        started_ts=time.time(),
-        finished_at=None,
-    )
+        # Respaldo previo: si falla, no se hace nada más
+        try:
+            pre = backup_service.create_backup(prefix="pre-restore")
+        except RuntimeError as exc:
+            raise RuntimeError(f"No se pudo crear el respaldo previo; no se restauró nada. {exc}") from exc
+        pre_path = Path(pre["path"])
 
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_execute,
-        args=(app, filename, backup_path, pre_path, actor),
-        name="restore-backup",
-        daemon=False,
-    )
-    _thread = thread
-    thread.start()
+        maintenance.enter("restauracion")
+        in_maintenance = True
+        _write_status(step="Preparando la restauración...", pre_restore_file=pre_path.name)
+
+        app = current_app._get_current_object()
+        thread = threading.Thread(
+            target=_execute,
+            args=(app, filename, backup_path, pre_path, actor, lock_path),
+            name="restore-backup",
+            daemon=False,
+        )
+        _thread = thread
+        thread.start()
+    except BaseException:
+        # No se restauró nada: vuelve el estado anterior y se libera el candado
+        if in_maintenance:
+            maintenance.leave()
+        _replace_status(previous)
+        _release_file_lock(lock_path)
+        raise
     return get_status()
