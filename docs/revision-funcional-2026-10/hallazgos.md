@@ -12,7 +12,7 @@
 | Agente QA-C | QA-C-01…19 | API: auth, usuarios, matriz de permisos (91 rutas × 4 roles), reportes, configuración, auditoría, respaldos y restauración (`qa_api_c`) |
 | QA-UI (Claude) | QA-UI-01 | Navegador, esquema `shots` |
 
-Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](anexos/). Este documento fusiona los duplicados: 54 hallazgos crudos quedan en **47 consolidados (RF)**. El plan de corrección está en [`plan-correccion.md`](plan-correccion.md); la columna **Fase** indica la subfase que corrige cada hallazgo.
+Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](anexos/). Este documento fusiona los duplicados: 54 hallazgos crudos quedan en **51 consolidados (RF)**, contando los que salieron en la Fase 0.2. El plan de corrección está en [`plan-correccion.md`](plan-correccion.md); la columna **Fase** indica la subfase que corrige cada hallazgo.
 
 **Severidad:** 🔴 Crítico (dinero o inventario incorrecto, pérdida de datos o seguridad) · 🟠 Alto (flujo roto o regla de negocio violada) · 🟡 Medio · ⚪ Bajo
 
@@ -28,9 +28,9 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | Severidad | Cantidad |
 |---|---|
 | 🔴 Crítico | 5 |
-| 🟠 Alto | 5 (1 por confirmar) |
-| 🟡 Medio | 18 |
-| ⚪ Bajo | 19 |
+| 🟠 Alto | 4 |
+| 🟡 Medio | 19 |
+| ⚪ Bajo | 23 |
 
 ## 🔴 Críticos
 | ID | Hallazgo | Evidencia clave | Fuentes | Fase |
@@ -48,11 +48,11 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | RF-07 | **El costo promedio queda en 0 y diluye las recepciones.** Un producto dado de alta sin `purchase_price` queda con `avg_cost=0`; un PATCH posterior no lo cambia, y el stock cargado por ajuste entra a costo 0. Ejemplo: `avg_cost` 10 en lugar de 40 y valuación de $400 en lugar de $1,600. | `product_service.py:197-199,227`. OC-20261014-0015 | QA-B-02 | 2.2 |
 | RF-08 | **El gerente desactiva y reactiva productos y categorías sin `productos:desactivar`.** `DELETE` le responde 403, pero `PATCH {"is_active":false}` responde 200 y la auditoría lo registra como "editar". | `schemas/product.py:20,119`. Productos 13 y 20, categoría 4 | QA-B-03 | 2.3 |
 | RF-09 | **No se puede dar de alta una segunda caja.** No hay `POST` de cajas ni pantalla para hacerlo; solo `seed.py:196` crea "Caja 1". Con una sola caja, el cajero no puede vender si el admin dejó su turno abierto. El README describe varias cajas en la LAN. | `api/cash_register.py` (solo `PATCH /registers/<id>` y `agent-key`) | QA-UI-01 | 2.4 |
-| RF-10 | **(Por confirmar) Escaneo sin conexión.** Con el backend apagado, buscar por SKU con Enter respondió "Error al procesar la lectura del código" y a los 12 s no aparecía el aviso de sin conexión. La prueba quedó interrumpida. | `pages/pos/pos-terminal.tsx` (`findProductByCode`) | QA-UI | 0.2 / 2.5 |
 
 ## 🟡 Medios
 | ID | Hallazgo | Fuentes | Fase |
 |---|---|---|---|
+| RF-10 | **El modo sin conexión no se activa si el servidor responde con 5xx.** `useSyncQueue.ts:129` da por alcanzable al servidor ante *cualquier* respuesta HTTP, y `findProductByCode` (`pos-terminal.tsx:39-53`) trata un 5xx como error del servidor en lugar de usar el catálogo local. Con el backend apagado en desarrollo, el proxy de Vite responde 500: el POS sigue en "Conexión LAN activa" y el escaneo falla ("Error al procesar la lectura del código"). En la tienda, con el equipo servidor apagado, sí hay error de red y sí entra en modo sin conexión. Pero si el backend responde con la base de datos caída (5xx), la caja no puede vender. | QA-UI (0.2) | 2.5 |
 | RF-11 | Una venta rechazada consume folio y deja huecos (0003 → 0007): `nextval` se pide antes de validar (`sale_service.py:194`) | QA-A-04 | 3.B |
 | RF-12 | Errores 500 en lugar de 4xx: desbordamiento numérico (pago ≥ 1e10, precio, IVA, cantidad), referencia de más de 100 caracteres, `printer_path` de más de 255, teléfono de más de 20, `limit=-1`, credenciales numéricas en login y change-password. No hay manejo de `DataError` ni tope de IVA (se aceptan 250 %). | QA-A-05, QA-B-08, QA-C-10 | 3.A |
 | RF-13 | Un método no permitido (405) responde 500, porque el handler de `Exception` atrapa las `HTTPException` (`errors.py:117-118`) | QA-A-09, QA-C-09 | 3.A |
@@ -95,6 +95,9 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | RF-46 | `GET /audit/?user_id=abc` ignora el filtro y devuelve todas las filas | QA-C-18 | 4 |
 | RF-47 | Los `pre-restore-*.dump` nunca se depuran (`backup_service.py:217`) | QA-C-19 | 4 |
 | RF-48 | `frontend/e2e/critical-flows.spec.ts` simula endpoints que no existen (`/api/branding`, `/cash-register/current`): no prueba los flujos reales | Explorador | 4 |
+| RF-49 | En Devoluciones, el reembolso estimado redondea las mitades hacia arriba y el servidor al par (HALF_EVEN): la pantalla mostró $44.81 y se reembolsaron $44.80 (D-20261017-0003) | QA-UI (0.2) | 4 |
+| RF-50 | Después de cerrar un turno, el detalle del corte no se recarga: muestra "cerrado —" sin hora y no muestra las observaciones (el servidor sí las guardó) | QA-UI (0.2) | 4 |
+| RF-51 | En Devoluciones dice "Método de pago original: Efectivo" para una venta pagada con efectivo y tarjeta | QA-UI (0.2) | 4 |
 
 ## Decisiones de producto (no son defectos; requieren aprobación antes de cambiarse)
 - El cajero no puede cancelar ni devolver, y el gerente no puede vender (QA-A).
@@ -127,7 +130,8 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 | Respaldos: crear, listar, verificar, descargar, retención | ⚠️ | RF-14, RF-26, RF-47 |
 | Restauración y mantenimiento | ❌ | RF-05, RF-27 |
 | Navegador: login y cambio obligatorio, abrir caja, venta con escáner, fracciones, cobro dividido, F8 | ✅ | |
-| Navegador: sin conexión, devolución, corte, compras, reportes, configuración | ⏳ pendiente (Fase 0.2) | RF-10 |
+| Navegador: devolución sin reposición (D-20261017-0003, stock sin cambio), corte por denominaciones (faltante −$5 correcto), OC enviada y recepción parcial (costo promedio 10.0930 exacto) | ✅ | RF-49, RF-50, RF-51 |
+| Navegador: venta sin conexión | ❌ | RF-10 |
 
 ## Datos de prueba
 Todo está en `pos_test_db`; `pos_db` no se tocó.

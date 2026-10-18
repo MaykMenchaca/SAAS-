@@ -5,7 +5,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 
 ## Fase 0: Preparación
 - [x] 0.1 `hallazgos.md` consolidado (47 RF) + reportes crudos en `anexos/`
-- [ ] 0.2 Flujos de navegador pendientes (sin conexión, devolución, corte, compras, reportes, configuración)
+- [x] 0.2 Flujos de navegador: devolución, corte y compras ✅; sin conexión → RF-10 (Medio, se corrige en 2.5); nuevos RF-49…51 (Bajos). Reportes, configuración y mantenimiento los cubrió QA-C por API
 - [x] 0.3 Rama `fix/revision-funcional` + este archivo
 - [x] 0.4 `tools/check_datos.py` (solo lectura)
 
@@ -27,7 +27,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [ ] 2.2 RF-07 Costo promedio inicial
 - [ ] 2.3 RF-08 Desactivar por PATCH exige permiso
 - [ ] 2.4 RF-09 Alta de cajas
-- [ ] 2.5 RF-10 Escaneo sin conexión (si se confirma en 0.2)
+- [ ] 2.5 RF-10 Modo sin conexión ante 5xx / base caída
 - [ ] **Gate 2**
 
 ## Fase 3: Medios
@@ -35,5 +35,5 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [ ] **Gate 3**
 
 ## Fase 4: Bajos
-- [ ] RF-29…40, RF-43…48
+- [ ] RF-29…40, RF-43…51
 - [ ] **Gate 4**
