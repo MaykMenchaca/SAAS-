@@ -1,3 +1,4 @@
+import json
 import re
 import traceback
 import uuid
@@ -75,8 +76,18 @@ def translate_messages(messages):
 _RETRYABLE_SQLSTATES = {"40P01", "40001"}  # deadlock_detected, serialization_failure
 
 
+# Mensajes en español de los errores HTTP que genera Flask/Werkzeug (RF-13)
+_HTTP_MESSAGES = {
+    400: "Solicitud inválida",
+    405: "Método no permitido para esta ruta",
+    413: "La solicitud es demasiado grande",
+    415: "Tipo de contenido no soportado",
+}
+
+
 def register_error_handlers(app):
-    from sqlalchemy.exc import IntegrityError, OperationalError
+    from sqlalchemy.exc import DataError, IntegrityError, OperationalError
+    from werkzeug.exceptions import HTTPException
 
     from app.extensions import db
     from app.utils.timeutil import InvalidDateError
@@ -94,6 +105,17 @@ def register_error_handlers(app):
             "error": "Conflicto con datos existentes: el registro ya existe o fue modificado por otra operación.",
             "code": "integrity_conflict",
         }), 409
+
+    @app.errorhandler(DataError)
+    def handle_data_error(e):
+        # Un valor que la base no acepta (desbordamiento numérico, texto más largo que la columna) y que la
+        # validación previa no atrapó: es un error del cliente, no un 500. Sin detalles internos (RF-12)
+        db.session.rollback()
+        app.logger.warning("Dato rechazado por la base: %s", e.orig)
+        return jsonify({
+            "error": "Un valor está fuera del rango permitido o es demasiado largo.",
+            "code": "invalid_data",
+        }), 400
 
     @app.errorhandler(InvalidDateError)
     def handle_invalid_date(e):
@@ -113,6 +135,15 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def handle_not_found(e):
         return jsonify({"error": "Recurso no encontrado"}), 404
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        # Sin esto, el handler de Exception atrapaba las HTTPException y un 405 salía como 500 (RF-13).
+        # get_response conserva el código y las cabeceras (p. ej. Allow en un 405)
+        response = e.get_response()
+        response.data = json.dumps({"error": _HTTP_MESSAGES.get(e.code, e.name)})
+        response.content_type = "application/json"
+        return response
 
     @app.errorhandler(500)
     @app.errorhandler(Exception)

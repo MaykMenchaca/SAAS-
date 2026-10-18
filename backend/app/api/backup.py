@@ -33,7 +33,9 @@ def create_backup():
         commit=True,  # acción sobre archivos, sin transacción de BD que la confirme
     )
 
-    return jsonify(result), 201
+    # Las rutas absolutas del servidor (carpeta de respaldos, USB) no salen al cliente (RF-31)
+    public = {k: v for k, v in result.items() if k not in ("path", "usb_path")}
+    return jsonify(public), 201
 
 
 @backup_bp.route("/<filename>", methods=["DELETE"])

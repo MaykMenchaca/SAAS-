@@ -121,15 +121,11 @@ def create_backup(prefix: str | None = None) -> dict:
     db_info = parse_db_url()
 
     timestamp = local_now().strftime("%Y%m%d_%H%M%S")
-    if prefix:
-        filename = f"{prefix}-{timestamp}.dump"
-        counter = 1
-        while (backup_dir / filename).exists():
-            counter += 1
-            filename = f"{prefix}-{timestamp}-{counter}.dump"
-    else:
-        filename = f"backup_{db_info['dbname']}_{timestamp}.dump"
-    filepath = backup_dir / filename
+    stem = f"{prefix}-{timestamp}" if prefix else f"backup_{db_info['dbname']}_{timestamp}"
+    # Dos respaldos en el mismo segundo (dos cierres de caja, doble clic) compartían nombre y un pg_dump
+    # escribía encima del otro: el nombre se reserva creando el archivo de forma exclusiva (RF-14)
+    filepath = _reserve_backup_file(backup_dir, stem)
+    filename = filepath.name
 
     env = os.environ.copy()
     if db_info["password"]:
@@ -172,7 +168,8 @@ def create_backup(prefix: str | None = None) -> dict:
     if result.returncode != 0:
         if filepath.exists():
             filepath.unlink(missing_ok=True)
-        raise RuntimeError(f"pg_dump fallo: {result.stderr.strip()}")
+        current_app.logger.error("pg_dump falló: %s", result.stderr.strip())
+        raise RuntimeError(f"pg_dump fallo: {_hide_paths(result.stderr.strip(), backup_dir)}")
 
     size = filepath.stat().st_size
     usb_copy = None
@@ -180,7 +177,8 @@ def create_backup(prefix: str | None = None) -> dict:
     try:
         usb_copy = copy_backup_to_usb(filepath)
     except OSError as e:
-        usb_error = str(e)
+        current_app.logger.warning("No se pudo copiar el respaldo a la USB: %s", e)
+        usb_error = "No se pudo copiar el respaldo a la USB."
 
     return {
         "filename": filename,
@@ -192,6 +190,31 @@ def create_backup(prefix: str | None = None) -> dict:
         "usb_path": str(usb_copy) if usb_copy else None,
         "usb_error": usb_error,
     }
+
+
+def _reserve_backup_file(backup_dir: Path, stem: str) -> Path:
+    """Crea vacío ``<stem>.dump`` (o ``<stem>-2.dump``, ``-3``…) con O_EXCL: dos hilos o procesos nunca
+    reciben el mismo nombre. pg_dump escribe después sobre el archivo reservado (RF-14)."""
+    counter = 1
+    while True:
+        filepath = backup_dir / (f"{stem}.dump" if counter == 1 else f"{stem}-{counter}.dump")
+        try:
+            fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            counter += 1
+            continue
+        os.close(fd)
+        return filepath
+
+
+def _hide_paths(message: str, directory: Path) -> str:
+    """Quita del mensaje la ruta absoluta de la carpeta de respaldos; el detalle completo va al log (RF-31)."""
+    for variant in sorted({str(directory), str(directory.resolve()), directory.as_posix(),
+                           directory.resolve().as_posix()}, key=len, reverse=True):
+        for sep in ("\\", "/"):
+            message = message.replace(variant + sep, "")
+        message = message.replace(variant, "<respaldos>")
+    return message
 
 
 def copy_backup_to_usb(filepath: str | os.PathLike) -> Path | None:
@@ -298,10 +321,19 @@ def list_backups() -> list:
 
 
 def delete_backup(filename: str) -> bool:
-    """Delete a backup file by name. Returns True if deleted."""
-    filepath = _resolve_backup_path(filename)
+    """Delete a backup file by name. Returns True if deleted.
 
-    if not filepath.exists():
+    Solo respaldos de la lista: no se pueden borrar los ``pre-restore-*`` (la red de seguridad de una
+    restauración), el estado de la restauración ni otros archivos de la carpeta (RF-26).
+
+    Raises:
+        ValueError: nombre con rutas, ``.`` o ``..`` (RF-31).
+    """
+    try:
+        filepath = resolve_listed_backup(filename)
+    except FileNotFoundError:
+        return False
+    if not filepath.is_file():
         return False
 
     filepath.unlink()
@@ -309,9 +341,12 @@ def delete_backup(filename: str) -> bool:
 
 
 def verify_backup(filename: str) -> dict:
-    """Verify that a backup archive can be read by pg_restore."""
-    filepath = _resolve_backup_path(filename)
-    if not filepath.exists():
+    """Verify that a backup archive can be read by pg_restore.
+
+    Solo respaldos de la lista (RF-26); ``..`` y rutas dan ValueError (RF-31).
+    """
+    filepath = resolve_listed_backup(filename)
+    if not filepath.is_file():
         raise FileNotFoundError("Backup no encontrado")
 
     cmd = [_get_pg_restore_path(), "--list", str(filepath)]
@@ -331,7 +366,8 @@ def verify_backup(filename: str) -> dict:
         raise RuntimeError("La verificacion del backup tardo mas de 2 minutos.")
 
     if result.returncode != 0:
-        raise RuntimeError(f"Verificacion fallo: {result.stderr.strip()}")
+        current_app.logger.warning("Verificación de %s falló: %s", filepath.name, result.stderr.strip())
+        raise RuntimeError(f"Verificacion fallo: {_hide_paths(result.stderr.strip(), filepath.parent)}")
 
     entries = [
         line for line in result.stdout.splitlines()
@@ -369,6 +405,9 @@ def resolve_listed_backup(filename: str) -> Path:
 def _resolve_backup_path(filename: str) -> Path:
     """Resolve a backup filename while preventing path traversal."""
     backup_dir = _get_backup_dir()
+    # "dir/.." tiene parent == dir y pasaba la revisión; luego unlink fallaba con 500 (RF-31)
+    if not filename or filename in (".", ".."):
+        raise ValueError("Nombre de archivo invalido")
     filepath = backup_dir / filename
 
     if filepath.parent.resolve() != backup_dir.resolve():

@@ -6,6 +6,10 @@ from marshmallow import EXCLUDE, Schema, fields, validate
 from app.extensions import db
 from app.utils.quantities import max_qty_decimals
 
+# Topes de las columnas: Numeric(12, 2) para dinero y Numeric(12, 3) para cantidades. Un valor mayor
+# desbordaba en la base y respondía 500 (RF-12)
+MAX_MONEY = Decimal("9999999999.99")
+MAX_QTY = Decimal("999999999.999")
 
 # --- Cash Register ---
 
@@ -16,7 +20,7 @@ class CashRegisterSessionOpenSchema(Schema):
 
     cash_register_id = fields.Int(required=True, validate=validate.Range(min=1))
     opening_amount = fields.Decimal(
-        as_string=True, required=True, places=2, validate=validate.Range(min=0)
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, max=MAX_MONEY)
     )
 
 
@@ -25,7 +29,7 @@ class CashRegisterSessionCloseSchema(Schema):
         unknown = EXCLUDE
 
     closing_amount = fields.Decimal(
-        as_string=True, required=True, places=2, validate=validate.Range(min=0)
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, max=MAX_MONEY)
     )
     close_notes = fields.Str(load_default=None, allow_none=True)
 
@@ -61,7 +65,9 @@ class SaleItemInputSchema(Schema):
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
     quantity = fields.Decimal(
-        as_string=True, required=True, validate=[validate.Range(min=0, min_inclusive=False), max_qty_decimals]
+        as_string=True,
+        required=True,
+        validate=[validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals],
     )
     unit_price = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
     tax_rate = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
@@ -75,9 +81,13 @@ class PaymentInputSchema(Schema):
         unknown = EXCLUDE
 
     method = fields.Str(required=True, validate=validate.OneOf(["efectivo", "tarjeta", "transferencia"]))
-    amount = fields.Decimal(as_string=True, required=True, places=2, validate=validate.Range(min=0, min_inclusive=False))
-    reference = fields.Str(load_default=None, allow_none=True)
-    change_amount = fields.Decimal(as_string=True, load_default="0", places=2, validate=validate.Range(min=0))
+    amount = fields.Decimal(
+        as_string=True, required=True, places=2, validate=validate.Range(min=0, min_inclusive=False, max=MAX_MONEY)
+    )
+    reference = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=100))
+    change_amount = fields.Decimal(
+        as_string=True, load_default="0", places=2, validate=validate.Range(min=0, max=MAX_MONEY)
+    )
 
 
 class SaleCreateSchema(Schema):
@@ -202,7 +212,9 @@ class SaleReturnItemInputSchema(Schema):
 
     sale_item_id = fields.Int(required=True, validate=validate.Range(min=1))
     quantity = fields.Decimal(
-        as_string=True, required=True, validate=[validate.Range(min=0, min_inclusive=False), max_qty_decimals]
+        as_string=True,
+        required=True,
+        validate=[validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals],
     )
 
 
