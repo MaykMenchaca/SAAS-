@@ -68,6 +68,14 @@ export function GeneralTab() {
       await queryClient.invalidateQueries({ queryKey: qk.systemConfig() });
       toast.success("Configuración guardada correctamente.");
     },
+    // El servidor valida cada clave (RF-06): se muestra qué campo y por qué
+    onError: (error) => {
+      const data = error instanceof AxiosError ? error.response?.data : undefined;
+      const details = data?.details as Record<string, string[]> | undefined;
+      const first = details ? Object.entries(details)[0] : undefined;
+      const label = first ? (GROUPS.flatMap((g) => g.fields).find((f) => f.key === first[0])?.label ?? first[0]) : null;
+      toast.error(first ? `${label}: ${first[1][0]}` : (data?.error ?? "No se pudo guardar la configuración."));
+    },
   });
 
   function setField(key: string, value: string) {

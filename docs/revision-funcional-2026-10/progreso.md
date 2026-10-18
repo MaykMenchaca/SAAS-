@@ -20,10 +20,10 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [x] 1.2 RF-02, RF-03 Cantidades: máximo 3 decimales y `allows_fractions` en ventas y devoluciones
 - [x] 1.3 RF-04 Reembolso acumulado sin exceder el total
 - [x] 1.4 RF-05 Restauración revoca todas las sesiones
-- [ ] **Gate 1**
+- [x] **Gate 1** (aprobado 2026-10-17: pytest completo local y CI de GitHub en verde)
 
 ## Fase 2: Altos
-- [ ] 2.1 RF-06 Validación de configuración
+- [x] 2.1 RF-06 Validación de configuración
 - [ ] 2.2 RF-07 Costo promedio inicial
 - [ ] 2.3 RF-08 Desactivar por PATCH exige permiso
 - [ ] 2.4 RF-09 Alta de cajas

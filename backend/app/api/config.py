@@ -56,10 +56,13 @@ def update_config():
     Body: JSON object with key-value pairs to set.
     Example: {"company_name": "Ferreteria Lopez", "default_tax_rate": "16.00"}
     """
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "No se proporcionaron valores"}), 400
 
-    # set_bulk audita dentro de su transacción (antes se auditaba después del commit y se perdía)
-    result = config_service.set_bulk(data)
+    # set_bulk valida cada clave (RF-06) y audita dentro de su transacción
+    try:
+        result = config_service.set_bulk(data)
+    except config_service.ConfigValidationError as exc:
+        return jsonify({"error": str(exc), "details": exc.details}), 400
     return jsonify(result), 200

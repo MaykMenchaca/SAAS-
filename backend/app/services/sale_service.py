@@ -38,11 +38,8 @@ class SaleService:
             and (user.role_name == "admin" or "ventas:descuento" in user.permissions)
         )
 
-        max_disc_str = config_service.get("max_discount_percent") or "0"
-        try:
-            max_discount_limit = Decimal(str(max_disc_str))
-        except Exception:
-            max_discount_limit = Decimal("0")
+        # Un tope dañado (NaN, negativo, > 100) cuenta como 0: no detiene las ventas ni permite regalar (RF-06)
+        max_discount_limit = config_service.max_discount_percent()
 
         lines = []
         subtotal = Decimal("0")
