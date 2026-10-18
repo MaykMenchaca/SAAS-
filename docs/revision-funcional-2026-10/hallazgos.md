@@ -16,6 +16,26 @@ Los reportes crudos, con pasos, folios y archivo:línea, están en [`anexos/`](a
 
 **Severidad:** 🔴 Crítico (dinero o inventario incorrecto, pérdida de datos o seguridad) · 🟠 Alto (flujo roto o regla de negocio violada) · 🟡 Medio · ⚪ Bajo
 
+## Estado de la corrección (2026-10-18)
+**Los 52 hallazgos RF están corregidos** en la rama `fix/revision-funcional`, cada uno con su prueba de regresión (`backend/tests/test_revision_funcional_*.py` y pruebas de vitest). Detalle por fase y commits en [`progreso.md`](progreso.md).
+
+| Fase | Hallazgos | Verificación |
+|---|---|---|
+| 1 Críticos | RF-01…05 | pytest completo + CI + navegador |
+| 2 Altos | RF-06…10, RF-52 | pytest completo + CI + navegador (venta sin conexión y sincronización) |
+| 3 Medios | RF-11…28, RF-41, RF-42 | pytest completo + CI + navegador |
+| 4 Bajos | RF-29…40, RF-43…51 + pendientes del Dashboard | pytest completo + CI + Playwright (3 flujos) + navegador |
+
+**Abierto (no son defectos de esta lista o requieren decisión):**
+- Datos dañados en `pos_db` por pruebas del 2026-10-07 (`tools/check_datos.py`): `TO-002` con stock 79.5 pz y la venta `V-20261007-0011` reembolsada al doble. Reparación pendiente de decisión.
+- Sin índices únicos en BD para SKU/código de barras, unidades y usuarios sin distinguir mayúsculas (la validación está en el servidor); requiere depurar antes los duplicados de prueba de `pos_db`.
+- El ticket toma `business_name` antes que `company_name` (`printer_service._company_info`); con ambas claves distintas, ticket y branding difieren.
+- Fechas extremas (`0001-01-01`) en `/api/sales/` y `/api/audit/` probablemente aún dan 500 (no reproducido).
+- Ramas del frontend que esperaban "422 con msg" para token inválido quedaron sin uso (`api/client.ts`, `hooks/useSyncQueue.ts`).
+- Nombres de proveedor duplicados permitidos.
+- Playwright requiere `E2E_CHANNEL=chrome` (no hay Chromium propio instalado) y su `tsc` no está en el hook.
+- Decisiones de producto de la tabla anterior (permisos de cajero/gerente, `/api/health` público).
+
 ## Resumen ejecutivo
 **Veredicto: no apto para usarse en tienda hasta corregir la Fase 1.** Hay 5 Críticos, y 4 de ellos afectan dinero o inventario en flujos de uso diario: escanear, devolver y vender a granel. La base es sólida en lo demás:
 - La matriz de permisos no tiene huecos.
