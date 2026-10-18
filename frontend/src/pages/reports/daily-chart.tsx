@@ -1,7 +1,7 @@
 import { formatCurrency } from "../../lib/formatters";
 import { cn } from "../../lib/cn";
 import type { DailyPoint } from "./helpers";
-import { formatShortDate, parseLocalDate } from "./helpers";
+import { formatShortDate, formatSignedCurrency, parseLocalDate } from "./helpers";
 
 /** Barras de ingreso por día; la última (el día más reciente) va en acento y las demás en tono suave. */
 export function DailyChart({ data }: { data: DailyPoint[] }) {
@@ -24,14 +24,22 @@ export function DailyChart({ data }: { data: DailyPoint[] }) {
       role="img"
     >
       <div className="flex h-56 items-end gap-1.5 px-4 pt-5">
-        {data.map((day, index) => (
-          <div
-            className={cn("min-w-0 flex-1", index === data.length - 1 ? "bg-accent" : "bg-acc-tint border-t-2 border-accent")}
-            key={day.date}
-            style={{ height: `${max > 0 ? Math.max((values[index] / max) * 100, values[index] > 0 ? 2 : 0) : 0}%` }}
-            title={`${formatShortDate(day.date)}: ${formatCurrency(day.revenue)} (${day.count} ${day.count === 1 ? "venta" : "ventas"})`}
-          />
-        ))}
+        {data.map((day, index) => {
+          // Un día con más reembolsos que ventas queda en negativo (RF-25): marca baja en rojo
+          const negative = values[index] < 0;
+          const height = negative ? 2 : max > 0 ? Math.max((values[index] / max) * 100, values[index] > 0 ? 2 : 0) : 0;
+          return (
+            <div
+              className={cn(
+                "min-w-0 flex-1",
+                negative ? "bg-bad" : index === data.length - 1 ? "bg-accent" : "bg-acc-tint border-t-2 border-accent",
+              )}
+              key={day.date}
+              style={{ height: `${height}%` }}
+              title={`${formatShortDate(day.date)}: ${formatSignedCurrency(day.revenue)} (${day.count} ${day.count === 1 ? "venta" : "ventas"})`}
+            />
+          );
+        })}
       </div>
       <div className="mt-2 flex gap-1.5 border-t border-divider px-4 pb-3.5 pt-2">
         {data.map((day, index) => (

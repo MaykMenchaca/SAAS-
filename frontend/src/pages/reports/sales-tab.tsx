@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, SkeletonTable, Table, tableCellClass, tableHead
 import { formatCurrency } from "../../lib/formatters";
 import { csvFilename, downloadCsv } from "./csv";
 import { DailyChart } from "./daily-chart";
-import { averageTicket, fillMissingDays, parseLocalDate } from "./helpers";
+import { averageTicket, fillMissingDays, formatSignedCurrency, negativeTone, parseLocalDate } from "./helpers";
 import { KpiStrip } from "./kpi-strip";
 import { ExportButton, ReportPanel } from "./panel";
 import { PaymentMethods } from "./payment-methods";
@@ -26,7 +26,7 @@ export function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: strin
 
   const kpis = [
     { label: "Ventas totales", value: String(data?.total_sales ?? 0) },
-    { label: "Ingreso total", value: formatCurrency(data?.total_revenue ?? "0") },
+    { label: "Ingreso total", value: formatSignedCurrency(data?.total_revenue ?? "0") },
     { label: "Ticket promedio", value: formatCurrency(averageTicket(data?.total_revenue ?? 0, data?.total_sales ?? 0)) },
     { label: "Canceladas", tone: (data?.cancelled_sales ?? 0) > 0 ? ("bad" as const) : undefined, value: String(data?.cancelled_sales ?? 0) },
   ];
@@ -80,7 +80,7 @@ export function SalesTab({ dateFrom, dateTo }: { dateFrom: string; dateTo: strin
                         {parseLocalDate(day.date).toLocaleDateString("es-MX", { weekday: "short", day: "2-digit", month: "short" })}
                       </td>
                       <td className={`${tableCellClass} ${tableNumClass}`}>{day.count}</td>
-                      <td className={`${tableCellClass} ${tableNumClass} font-medium`}>{formatCurrency(day.revenue)}</td>
+                      <td className={`${tableCellClass} ${tableNumClass} font-medium ${negativeTone(day.revenue)}`}>{formatSignedCurrency(day.revenue)}</td>
                     </tr>
                   ))}
                 </tbody>

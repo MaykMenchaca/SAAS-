@@ -27,7 +27,13 @@ export async function loginRequest(username: string, password: string) {
 }
 
 export async function changePasswordRequest(current_password: string, new_password: string) {
-  const response = await apiClient.post<{ message: string; access_token: string; must_change_password: boolean }>(
+  // El cambio revoca el refresh anterior y entrega un par nuevo (RF-24)
+  const response = await apiClient.post<{
+    message: string;
+    access_token: string;
+    refresh_token: string;
+    must_change_password: boolean;
+  }>(
     "/auth/change-password",
     { current_password, new_password }
   );

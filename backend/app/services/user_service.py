@@ -2,7 +2,7 @@ import secrets
 import string
 
 from marshmallow import ValidationError
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models.user import Permission, Role, User
@@ -227,17 +227,19 @@ class UserService:
 
     @staticmethod
     def _validate_unique_user(username=None, email=None, exclude_user_id=None):
+        # Unicidad sin distinguir mayúsculas (RF-42): "QA_AUTH" choca con "qa_auth". Se valida aquí
+        # porque el UNIQUE de la BD distingue mayúsculas (sin migración)
         errors = {}
 
         if username:
-            query = User.query.filter_by(username=username)
+            query = User.query.filter(func.lower(User.username) == username.lower())
             if exclude_user_id is not None:
                 query = query.filter(User.id != exclude_user_id)
             if query.first():
                 errors["username"] = ["Username ya existe"]
 
         if email:
-            query = User.query.filter_by(email=email)
+            query = User.query.filter(func.lower(User.email) == email.lower())
             if exclude_user_id is not None:
                 query = query.filter(User.id != exclude_user_id)
             if query.first():

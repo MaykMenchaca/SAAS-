@@ -2,7 +2,7 @@ import { ArrowDownUp, CreditCard, Wallet } from "lucide-react";
 
 import type { SalesReport } from "../../api/reports";
 import { EmptyState, SkeletonTable } from "../../components/ui";
-import { formatCurrency } from "../../lib/formatters";
+import { formatSignedCurrency, negativeTone } from "./helpers";
 import { ReportPanel } from "./panel";
 
 type Method = SalesReport["payment_methods"][number];
@@ -43,7 +43,7 @@ export function PaymentMethods({ data, isLoading }: { data: Method[]; isLoading:
                       <p className="text-xs text-ink-2">{pm.count} {pm.count === 1 ? "transacción" : "transacciones"}</p>
                     </div>
                   </div>
-                  <span className="font-mono text-sm font-semibold">{formatCurrency(pm.net_amount)}</span>
+                  <span className={`font-mono text-sm font-semibold ${negativeTone(pm.net_amount)}`}>{formatSignedCurrency(pm.net_amount)}</span>
                 </li>
               );
             })}
@@ -58,11 +58,15 @@ export function PaymentMethods({ data, isLoading }: { data: Method[]; isLoading:
 }
 
 function Donut({ data }: { data: Method[] }) {
-  const total = data.reduce((acc, pm) => acc + Number(pm.net_amount), 0);
-  if (total <= 0) return <p className="text-sm text-ink-2">Sin importes en el periodo.</p>;
+  // Con devoluciones un método puede quedar en negativo (RF-25): la dona reparte solo los métodos con
+  // neto positivo y el centro muestra el neto de todos, que cuadra con el ingreso total
+  const netCents = data.reduce((acc, pm) => acc + Math.round(Number(pm.net_amount) * 100), 0);
+  const positive = data.filter((pm) => Number(pm.net_amount) > 0);
+  const total = positive.reduce((acc, pm) => acc + Number(pm.net_amount), 0);
+  if (total <= 0) return <p className="text-sm text-ink-2">Sin ingresos netos en el periodo.</p>;
 
   let cumulative = 0;
-  const slices = data.map((pm, index) => {
+  const slices = positive.map((pm, index) => {
     const percent = Number(pm.net_amount) / total;
     const start = cumulative;
     cumulative += percent;
@@ -79,7 +83,7 @@ function Donut({ data }: { data: Method[] }) {
     <div className="flex w-full flex-col items-center justify-center gap-4 sm:flex-row">
       <div className="relative h-28 w-28 shrink-0">
         <svg
-          aria-label={`Ingreso por método de pago: ${data.map((pm) => `${pm.method} ${formatCurrency(pm.net_amount)}`).join(", ")}`}
+          aria-label={`Ingreso por método de pago: ${data.map((pm) => `${pm.method} ${formatSignedCurrency(pm.net_amount)}`).join(", ")}`}
           className="h-full w-full -rotate-90"
           role="img"
           viewBox="0 0 42 42"
@@ -101,7 +105,7 @@ function Donut({ data }: { data: Method[] }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-xs text-ink-2">Total</span>
-          <span className="text-xs font-bold tabular-nums">{formatCurrency(total)}</span>
+          <span className={`text-xs font-bold tabular-nums ${negativeTone(netCents)}`}>{formatSignedCurrency(netCents / 100)}</span>
         </div>
       </div>
       <ul className="grid w-full max-w-44 gap-1.5 text-xs">

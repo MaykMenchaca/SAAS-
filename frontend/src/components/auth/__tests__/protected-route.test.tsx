@@ -32,9 +32,10 @@ describe("cambio obligatorio de contraseña (FE-101)", () => {
 
   it("tras cambiarla guarda el token nuevo y deja pasar", () => {
     useAuthStore.setState({ isAuthenticated: true, user: { ...usuario, must_change_password: true } });
-    useAuthStore.getState().passwordChanged("token-nuevo");
+    useAuthStore.getState().passwordChanged("token-nuevo", "refresh-nuevo");
     expect(useAuthStore.getState().accessToken).toBe("token-nuevo");
     expect(window.localStorage.getItem("pos_access_token")).toBe("token-nuevo");
+    expect(window.localStorage.getItem("pos_refresh_token")).toBe("refresh-nuevo");
     renderEn("/");
     expect(screen.getByText("Panel")).toBeTruthy();
   });

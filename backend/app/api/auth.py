@@ -11,27 +11,41 @@ auth_bp = Blueprint("auth", __name__)
 from app.services.rate_limiter import login_limiter
 
 
+def _json_object():
+    """Cuerpo JSON como dict; una lista u otro tipo se trata como cuerpo vacío."""
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
+def _non_string(data, *fields):
+    """True si alguno de los campos viene con un tipo distinto de texto (RF-12: antes daba 500)."""
+    return any(data.get(f) is not None and not isinstance(data.get(f), str) for f in fields)
+
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
     ip = request.remote_addr or "127.0.0.1"
-    data = request.get_json(silent=True) or {}
+    data = _json_object()
+    if _non_string(data, "username", "password"):
+        return jsonify({"error": "Username y password deben ser texto"}), 400
     username = (data.get("username") or "").strip()
     password = data.get("password")
 
     if login_limiter.is_ip_limited(ip):
         return jsonify({"error": "Demasiados intentos de acceso. Intente de nuevo en un minuto."}), 429
 
-    if login_limiter.is_user_locked(username):
-        return jsonify({"error": "Usuario bloqueado temporalmente por demasiados intentos fallidos. Intente de nuevo en 5 minutos."}), 429
-
-    login_limiter.record_ip_attempt(ip)
-
     if not username or not password:
         return jsonify({"error": "Username y password son requeridos"}), 400
 
-    result = AuthService.authenticate(username, password)
+    # El bloqueo se lleva por usuario existente + IP (RF-28): ver rate_limiter
+    user = AuthService.find_login_user(username)
+    user_id = user.id if user else None
+    if login_limiter.is_user_locked(user_id, ip):
+        return jsonify({"error": "Usuario bloqueado temporalmente por demasiados intentos fallidos. Intente de nuevo en 5 minutos."}), 429
+
+    result = AuthService.authenticate_user(user, password)
     if result:
-        login_limiter.record_login_success(username)
+        login_limiter.record_login_success(user_id, ip)
         log_action(
             action="login",
             entity_type="user",
@@ -42,7 +56,9 @@ def login():
         )
         return jsonify(result), 200
 
-    login_limiter.record_login_failure(username)
+    # Solo los fallos cuentan para el límite por IP (RF-41)
+    login_limiter.record_ip_failure(ip)
+    login_limiter.record_login_failure(user_id, ip)
     log_action(
         action="login_failed",
         details={"username": username},
@@ -117,7 +133,9 @@ def logout():
 @auth_bp.route("/change-password", methods=["POST"])
 @jwt_required()
 def change_password():
-    data = request.get_json(silent=True) or {}
+    data = _json_object()
+    if _non_string(data, "current_password", "new_password"):
+        return jsonify({"error": "current_password y new_password deben ser texto"}), 400
     current_password = data.get("current_password")
     new_password = data.get("new_password")
     if not current_password or not new_password:
@@ -125,7 +143,6 @@ def change_password():
 
     from app.models.user import User
     from app.extensions import db
-    from flask_jwt_extended import create_access_token
 
     user_id = int(get_jwt_identity())
     user = db.session.get(User, user_id)
@@ -147,11 +164,11 @@ def change_password():
     )
     db.session.commit()
 
-    claims = AuthService._token_claims(user)
-    new_token = create_access_token(identity=str(user.id), additional_claims=claims)
+    # set_password sube token_version y revoca el refresh anterior: se entrega un par nuevo para
+    # que la sesión actual no muera al vencer el access (RF-24)
     return jsonify({
         "message": "Contraseña actualizada exitosamente",
-        "access_token": new_token,
+        **AuthService.issue_tokens(user),
         "must_change_password": False,
     }), 200
 
