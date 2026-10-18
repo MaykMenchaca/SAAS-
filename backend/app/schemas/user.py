@@ -22,15 +22,26 @@ class UserSchema(Schema):
         return user.permissions
 
 
+def _normalize_user_input(data):
+    """Recorta username y email (RF-42: " x " se creaba y nunca podía entrar); email vacío -> NULL (H-28)."""
+    if not isinstance(data, dict):
+        return data
+    data = dict(data)
+    for field in ("username", "email"):
+        if isinstance(data.get(field), str):
+            data[field] = data[field].strip()
+    if data.get("email") == "":
+        data["email"] = None
+    return data
+
+
 class UserCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
     @pre_load
-    def empty_email_to_none(self, data, **kwargs):
-        if isinstance(data, dict) and isinstance(data.get("email"), str) and not data["email"].strip():
-            data = {**data, "email": None}
-        return data
+    def normalize(self, data, **kwargs):
+        return _normalize_user_input(data)
 
     username = fields.Str(required=True, validate=validate.Length(min=3, max=80))
     # El email es opcional (H-28): "" o null se guardan como NULL
@@ -45,10 +56,8 @@ class UserUpdateSchema(Schema):
         unknown = EXCLUDE
 
     @pre_load
-    def empty_email_to_none(self, data, **kwargs):
-        if isinstance(data, dict) and isinstance(data.get("email"), str) and not data["email"].strip():
-            data = {**data, "email": None}
-        return data
+    def normalize(self, data, **kwargs):
+        return _normalize_user_input(data)
 
     username = fields.Str(validate=validate.Length(min=3, max=80))
     email = fields.Email(allow_none=True)

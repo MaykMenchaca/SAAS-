@@ -224,22 +224,28 @@ def test_login_rate_limit(client):
 
 
 
-def test_login_user_lockout_tras_10_fallos(client):
+def test_login_user_lockout_tras_10_fallos(client, seed_admin, monkeypatch):
     from app.services.rate_limiter import login_limiter
     login_limiter.reset()
+    # El bloqueo es por usuario existente + IP (RF-28); los fallos se espacian para no tocar el
+    # límite por IP (5 por minuto)
+    reloj = [1_000_000.0]
+    monkeypatch.setattr(login_limiter, "clock", lambda: reloj[0])
 
-    for i in range(10):
+    for _ in range(10):
+        reloj[0] += 13
         res = client.post(
             "/api/auth/login",
-            environ_overrides={"REMOTE_ADDR": f"10.0.0.{i+1}"},
-            json={"username": "bloqueable", "password": "wrong"},
+            environ_overrides={"REMOTE_ADDR": "10.0.0.1"},
+            json={"username": "admin", "password": "wrong"},
         )
         assert res.status_code == 401
 
+    reloj[0] += 13
     res11 = client.post(
         "/api/auth/login",
-        environ_overrides={"REMOTE_ADDR": "10.0.0.99"},
-        json={"username": "bloqueable", "password": "wrong"},
+        environ_overrides={"REMOTE_ADDR": "10.0.0.1"},
+        json={"username": "admin", "password": "admin123"},
     )
     assert res11.status_code == 429
     assert "bloqueado" in res11.get_json()["error"]

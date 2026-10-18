@@ -38,7 +38,7 @@ export function ChangePasswordPage() {
     setSaving(true);
     try {
       const result = await changePasswordRequest(current, next);
-      passwordChanged(result.access_token);
+      passwordChanged(result.access_token, result.refresh_token);
       toast.success("Contraseña actualizada.");
       navigate("/", { replace: true });
     } catch (caught) {

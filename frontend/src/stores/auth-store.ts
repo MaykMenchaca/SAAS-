@@ -28,8 +28,8 @@ type AuthState = {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
-  /** Tras el cambio obligatorio de contraseña: guarda el token nuevo y quita la marca (FE-101). */
-  passwordChanged: (accessToken: string) => void;
+  /** Tras el cambio obligatorio de contraseña: guarda el par de tokens nuevo y quita la marca (FE-101, RF-24). */
+  passwordChanged: (accessToken: string, refreshToken: string) => void;
   /** El servidor exige cambiar la contraseña (403 password_change_required). */
   requirePasswordChange: () => void;
 };
@@ -137,12 +137,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  passwordChanged: (accessToken) => {
-    setStoredAccessToken(accessToken);
+  passwordChanged: (accessToken, refreshToken) => {
+    // El servidor revocó el refresh anterior: conservarlo cerraba la sesión a los 30 min (RF-24)
+    setStoredTokens(accessToken, refreshToken);
     const user = get().user;
     const updated = user ? { ...user, must_change_password: false } : user;
     if (updated) setStoredUser(updated);
-    set({ accessToken, user: updated });
+    set({ accessToken, refreshToken, user: updated });
   },
 
   requirePasswordChange: () => {
