@@ -1,4 +1,5 @@
 import { addLocalDays, localISODate } from "../../lib/dates";
+import { formatCurrency } from "../../lib/formatters";
 
 export type DailyPoint = { date: string; count: number; revenue: string };
 
@@ -66,6 +67,18 @@ export function fillMissingDays(daily: DailyPoint[], from: string, to: string): 
     cursor = addLocalDays(cursor, 1);
   }
   return out;
+}
+
+/** Importe con el signo delante ("-$116.00"): con devoluciones, un día o un método puede quedar en negativo (RF-25). */
+export function formatSignedCurrency(amount: string | number): string {
+  const n = Number(amount);
+  if (Number.isFinite(n) && n < 0) return `-${formatCurrency(-n)}`;
+  return formatCurrency(amount);
+}
+
+/** Clase de color para un importe negativo (salida neta por reembolsos). */
+export function negativeTone(amount: string | number): string {
+  return Number(amount) < 0 ? "text-bad" : "";
 }
 
 /** Participación (0-100) de cada valor sobre la suma de todos; vacío o suma 0 → ceros. */

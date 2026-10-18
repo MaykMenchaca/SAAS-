@@ -1,8 +1,14 @@
-"""Revisión funcional 2026-10, carril Z (Fase 3): autenticación (RF-24, RF-28, RF-41, RF-42, RF-12)."""
+"""Revisión funcional 2026-10, carril Z (Fase 3): autenticación (RF-24, RF-28, RF-41, RF-42, RF-12)
+y reporte de ventas con devoluciones (RF-25)."""
+from datetime import timedelta
+from decimal import Decimal
+
 import pytest
 
+from app.models.sale import CashRegister, CashRegisterSession, Payment, Sale, SaleReturn
 from app.models.user import User
 from app.services.rate_limiter import login_limiter
+from app.utils.timeutil import local_day_bounds, local_today
 
 
 def _h(token):
@@ -206,3 +212,112 @@ def test_rf42_editar_aplica_recorte_y_unicidad_sin_mayusculas(client, admin_toke
 def test_rf42_username_solo_espacios_se_rechaza(client, admin_token, seed_roles):
     resp = _crear(client, admin_token, username="     ", role_id=seed_roles["cajero"].id)
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------- RF-25 ---
+
+
+@pytest.fixture
+def caja(db, seed_admin):
+    register = CashRegister(name="Caja RF25")
+    db.session.add(register)
+    db.session.flush()
+    session = CashRegisterSession(
+        cash_register_id=register.id, user_id=seed_admin.id,
+        opening_amount=Decimal("0.00"), status="abierta",
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+
+def _mediodia(day):
+    return local_day_bounds(day)[0] + timedelta(hours=12)
+
+
+_folio = [0]
+
+
+def _venta(db, caja, day, total, method, status="completada"):
+    _folio[0] += 1
+    total = Decimal(total)
+    sale = Sale(
+        folio=f"RF25-{_folio[0]}", session_id=caja.id, user_id=caja.user_id,
+        subtotal=total, tax_total=Decimal("0.00"), total=total, status=status,
+        created_at=_mediodia(day),
+    )
+    sale.payments.append(Payment(method=method, amount=total))
+    db.session.add(sale)
+    db.session.commit()
+    return sale
+
+
+def _devolucion(db, caja, sale, day, total, method):
+    db.session.add(SaleReturn(
+        sale_id=sale.id, user_id=caja.user_id, reason="QA", session_id=caja.id,
+        refund_method=method, refund_total=Decimal(total), created_at=_mediodia(day),
+    ))
+    db.session.commit()
+
+
+def _reporte(client, token, desde, hasta):
+    resp = client.get(f"/api/reports/sales?from={desde.isoformat()}&to={hasta.isoformat()}", headers=_h(token))
+    assert resp.status_code == 200
+    return resp.get_json()
+
+
+def _cuadra(data):
+    total = Decimal(data["total_revenue"])
+    assert sum((Decimal(d["revenue"]) for d in data["daily"]), Decimal("0")) == total
+    assert sum((Decimal(m["net_amount"]) for m in data["payment_methods"]), Decimal("0")) == total
+    return total
+
+
+def test_rf25_reembolso_a_tarjeta_de_venta_de_otro_dia_resta_en_tarjeta(client, db, admin_token, caja):
+    hoy = local_today()
+    ayer = hoy - timedelta(days=1)
+    venta_ayer = _venta(db, caja, ayer, "100.00", "tarjeta")
+    _venta(db, caja, hoy, "282.00", "efectivo")
+    _devolucion(db, caja, venta_ayer, hoy, "100.00", "tarjeta")
+
+    data = _reporte(client, admin_token, hoy, hoy)
+    assert _cuadra(data) == Decimal("182.00")
+    metodos = {m["method"]: m for m in data["payment_methods"]}
+    assert metodos["tarjeta"]["net_amount"] == "-100.00"
+    assert metodos["tarjeta"]["count"] == 0
+    assert metodos["efectivo"]["net_amount"] == "282.00"
+
+
+def test_rf25_dia_solo_con_devoluciones_aparece_y_no_se_recorta(client, db, admin_token, caja):
+    hoy = local_today()
+    d3 = hoy - timedelta(days=3)
+    d5 = hoy - timedelta(days=5)
+    venta_vieja = _venta(db, caja, d5, "116.00", "efectivo")
+    _venta(db, caja, hoy, "470.60", "efectivo")
+    _devolucion(db, caja, venta_vieja, d3, "116.00", "efectivo")
+
+    data = _reporte(client, admin_token, d3, hoy)
+    assert _cuadra(data) == Decimal("354.60")
+    dias = {d["date"]: d for d in data["daily"]}
+    assert dias[d3.isoformat()] == {"date": d3.isoformat(), "count": 0, "revenue": "-116.00"}
+    assert [d["date"] for d in data["daily"]] == sorted(dias)
+
+    # Solo el día D-3: la salida de efectivo se ve y el total es negativo
+    solo = _reporte(client, admin_token, d3, d3)
+    assert _cuadra(solo) == Decimal("-116.00")
+    assert solo["total_sales"] == 0
+    assert solo["payment_methods"] == [{"method": "efectivo", "count": 0, "net_amount": "-116.00"}]
+
+
+def test_rf25_canceladas_no_cuentan_y_pagos_mixtos_cuadran(client, db, admin_token, caja):
+    hoy = local_today()
+    _venta(db, caja, hoy, "50.00", "efectivo", status="cancelada")
+    mixta = _venta(db, caja, hoy, "300.00", "efectivo")
+    mixta.payments[0].amount = Decimal("200.00")
+    mixta.payments.append(Payment(method="transferencia", amount=Decimal("100.00")))
+    db.session.commit()
+    _devolucion(db, caja, mixta, hoy, "40.00", "transferencia")
+
+    data = _reporte(client, admin_token, hoy, hoy)
+    assert _cuadra(data) == Decimal("260.00")
+    assert data["cancelled_sales"] == 1

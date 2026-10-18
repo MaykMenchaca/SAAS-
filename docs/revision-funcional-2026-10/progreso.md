@@ -32,7 +32,8 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 - [x] **Gate 2** (aprobado 2026-10-18: pytest completo local y CI en verde)
 
 ## Fase 3: Medios
-- [ ] 3.A RF-12, RF-13 · [ ] 3.B RF-11, RF-15 · [ ] 3.C RF-16…20 · [ ] 3.D RF-21…23 · [ ] 3.E RF-24, RF-28, RF-41, RF-42 · [ ] 3.F RF-25 · [ ] 3.G RF-14, RF-26, RF-27
+- [ ] 3.A RF-12, RF-13 · [ ] 3.B RF-11, RF-15 · [ ] 3.C RF-16…20 · [ ] 3.D RF-21…23 · [x] 3.E RF-24, RF-28, RF-41, RF-42 · [x] 3.F RF-25 · [ ] 3.G RF-14, RF-26, RF-27
+  - 3.E/3.F (carril Z, `test_revision_funcional_z.py`): login sin distinguir mayúsculas; bloqueo por usuario existente + IP; límite por IP solo cuenta fallos; `change-password` entrega refresh nuevo; reporte de ventas une días/métodos con devoluciones y permite netos negativos (el tablero sigue recortando a 0). RF-12 solo en login/change-password
 - [ ] **Gate 3**
 
 ## Fase 4: Bajos

@@ -172,8 +172,12 @@ def _open_sessions_summary() -> list[dict]:
     return result
 
 
-def _get_period_stats(start: datetime, end: datetime) -> dict:
-    """Get sale count and total revenue for [start, end), net of returns."""
+def _get_period_stats(start: datetime, end: datetime, clamp: bool = True) -> dict:
+    """Get sale count and total revenue for [start, end), net of returns.
+
+    El tablero recorta a 0; el reporte de ventas pide el neto real (clamp=False), que puede ser
+    negativo en un periodo con más reembolsos que ventas (RF-25).
+    """
     result = (
         db.session.query(
             func.count(Sale.id).label("count"),
@@ -197,7 +201,7 @@ def _get_period_stats(start: datetime, end: datetime) -> dict:
     net_revenue = Decimal(str(result.revenue)) - Decimal(str(refunds))
     return {
         "count": result.count,
-        "revenue": str(max(Decimal("0"), net_revenue).quantize(Decimal("0.01"))),
+        "revenue": str((max(Decimal("0"), net_revenue) if clamp else net_revenue).quantize(Decimal("0.01"))),
     }
 
 
@@ -226,8 +230,8 @@ def sales_report():
     start, _ = local_day_bounds(first_day)
     _, end = local_day_bounds(last_day)
 
-    # Summary stats
-    stats = _get_period_stats(start, end)
+    # Summary stats: sin recortar a 0 para que cuadre con daily y payment_methods (RF-25)
+    stats = _get_period_stats(start, end, clamp=False)
 
     # Sales by day (net of refunds), agrupadas por día local
     tz_name = app_tz().key
@@ -259,12 +263,12 @@ def sales_report():
         .group_by(return_day)
         .all()
     )
-    ref_day_map = {d: Decimal(str(tot)) for d, tot in daily_refunds}
-    daily = []
-    for day, count, rev in daily_sales:
-        net_rev = Decimal(str(rev)) - ref_day_map.get(day, Decimal("0"))
-        daily.append((day, count, max(Decimal("0"), net_rev)))
-    daily.sort(key=lambda x: x[0])
+    # Se unen los días con ventas y los días con reembolsos, sin recortar a 0 (RF-25): un día con
+    # solo devoluciones aparece con 0 ventas e ingreso negativo, y la suma de daily = total_revenue
+    day_map = {d: [count, Decimal(str(rev))] for d, count, rev in daily_sales}
+    for d, tot in daily_refunds:
+        day_map.setdefault(d, [0, Decimal("0")])[1] -= Decimal(str(tot))
+    daily = sorted((d, count, net) for d, (count, net) in day_map.items())
 
     # Payment method breakdown (net of refunds per method)
     payment_breakdown = (
@@ -296,7 +300,11 @@ def sales_report():
         .group_by(SaleReturn.refund_method)
         .all()
     )
-    ref_method_map = {m: Decimal(str(tot)) for m, tot in refund_methods}
+    # Igual con los métodos (RF-25): un reembolso a tarjeta de una venta de otro día resta en
+    # "tarjeta" aunque en el periodo no haya ventas con tarjeta
+    method_map = {m: [count, Decimal(str(net))] for m, count, net in payment_breakdown}
+    for m, tot in refund_methods:
+        method_map.setdefault(m, [0, Decimal("0")])[1] -= Decimal(str(tot))
 
     # Cancelled count
     cancelled = (
@@ -329,13 +337,9 @@ def sales_report():
             {
                 "method": method,
                 "count": count,
-                "net_amount": str(
-                    max(Decimal("0"), Decimal(str(net)) - ref_method_map.get(method, Decimal("0"))).quantize(
-                        Decimal("0.01")
-                    )
-                ),
+                "net_amount": str(net.quantize(Decimal("0.01"))),
             }
-            for method, count, net in payment_breakdown
+            for method, (count, net) in sorted(method_map.items())
         ],
     }), 200
 

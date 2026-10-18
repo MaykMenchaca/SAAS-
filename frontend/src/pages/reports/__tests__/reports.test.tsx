@@ -107,6 +107,32 @@ describe("Reportes (7.2)", () => {
     expect(await screen.findByRole("button", { name: /reintentar/i })).toBeTruthy();
   });
 
+  it("muestra días y métodos con neto negativo por devoluciones (RF-25)", async () => {
+    api.fetchSalesReport.mockResolvedValue({
+      period: periodo,
+      total_sales: 1,
+      total_revenue: "166.00",
+      cancelled_sales: 0,
+      daily: [
+        { date: "2026-10-09", count: 0, revenue: "-116.00" },
+        { date: "2026-10-11", count: 1, revenue: "282.00" },
+      ],
+      payment_methods: [
+        { method: "efectivo", count: 1, net_amount: "266.00" },
+        { method: "tarjeta", count: 0, net_amount: "-100.00" },
+      ],
+    });
+    renderPage();
+    const negativoDia = await screen.findByText("-$116.00");
+    expect(negativoDia.className).toContain("text-bad");
+    const negativoMetodo = screen.getByText("-$100.00");
+    expect(negativoMetodo.className).toContain("text-bad");
+    // La dona reparte solo lo positivo y el centro muestra el neto, que cuadra con el total
+    expect(screen.getByText("100.0%")).toBeTruthy();
+    expect(screen.getAllByText("$166.00").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/NaN|\$-/)).toBeNull();
+  });
+
   it("top productos muestra la participación y exporta con ella", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: /Top productos/ }));
