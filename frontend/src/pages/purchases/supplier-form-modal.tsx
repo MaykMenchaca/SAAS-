@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 
 import type { Supplier, SupplierCreatePayload } from "../../api/purchases";
@@ -7,12 +7,15 @@ import { apiErrorMessage } from "./helpers";
 
 export function SupplierFormModal({
   error,
+  errorAction,
   isLoading,
   onClose,
   onSubmit,
   supplier,
 }: {
   error: Error | null;
+  /** Acción junto al error (p. ej. "Reactivar proveedor" si el RFC es de uno inactivo, RF-21). */
+  errorAction?: ReactNode;
   isLoading: boolean;
   onClose: () => void;
   onSubmit: (payload: SupplierCreatePayload) => void;
@@ -98,7 +101,10 @@ export function SupplierFormModal({
         />
 
         {errorMessage ? (
-          <div className="border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">{errorMessage}</div>
+          <div className="grid gap-2 border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">
+            <span>{errorMessage}</span>
+            {errorAction ? <div>{errorAction}</div> : null}
+          </div>
         ) : null}
       </form>
     </Modal>

@@ -63,6 +63,18 @@ export async function listStock({ page = 1, perPage = 20, search = "" }: ListSto
   return response.data;
 }
 
+/** Conteos exactos de los indicadores de inventario (RF-23). */
+export type InventorySummary = {
+  total_products: number;
+  out_of_stock: number;
+  below_min: number;
+};
+
+export async function getInventorySummary() {
+  const response = await apiClient.get<InventorySummary>("/inventory/summary");
+  return response.data;
+}
+
 /** Stock bajo paginado (H-45). Por defecto la primera página de 100, los más escasos primero. */
 export async function getLowStock(params: { page?: number; perPage?: number } = {}) {
   const response = await apiClient.get<PaginatedResponse<StockItem>>("/inventory/low-stock", {

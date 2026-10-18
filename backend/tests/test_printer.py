@@ -45,7 +45,7 @@ def test_format_price_label_includes_price_and_barcode(db, seed_product_for_sale
 
     assert "Martillo" in label
     assert "POS-001" in label
-    assert "$100.00" in label
+    assert "$116.00" in label  # precio con IVA del 16 % (RF-16)
     assert "CODIGO 750100000001" in label
     assert "750100000001" in label
     assert "\x1dkI" in label

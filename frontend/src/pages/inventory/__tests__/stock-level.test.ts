@@ -6,7 +6,9 @@ describe("nivel de stock", () => {
   it("clasifica agotado, bajo y normal", () => {
     expect(stockLevel(0, 5)).toBe("agotado");
     expect(stockLevel(3, 5)).toBe("bajo");
-    expect(stockLevel(5, 5)).toBe("normal");
+    // Igual al mínimo ya es bajo, como en el servidor (RF-23)
+    expect(stockLevel(5, 5)).toBe("bajo");
+    expect(stockLevel(6, 5)).toBe("normal");
     expect(stockLevel(2, 0)).toBe("normal");
   });
 

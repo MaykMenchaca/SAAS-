@@ -11,6 +11,7 @@ export function invalidateInventory(queryClient: QueryClient) {
   return invalidateAll(queryClient, [
     qk.stock(),
     qk.lowStock(),
+    qk.inventorySummary(),
     qk.movements(),
     qk.products(),
     qk.posProducts(),

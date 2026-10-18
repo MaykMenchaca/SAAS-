@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Pencil, Trash2 } from "lucide-react";
+import { Building2, Pencil, RotateCcw, Trash2 } from "lucide-react";
 
 import type { Supplier, SupplierUpdatePayload } from "../../api/purchases";
-import { createSupplier, deactivateSupplier, listSuppliers, updateSupplier } from "../../api/purchases";
+import { createSupplier, deactivateSupplier, listSuppliers, reactivateSupplier, updateSupplier } from "../../api/purchases";
 import { qk } from "../../api/query-keys";
 import { useCan } from "../../components/auth/require-permission";
-import { Badge, Button, Card, EmptyState, ErrorState, Modal, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
-import { apiErrorMessage } from "./helpers";
+import { Badge, Button, Card, EmptyState, ErrorState, FilterChip, Modal, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
+import { apiErrorMessage, inactiveSupplierId } from "./helpers";
 import { SupplierFormModal } from "./supplier-form-modal";
 
 type SuppliersTabProps = {
@@ -24,10 +24,11 @@ export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: Sup
   const canEdit = can("compras:editar");
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [confirmDeactivateSupplierId, setConfirmDeactivateSupplierId] = useState<number | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const suppliersQuery = useQuery({
-    queryKey: qk.suppliers(),
-    queryFn: () => listSuppliers(),
+    queryKey: qk.suppliers(showInactive ? "todos" : "activos"),
+    queryFn: () => listSuppliers({ includeInactive: showInactive }),
   });
 
   const createMutation = useMutation({
@@ -53,10 +54,27 @@ export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: Sup
     },
   });
 
+  // Un proveedor desactivado se puede reactivar (RF-21)
+  const reactivateMutation = useMutation({
+    mutationFn: (supplierId: number) => reactivateSupplier(supplierId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.suppliers() });
+    },
+  });
+
   const suppliers: Supplier[] = suppliersQuery.data?.items ?? [];
+  const inactiveRfcOwner = inactiveSupplierId(createMutation.error);
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      <div aria-label="Filtrar proveedores" className="flex flex-wrap gap-2" role="group">
+        <FilterChip active={showInactive} label="Mostrar inactivos" onClick={() => setShowInactive((value) => !value)} />
+      </div>
+      {reactivateMutation.error ? (
+        <div className="border border-bad bg-bad-tint px-3 py-2 text-sm font-medium text-bad" role="alert">
+          {apiErrorMessage(reactivateMutation.error, "No se pudo reactivar el proveedor.")}
+        </div>
+      ) : null}
       {suppliersQuery.isLoading ? (
         <SkeletonTable cols={6} rows={6} />
       ) : suppliersQuery.isError ? (
@@ -135,7 +153,18 @@ export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: Sup
                                 <Trash2 aria-hidden="true" size={16} />
                               </Button>
                             </Tooltip>
-                          ) : null}
+                          ) : (
+                            <Tooltip content="Reactivar">
+                              <Button
+                                aria-label={`Reactivar ${supplier.name}`}
+                                disabled={reactivateMutation.isPending}
+                                onClick={() => reactivateMutation.mutate(supplier.id)}
+                                variant="icon"
+                              >
+                                <RotateCcw aria-hidden="true" size={16} />
+                              </Button>
+                            </Tooltip>
+                          )}
                         </div>
                       </td>
                     ) : null}
@@ -150,6 +179,26 @@ export function SuppliersTab({ onCloseCreate, onRequestCreate, showCreate }: Sup
       {showCreate ? (
         <SupplierFormModal
           error={createMutation.error}
+          errorAction={
+            inactiveRfcOwner !== null && canEdit ? (
+              <Button
+                disabled={reactivateMutation.isPending}
+                icon={<RotateCcw aria-hidden="true" size={16} />}
+                onClick={() =>
+                  reactivateMutation.mutate(inactiveRfcOwner, {
+                    onSuccess: () => {
+                      onCloseCreate();
+                      createMutation.reset();
+                    },
+                  })
+                }
+                size="sm"
+                variant="secondary"
+              >
+                Reactivar proveedor
+              </Button>
+            ) : null
+          }
           isLoading={createMutation.isPending}
           onClose={() => {
             onCloseCreate();

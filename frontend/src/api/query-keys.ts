@@ -24,6 +24,7 @@ export const qk = {
   dashboardWeeklySales: key("dashboard-weekly-sales"),
   inventoryCount: key("inventory-count"),
   inventoryCounts: key("inventory-counts"),
+  inventorySummary: key("inventory-summary"),
   labelPreview: key("label-preview"),
   lowStock: key("low-stock"),
   movements: key("movements"),

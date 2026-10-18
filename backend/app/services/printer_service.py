@@ -5,7 +5,7 @@ import os
 import re
 import threading
 import unicodedata
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from textwrap import shorten, wrap
 
@@ -161,13 +161,21 @@ class PrinterService:
             PrinterService._line(),
             shorten(PrinterService._clean(product.name), width=PrinterService.WIDTH, placeholder="..."),
             PrinterService._kv("SKU", product.sku),
-            PrinterService._center(f"${PrinterService._decimal(product.sale_price):.2f}"),
+            PrinterService._center(f"${PrinterService._label_price(product):.2f}"),
             PrinterService._line(),
             PrinterService._center(f"CODIGO {code}"),
             PrinterService._barcode_command(code),
             "",
         ]
         return "\n".join(lines)
+
+    @staticmethod
+    def _label_price(product: Product) -> Decimal:
+        """Precio al público con IVA, redondeado como en la venta (price_lines, HALF_EVEN) (RF-16)."""
+        price = PrinterService._decimal(product.sale_price)
+        tax_rate = PrinterService._decimal(product.tax_rate or 0)
+        tax = (price * tax_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
+        return price + tax
 
     @staticmethod
     def resolve_printer(sale: Sale | None = None) -> tuple[str | None, str]:

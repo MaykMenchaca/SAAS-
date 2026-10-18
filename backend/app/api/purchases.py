@@ -5,6 +5,7 @@ from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
 from app.models.purchase import PurchaseOrder, Supplier
 from app.schemas.purchase import (
+    CloseOrderSchema,
     PurchaseOrderCreateSchema,
     PurchaseOrderListSchema,
     PurchaseOrderSchema,
@@ -27,6 +28,31 @@ po_create_schema = PurchaseOrderCreateSchema()
 po_schema = PurchaseOrderSchema()
 po_list_schema = PurchaseOrderListSchema(many=True)
 receive_schema = ReceiveOrderSchema()
+close_schema = CloseOrderSchema()
+
+
+def _rfc_conflict(rfc, exclude_id=None):
+    """409 claro si el RFC ya es de otro proveedor; si ese está inactivo, sugiere reactivarlo (RF-21)."""
+    if not rfc:
+        return None
+    query = Supplier.query.filter(db.func.upper(db.func.trim(Supplier.rfc)) == rfc)
+    if exclude_id is not None:
+        query = query.filter(Supplier.id != exclude_id)
+    other = query.first()
+    if not other:
+        return None
+    if not other.is_active:
+        return jsonify({
+            "error": f"El RFC {rfc} es del proveedor '{other.name}', que está desactivado. "
+                     "Reactívalo en lugar de darlo de alta de nuevo.",
+            "code": "supplier_inactive",
+            "supplier_id": other.id,
+        }), 409
+    return jsonify({
+        "error": f"Ya existe un proveedor con el RFC {rfc}: '{other.name}'.",
+        "code": "supplier_rfc_exists",
+        "supplier_id": other.id,
+    }), 409
 
 
 # --- Supplier endpoints ---
@@ -37,6 +63,9 @@ receive_schema = ReceiveOrderSchema()
 def create_supplier():
     """Create a new supplier."""
     data = supplier_create_schema.load(request.get_json(silent=True) or {})
+    conflict = _rfc_conflict(data.get("rfc"))
+    if conflict:
+        return conflict
 
     supplier = Supplier(**data)
     db.session.add(supplier)
@@ -59,8 +88,11 @@ def create_supplier():
 @purchases_bp.route("/suppliers", methods=["GET"])
 @require_permission("compras:ver")
 def list_suppliers():
-    """Proveedores activos paginados (H-45)."""
-    query = Supplier.query.filter_by(is_active=True).order_by(Supplier.name)
+    """Proveedores activos paginados (H-45); con ?include_inactive=true también los desactivados (RF-21)."""
+    query = Supplier.query
+    if request.args.get("include_inactive", "false").lower() != "true":
+        query = query.filter_by(is_active=True)
+    query = query.order_by(Supplier.is_active.desc(), Supplier.name)
     return jsonify(paginate(query, suppliers_schema)), 200
 
 
@@ -83,6 +115,9 @@ def update_supplier(supplier_id):
     supplier = db.session.get(Supplier, supplier_id)
     if not supplier:
         return jsonify({"error": "Proveedor no encontrado"}), 404
+    conflict = _rfc_conflict(data.get("rfc"), exclude_id=supplier.id)
+    if conflict:
+        return conflict
 
     previous_value = {key: getattr(supplier, key) for key in data.keys()}
     for key, value in data.items():
@@ -123,6 +158,32 @@ def deactivate_supplier(supplier_id):
         details={"name": supplier.name},
         previous_value={"is_active": prev_active},
         new_value={"is_active": False},
+    )
+
+    db.session.commit()
+
+    return jsonify(supplier_schema.dump(supplier)), 200
+
+
+@purchases_bp.route("/suppliers/<int:supplier_id>/reactivate", methods=["POST"])
+@require_permission("compras:editar")
+def reactivate_supplier(supplier_id):
+    """Reactiva un proveedor desactivado (RF-21)."""
+    supplier = db.session.get(Supplier, supplier_id)
+    if not supplier:
+        return jsonify({"error": "Proveedor no encontrado"}), 404
+
+    prev_active = supplier.is_active
+    supplier.is_active = True
+
+    from app.services.audit_service import log_action
+    log_action(
+        action="reactivar",
+        entity_type="supplier",
+        entity_id=supplier.id,
+        details={"name": supplier.name},
+        previous_value={"is_active": prev_active},
+        new_value={"is_active": True},
     )
 
     db.session.commit()
@@ -196,6 +257,18 @@ def cancel_order(order_id):
     """Cancel a purchase order."""
     try:
         order = PurchaseOrderService.cancel_order(order_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(po_schema.dump(order)), 200
+
+
+@purchases_bp.route("/orders/<int:order_id>/close", methods=["POST"])
+@require_permission("compras:editar")
+def close_order(order_id):
+    """Cierra una orden parcial sin esperar lo pendiente; lo recibido se queda (RF-22)."""
+    data = close_schema.load(request.get_json(silent=True) or {})
+    try:
+        order = PurchaseOrderService.close_order(order_id, int(get_jwt_identity()), notes=data.get("notes"))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     return jsonify(po_schema.dump(order)), 200

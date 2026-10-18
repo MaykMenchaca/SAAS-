@@ -2,9 +2,9 @@
 
 export type StockLevel = "agotado" | "bajo" | "normal";
 
-/** Bajo el mínimo: solo cuenta si el producto tiene un mínimo definido. */
+/** Bajo el mínimo: solo cuenta si el producto tiene un mínimo definido; igual al mínimo ya es bajo (RF-23). */
 export function isBelowMin(qty: number, min: number): boolean {
-  return min > 0 && qty < min;
+  return min > 0 && qty <= min;
 }
 
 export function stockLevel(qty: number, min: number): StockLevel {
