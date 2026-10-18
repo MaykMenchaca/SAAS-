@@ -52,7 +52,7 @@ def test_catalogo_de_componentes_solo_en_desarrollo():
     app = (ROOT / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
     assert "import.meta.env.DEV" in app and "ui-catalog" in app and '"/_ui"' in app
     # La ruta solo existe si la constante de desarrollo es verdadera
-    assert re.search(r"const UiCatalogPage = import\.meta\.env\.DEV\s*\?\s*lazy\(", app)
+    assert re.search(r"const UiCatalogPage = import\.meta\.env\.DEV\s*\?\s*(?:lazy|lazyWithRetry)\(", app)
     assert (ROOT / "frontend" / "src" / "pages" / "ui-catalog.tsx").exists()
 
 
