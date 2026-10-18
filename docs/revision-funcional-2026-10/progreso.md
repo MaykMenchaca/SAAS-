@@ -41,4 +41,5 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 
 ## Fase 4: Bajos
 - [ ] RF-29…40, RF-43…51
+  - [x] Carril R (frontend: devoluciones, corte, e2e): RF-48, RF-49, RF-50, RF-51. Estimado de reembolso = `_refund_upto` del servidor (acumulado por partida, HALF_EVEN, enteros); devoluciones muestran todos los métodos de pago; el corte adopta la sesión que devuelve el cierre (hora y observaciones); `e2e/critical-flows.spec.ts` reescrito contra los endpoints reales (3 flujos, falla ante endpoints no simulados; `npx tsc --noEmit -p e2e/tsconfig.json`; `E2E_PORT`/`E2E_CHANNEL` para usar otro puerto y el Chrome del equipo)
 - [ ] **Gate 4**
