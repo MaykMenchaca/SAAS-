@@ -16,7 +16,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 | RF-04 | Venta `V-20261007-0011` | total $115.77, reembolsado $231.54 (el doble) | devoluciones de QA del 2026-10-07 |
 
 ## Fase 1: Críticos
-- [ ] 1.1 RF-01 Escaneo `by-code` prioriza código de barras; SKU ≠ código de barras de otro
+- [x] 1.1 RF-01 Escaneo `by-code` prioriza código de barras; SKU ≠ código de barras de otro
 - [ ] 1.2 RF-02, RF-03 Cantidades: máximo 3 decimales y `allows_fractions` en ventas y devoluciones
 - [ ] 1.3 RF-04 Reembolso acumulado sin exceder el total
 - [ ] 1.4 RF-05 Restauración revoca todas las sesiones

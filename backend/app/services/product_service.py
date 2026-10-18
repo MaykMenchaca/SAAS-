@@ -49,8 +49,9 @@ class ProductService:
                 Product.is_active.is_(True),
                 or_(func.lower(Product.barcode) == code.lower(), func.lower(Product.sku) == code.lower()),
             )
-            # El código de barras gana sobre el SKU si ambos coinciden con productos distintos
-            .order_by((func.lower(Product.barcode) == code.lower()).desc(), Product.id)
+            # El código de barras gana sobre el SKU si ambos coinciden con productos distintos. coalesce: sin él, un
+            # producto SIN código de barras da NULL y PostgreSQL pone los NULL primero en DESC (RF-01)
+            .order_by(func.coalesce(func.lower(Product.barcode) == code.lower(), False).desc(), Product.id)
             .first()
         )
 
@@ -339,6 +340,18 @@ class ProductService:
                 query = query.filter(Product.id != exclude_product_id)
             if query.first():
                 errors["barcode"] = ["Codigo de barras ya existe"]
+
+        # RF-01: un SKU no puede ser el código de barras de OTRO producto (ni al revés): el escáner no sabría cuál es
+        def _cruzado(column, value):
+            query = Product.query.filter(func.lower(column) == value.strip().lower())
+            if exclude_product_id is not None:
+                query = query.filter(Product.id != exclude_product_id)
+            return query.first()
+
+        if sku and "sku" not in errors and _cruzado(Product.barcode, sku):
+            errors["sku"] = ["El SKU coincide con el código de barras de otro producto"]
+        if barcode and "barcode" not in errors and _cruzado(Product.sku, barcode):
+            errors["barcode"] = ["El código de barras coincide con el SKU de otro producto"]
 
         if errors:
             raise ValidationError(errors)
