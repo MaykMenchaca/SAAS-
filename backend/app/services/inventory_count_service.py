@@ -9,6 +9,28 @@ from app.services.inventory_service import InventoryService
 from app.utils.decorators import with_rollback
 from app.utils.quantities import validate_quantity
 
+# Valor por omisión de `notes` al capturar: si el cliente no manda notas, se conserva la anterior (RF-36)
+KEEP_NOTES = object()
+
+
+class CountNotFoundError(ValueError):
+    """El conteo no existe: la API responde 404, no 400 (RF-29)."""
+
+    def __init__(self):
+        super().__init__("Conteo no encontrado")
+
+
+class CountNegativeStockError(ValueError):
+    """Cerrar el conteo dejaría un producto con stock negativo (RF-32)."""
+
+    def __init__(self, message: str, product_id: int):
+        super().__init__(message)
+        self.product_id = product_id
+
+
+def _fmt(qty: Decimal) -> str:
+    return f"{Decimal(qty).normalize():f}"
+
 
 class InventoryCountService:
     """Handles physical inventory count lifecycle: create → capture → close."""
@@ -48,11 +70,12 @@ class InventoryCountService:
         db.session.add(count)
         db.session.flush()
 
-        # Pre-populate with all active products that have stock records
+        # Productos activos y también los inactivos con existencias: salen en /inventory/stock y sin esto
+        # nunca se podían conciliar por conteo (H-43, QA-B-21)
         stocks = (
             Stock.query
             .join(Product)
-            .filter(Product.is_active.is_(True))
+            .filter(db.or_(Product.is_active.is_(True), Stock.quantity != 0))
             .all()
         )
 
@@ -82,7 +105,7 @@ class InventoryCountService:
         count_id: int,
         product_id: int,
         counted_quantity: Decimal,
-        notes: str | None = None,
+        notes=KEEP_NOTES,
     ) -> InventoryCountItem:
         """Record the physical count for a single item.
 
@@ -90,7 +113,7 @@ class InventoryCountService:
             count_id: The inventory count session.
             product_id: Product being counted.
             counted_quantity: Actual physical quantity found.
-            notes: Optional notes about this item.
+            notes: Notas del renglón; si no se manda (KEEP_NOTES) se conserva la anterior (RF-36).
 
         Returns:
             The updated InventoryCountItem.
@@ -107,7 +130,7 @@ class InventoryCountService:
             .first()
         )
         if not count:
-            raise ValueError("Conteo no encontrado")
+            raise CountNotFoundError()
         if count.status not in ("pendiente", "en_proceso"):
             raise ValueError("El conteo ya está cerrado o cancelado")
 
@@ -137,7 +160,8 @@ class InventoryCountService:
             validate_quantity(counted, item.product.unit, item.product.name)
         item.counted_quantity = counted
         item.difference = counted - item.expected_quantity
-        item.notes = notes
+        if notes is not KEEP_NOTES:
+            item.notes = notes or None
 
         # Move status to en_proceso on first capture
         if count.status == "pendiente":
@@ -173,16 +197,18 @@ class InventoryCountService:
             .first()
         )
         if not count:
-            raise ValueError("Conteo no encontrado")
+            raise CountNotFoundError()
         if count.status not in ("pendiente", "en_proceso"):
             raise ValueError("El conteo ya está cerrado o cancelado")
 
         # Apply stock adjustments for counted items with differences
         # (bloqueo del stock en orden de producto antes de ajustar, OPS-09)
-        InventoryService.lock_stock(
-            item.product_id for item in count.items
+        to_adjust = [
+            item for item in count.items
             if item.counted_quantity is not None and item.difference != Decimal("0")
-        )
+        ]
+        InventoryService.lock_stock(item.product_id for item in to_adjust)
+        InventoryCountService._check_no_negative_stock(to_adjust)
         for item in count.items:
             if item.counted_quantity is None:
                 continue  # skip uncounted items
@@ -239,7 +265,7 @@ class InventoryCountService:
             .first()
         )
         if not count:
-            raise ValueError("Conteo no encontrado")
+            raise CountNotFoundError()
         if count.status not in ("pendiente", "en_proceso"):
             raise ValueError("El conteo ya está cerrado o cancelado")
 
@@ -258,6 +284,61 @@ class InventoryCountService:
 
         db.session.commit()
         return count
+
+    @staticmethod
+    def _check_no_negative_stock(items) -> None:
+        """Antes de aplicar nada, cada diferencia debe dejar el stock en 0 o más (RF-32).
+
+        La diferencia se calcula contra el stock AL CAPTURAR y se aplica sobre el stock actual, así que las ventas
+        posteriores se respetan. Si desde la captura salió más mercancía de la que se contó, la captura ya no es
+        creíble: se pide recapturar ese producto en lugar del 409 genérico del CHECK de la base.
+        """
+        ids = [item.product_id for item in items]
+        if not ids:
+            return
+        current = {
+            s.product_id: s.quantity
+            for s in Stock.query.filter(Stock.product_id.in_(ids)).populate_existing().all()
+        }
+        for item in items:
+            stock = current.get(item.product_id, Decimal("0"))
+            result = stock + item.difference
+            if result < 0:
+                name = item.product.name if item.product else f"#{item.product_id}"
+                raise CountNegativeStockError(
+                    f"No se puede cerrar el conteo: el ajuste de '{name}' (diferencia {_fmt(item.difference)}) "
+                    f"dejaría el stock en {_fmt(result)}. Hoy hay {_fmt(stock)} porque hubo movimientos después "
+                    f"de capturarlo (contado: {_fmt(item.counted_quantity)}). Vuelve a capturar ese producto.",
+                    product_id=item.product_id,
+                )
+
+    @staticmethod
+    def reset_capture_after_adjust(product_id: int) -> InventoryCountItem | None:
+        """Un ajuste manual (absoluto) durante un conteo abierto anula la captura de ese producto (RF-32).
+
+        Regla: el ajuste manual es una existencia física más reciente que la captura. Si al cerrar se aplicara la
+        diferencia capturada sobre el stock ajustado, se descontaría dos veces (contado 8 con sistema en 10, ajuste
+        a 7 → cerraba en 5). Por eso la captura vuelve a "sin contar" y se deja una nota; si se recaptura, la
+        diferencia se calcula contra el stock ajustado. No hace commit: participa en la transacción del ajuste.
+        Bloquea el conteo antes que el stock, en el mismo orden que close_count.
+        """
+        count = (
+            db.session.query(InventoryCount)
+            .filter(InventoryCount.status.in_(["pendiente", "en_proceso"]))
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if not count:
+            return None
+        item = InventoryCountItem.query.filter_by(inventory_count_id=count.id, product_id=product_id).first()
+        if item is None or item.counted_quantity is None:
+            return None
+        note = f"Captura anulada por un ajuste manual (se había contado {_fmt(item.counted_quantity)}); vuelve a contar"
+        item.notes = f"{item.notes} · {note}" if item.notes else note
+        item.counted_quantity = None
+        item.difference = None
+        return item
 
     @staticmethod
     def get_count(count_id: int) -> InventoryCount | None:

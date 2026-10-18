@@ -1,4 +1,6 @@
 """Inventory API — stock consultation, adjustments, movement history, and physical counts."""
+from decimal import Decimal
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import ValidationError
@@ -17,13 +19,24 @@ from app.schemas.inventory import (
     StockMovementSchema,
     StockSchema,
 )
-from app.services.inventory_count_service import InventoryCountService
+from app.services.inventory_count_service import (
+    KEEP_NOTES,
+    CountNegativeStockError,
+    CountNotFoundError,
+    InventoryCountService,
+)
 from app.services.inventory_service import InventoryService
+from app.services.product_service import ProductService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
 from app.utils.quantities import validate_quantity
 
 inventory_bp = Blueprint("inventory", __name__)
+
+
+def _qty(value) -> str:
+    """Cantidad con 3 decimales, como en la base (para la auditoría)."""
+    return str(Decimal(value).quantize(Decimal("0.001")))
 
 stock_schema = StockSchema()
 stocks_schema = StockSchema(many=True)
@@ -50,15 +63,10 @@ def list_stock():
         .order_by(Product.name)
     )
 
-    if search:
-        pattern = f"%{search}%"
-        query = query.filter(
-            db.or_(
-                Product.name.ilike(pattern),
-                Product.sku.ilike(pattern),
-                Product.barcode.ilike(pattern),
-            )
-        )
+    if search and search.strip():
+        # La misma búsqueda que /products: comodines escapados y tolerante a errores de dedo (RF-35)
+        condition, relevance = ProductService.search_condition(search)
+        query = query.filter(condition).order_by(None).order_by(relevance.desc(), Product.name)
 
     return jsonify(paginate(query, stocks_schema)), 200
 
@@ -150,6 +158,10 @@ def adjust_stock():
 
     user_id = int(get_jwt_identity())
 
+    # Un ajuste manual durante un conteo abierto anula la captura de ese producto (RF-32). Va antes del ajuste
+    # para bloquear el conteo y luego el stock, en el mismo orden que el cierre del conteo
+    reset_item = InventoryCountService.reset_capture_after_adjust(product.id)
+
     reason = data.get("reason")
     notes = data.get("notes")
     if reason:
@@ -157,6 +169,10 @@ def adjust_stock():
         label = ADJUST_REASONS[reason]
         notes = f"Motivo: {label}. {notes}" if notes else f"Motivo: {label}"
 
+    # Stock anterior leído con la fila ya bloqueada, para la auditoría (RF-39)
+    InventoryService.lock_stock([product.id])
+    current = Stock.query.filter_by(product_id=product.id).populate_existing().first()
+    previous_stock = current.quantity if current else Decimal("0")
     stock = InventoryService.move_stock(
         product_id=data["product_id"],
         quantity=data["quantity"],
@@ -166,7 +182,12 @@ def adjust_stock():
         user_id=user_id,
         notes=notes,
     )
+    capture_reset = None
+    if reset_item is not None:
+        reset_item.expected_quantity = stock.quantity
+        capture_reset = reset_item.inventory_count_id
 
+    # Un solo evento con el stock anterior y el nuevo; antes no quedaba el anterior (RF-39)
     from app.services.audit_service import log_action
     log_action(
         action="adjust",
@@ -175,10 +196,13 @@ def adjust_stock():
         details={
             "product_id": stock.product_id,
             "product_name": product.name,
-            "new_stock": str(stock.quantity),
+            "new_stock": _qty(stock.quantity),
             "reason": reason,
             "notes": data.get("notes"),
+            "count_capture_reset": capture_reset,
         },
+        previous_value={"stock": _qty(previous_stock)},
+        new_value={"stock": _qty(stock.quantity)},
         user_id=user_id,
     )
 
@@ -186,9 +210,12 @@ def adjust_stock():
 
     return jsonify({
         "product_id": stock.product_id,
+        "previous_stock": _qty(previous_stock),
         "new_stock": str(stock.quantity),
         "movement_type": "ajuste",
         "reason": reason,
+        # Conteo cuya captura de este producto quedó anulada (RF-32); null si no había
+        "count_capture_reset": capture_reset,
     }), 200
 
 
@@ -252,8 +279,11 @@ def capture_count_item(count_id, product_id):
             count_id=count_id,
             product_id=product_id,
             counted_quantity=data["counted_quantity"],
-            notes=data.get("notes"),
+            # Sin "notes" en el cuerpo se conserva la nota anterior del renglón (RF-36)
+            notes=data.get("notes", KEEP_NOTES),
         )
+    except CountNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -267,6 +297,11 @@ def close_count(count_id):
     user_id = int(get_jwt_identity())
     try:
         count = InventoryCountService.close_count(count_id, user_id)
+    except CountNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
+    except CountNegativeStockError as e:
+        # Dice qué producto falla en lugar del 409 genérico del CHECK de la base (RF-32)
+        return jsonify({"error": str(e), "code": "count_negative_stock", "product_id": e.product_id}), 409
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -280,6 +315,8 @@ def cancel_count(count_id):
     user_id = int(get_jwt_identity())
     try:
         count = InventoryCountService.cancel_count(count_id, user_id)
+    except CountNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

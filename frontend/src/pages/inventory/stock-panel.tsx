@@ -35,6 +35,7 @@ export function StockPanel({ canAdjust, item, onAdjusted, onClose }: StockPanelP
   const [reason, setReason] = useState<AdjustReason | "">("");
   const [notes, setNotes] = useState("");
   const [done, setDone] = useState(false);
+  const [captureReset, setCaptureReset] = useState(false);
 
   const movementsQuery = useQuery({
     queryKey: qk.movements(item.product_id),
@@ -43,8 +44,9 @@ export function StockPanel({ canAdjust, item, onAdjusted, onClose }: StockPanelP
 
   const mutation = useMutation({
     mutationFn: (payload: StockAdjustPayload) => adjustStock(payload),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await onAdjusted();
+      setCaptureReset(Boolean(result.count_capture_reset));
       setDone(true);
       setNotes("");
       setReason("");
@@ -139,6 +141,12 @@ export function StockPanel({ canAdjust, item, onAdjusted, onClose }: StockPanelP
             <p className="flex items-center gap-1.5 text-sm text-ok" role="status">
               <CircleCheck aria-hidden="true" size={14} />
               Ajuste registrado en movimientos.
+            </p>
+          ) : null}
+          {done && captureReset ? (
+            <p className="text-sm text-warn" role="status">
+              Había un conteo físico en curso con este producto ya capturado: esa captura se anuló. Vuelve a contarlo
+              antes de cerrar el conteo.
             </p>
           ) : null}
         </form>

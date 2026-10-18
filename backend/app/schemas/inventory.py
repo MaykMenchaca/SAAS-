@@ -107,7 +107,8 @@ class InventoryCountCaptureSchema(Schema):
         unknown = EXCLUDE
 
     counted_quantity = fields.Decimal(as_string=True, required=True, validate=QTY_VALIDATORS)  # RF-12
-    notes = fields.Str(load_default=None, allow_none=True)
+    # Sin load_default: si no viene, se conserva la nota anterior del renglón (RF-36)
+    notes = fields.Str(allow_none=True)
 
 
 class InventoryCountItemSchema(Schema):
