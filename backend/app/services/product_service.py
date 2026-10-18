@@ -13,7 +13,35 @@ from app.utils.decorators import with_rollback
 SEARCH_SIMILARITY_THRESHOLD = 0.4
 
 
+def escape_like(text: str) -> str:
+    """Escapa los comodines de LIKE: buscar "%" o "_" devolvía todos los productos (RF-35)."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def changed_fields(obj, data: dict) -> dict:
+    """Solo los campos cuyo valor cambia: un PATCH sin cambios no se audita (RF-39)."""
+    return {field: value for field, value in data.items() if getattr(obj, field) != value}
+
+
 class ProductService:
+    @staticmethod
+    def search_condition(search: str):
+        """Condición y relevancia de la búsqueda de productos, compartida con /inventory/stock (RF-35).
+
+        SKU, código de barras y nombre por subcadena (con los comodines escapados), más similitud de trigramas
+        sobre el nombre para tolerar errores de dedo ("tornilo" encuentra "Tornillo").
+        """
+        search = search.strip()
+        pattern = f"%{escape_like(search)}%"
+        relevance = func.word_similarity(search, Product.name)
+        condition = or_(
+            Product.sku.ilike(pattern, escape="\\"),
+            Product.barcode.ilike(pattern, escape="\\"),
+            Product.name.ilike(pattern, escape="\\"),
+            relevance > SEARCH_SIMILARITY_THRESHOLD,
+        )
+        return condition, relevance
+
     @staticmethod
     def list_products(include_inactive=False, search=None, category_id=None):
         query = Product.query
@@ -24,19 +52,9 @@ class ProductService:
         if category_id:
             query = query.filter_by(category_id=category_id)
 
-        if search:
-            search = search.strip()
-            pattern = f"%{search}%"
-            relevance = func.word_similarity(search, Product.name)
-            query = query.filter(
-                or_(
-                    Product.sku.ilike(pattern),
-                    Product.barcode.ilike(pattern),
-                    Product.name.ilike(pattern),
-                    relevance > SEARCH_SIMILARITY_THRESHOLD,
-                )
-            )
-            return query.order_by(relevance.desc(), Product.name.asc())
+        if search and search.strip():
+            condition, relevance = ProductService.search_condition(search)
+            return query.filter(condition).order_by(relevance.desc(), Product.name.asc())
 
         return query.order_by(Product.name.asc())
 
@@ -121,6 +139,9 @@ class ProductService:
                 exclude_unit_id=unit.id
             )
 
+        data = changed_fields(unit, data)
+        if not data:
+            return unit  # sin cambios: no se audita (RF-39)
         previous_value = {field: getattr(unit, field) for field in data.keys()}
         for field, value in data.items():
             setattr(unit, field, value)
@@ -255,6 +276,9 @@ class ProductService:
             exclude_product_id=product.id,
         )
 
+        data = changed_fields(product, data)
+        if not data:
+            return product  # un PATCH sin cambios no registra "editar" (RF-39)
         previous_value = {
             field: str(getattr(product, field)) if getattr(product, field) is not None else None
             for field in data.keys()
@@ -286,6 +310,8 @@ class ProductService:
     @staticmethod
     @with_rollback
     def deactivate_product(product):
+        if not product.is_active:
+            return product  # ya estaba desactivado: no se registra otro evento (RF-39)
         prev_active = product.is_active
         product.is_active = False
 
@@ -305,6 +331,8 @@ class ProductService:
     @staticmethod
     @with_rollback
     def reactivate_product(product):
+        if product.is_active:
+            return product  # ya estaba activo (RF-39)
         prev_active = product.is_active
         product.is_active = True
 
@@ -419,6 +447,9 @@ class CategoryService:
             data = {**data, "name": data["name"].strip()}
             CategoryService._validate_unique_category(data["name"], exclude_category_id=category.id)
 
+        data = changed_fields(category, data)
+        if not data:
+            return category  # sin cambios: no se audita (RF-39)
         previous_value = {field: getattr(category, field) for field in data.keys()}
         for field, value in data.items():
             setattr(category, field, value)
@@ -448,6 +479,8 @@ class CategoryService:
                 f"No se puede desactivar la categoría '{category.name}': tiene {texto}. "
                 "Muévelos a otra categoría o desactívalos primero."
             )
+        if not category.is_active:
+            return category  # ya estaba desactivada (RF-39)
         prev_active = category.is_active
         category.is_active = False
 
