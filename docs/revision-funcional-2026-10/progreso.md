@@ -42,4 +42,5 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 ## Fase 4: Bajos
 - [ ] RF-29…40, RF-43…51
   - Carril P (`test_revision_funcional_p.py`, commits 924e646 y 7eb83f4): [x] RF-29 (parte P: venta inexistente 404, token inválido o de otro tipo 401) · [x] RF-30 · [x] RF-31 (parte P: 503 de impresión genérico) · [x] RF-43 · [x] RF-44 · [x] RF-45 · [x] RF-46 · [x] RF-47 (`PRE_RESTORE_KEEP` = 5) · [x] pendientes del Dashboard (`low_stock_count` = agotados + bajo mínimo como `/inventory/summary`; neto del día, mes y turno sin recortar, en rojo si es negativo)
+  - [x] Carril R (frontend: devoluciones, corte, e2e): RF-48, RF-49, RF-50, RF-51. Estimado de reembolso = `_refund_upto` del servidor (acumulado por partida, HALF_EVEN, enteros); devoluciones muestran todos los métodos de pago; el corte adopta la sesión que devuelve el cierre (hora y observaciones); `e2e/critical-flows.spec.ts` reescrito contra los endpoints reales (3 flujos, falla ante endpoints no simulados; `npx tsc --noEmit -p e2e/tsconfig.json`; `E2E_PORT`/`E2E_CHANNEL` para usar otro puerto y el Chrome del equipo)
 - [ ] **Gate 4**

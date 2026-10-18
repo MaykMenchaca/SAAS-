@@ -47,10 +47,12 @@ function formatWhen(iso: string | null) {
 }
 
 /** Detalle de un turno: conteo de efectivo, resumen, observaciones y cierre con confirmación. */
-export function SessionDetail({ onBack, session }: { onBack: () => void; session: CashRegisterSession }) {
+export function SessionDetail({ onBack, session: initialSession }: { onBack: () => void; session: CashRegisterSession }) {
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
-  const isOpen = session.status === "abierta";
+  const isOpen = initialSession.status === "abierta";
+  // Sesión tal como la devuelve el servidor al cerrar: hora de cierre y observaciones guardadas (RF-50)
+  const [session, setSession] = useState(initialSession);
 
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString("es-MX"));
   const [counts, setCounts] = useState<DenominationCount>(emptyCounts);
@@ -82,7 +84,9 @@ export function SessionDetail({ onBack, session }: { onBack: () => void; session
 
   const closeMutation = useMutation({
     mutationFn: () => closeCashRegister(session.id, countedTotal.toFixed(2), closeNotes),
-    onSuccess: async () => {
+    onSuccess: async (updated) => {
+      setSession(updated);
+      setCloseNotes(updated.close_notes ?? "");
       await queryClient.invalidateQueries({ queryKey: qk.cashSessions() });
       await queryClient.invalidateQueries({ queryKey: qk.sessionSummary(session.id) });
       if (usePosStore.getState().sessionId === session.id) {

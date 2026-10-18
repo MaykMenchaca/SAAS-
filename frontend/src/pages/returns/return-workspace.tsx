@@ -11,6 +11,7 @@ import { qk } from "../../api/query-keys";
 import { Badge, Button, Card, ErrorState, Segmented, Skeleton } from "../../components/ui";
 import { cn } from "../../lib/cn";
 import { formatCurrency } from "../../lib/formatters";
+import { methodsLabel } from "../sales-history/csv";
 import { estimateLineCents, parseQty, qtyError, qtyText } from "./refund";
 import { REFUND_METHOD_LABEL } from "./receipt";
 
@@ -55,6 +56,8 @@ export function ReturnWorkspace({
   const sale = saleQuery.data;
   const originalMethod = (sale?.payments?.[0]?.method ?? "efectivo") as RefundMethod;
   const effectiveMethod: RefundMethod = refundMethod ?? originalMethod;
+  // Todos los métodos con que se pagó ("Efectivo + Tarjeta"), igual que el historial de ventas (RF-51)
+  const paidWith = methodsLabel([...new Set((sale?.payments ?? []).map((p) => p.method))]);
 
   useEffect(() => {
     if (!sale?.items?.length) return;
@@ -188,7 +191,7 @@ export function ReturnWorkspace({
             <h2 className="text-2xl tabular-nums">{sale.folio}</h2>
             <p className="text-sm text-ink-2">
               {new Date(sale.created_at).toLocaleString("es-MX", dateFmt)} · {sale.username} · Pagada en{" "}
-              {(sale.payments ?? []).map((p) => p.method).join(" + ") || "—"} · Total {formatCurrency(sale.total)}
+              {paidWith || "—"} · Total {formatCurrency(sale.total)}
             </p>
           </div>
           <Badge tone={status.tone}>{status.label}</Badge>
@@ -308,7 +311,7 @@ export function ReturnWorkspace({
             }))}
             value={effectiveMethod}
           />
-          <span className="text-sm text-ink-2">Método de pago original: {REFUND_METHOD_LABEL[originalMethod]}.</span>
+          <span className="text-sm text-ink-2">Método de pago original: {paidWith || REFUND_METHOD_LABEL[originalMethod]}.</span>
           {effectiveMethod === "efectivo" ? (
             activeSession ? (
               <span className="text-sm text-ink-2">

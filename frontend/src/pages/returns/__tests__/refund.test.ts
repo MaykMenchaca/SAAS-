@@ -18,6 +18,30 @@ describe("estimateLineCents", () => {
     expect(estimateLineCents(item, 0).totalCents).toBe(0);
     expect(estimateLineCents(item, -1).totalCents).toBe(0);
   });
+
+  // RF-49: el servidor redondea al par (HALF_EVEN); la pantalla mostró $44.81 y se reembolsaron $44.80
+  it("redondea las mitades al par como el servidor (D-20261017-0003)", () => {
+    const cinta = { subtotal: "18.00", quantity: "1.000", tax_rate: "16.00" };
+    const cable = { subtotal: "41.25", quantity: "2.500", tax_rate: "16.00" };
+    // 47.85 × 1.25 / 2.5 = 23.925 → 23.92
+    expect(estimateLineCents(cable, 1.25)).toEqual({ subCents: 2062, taxCents: 330, totalCents: 2392 });
+    expect(estimateLineCents(cinta, 1).totalCents + estimateLineCents(cable, 1.25).totalCents).toBe(4480);
+  });
+
+  // RF-49: reembolso ACUMULADO por partida, igual que _refund_upto del servidor (RF-04)
+  it("descuenta lo ya devuelto: 3 devoluciones de 1 de una partida de $3.65 suman $3.65", () => {
+    const base = { subtotal: "3.15", quantity: "3.000", tax_rate: "16.00" };
+    const first = estimateLineCents({ ...base, returned_quantity: "0.000" }, 1).totalCents;
+    const second = estimateLineCents({ ...base, returned_quantity: "1.000" }, 1).totalCents;
+    const third = estimateLineCents({ ...base, returned_quantity: "2.000" }, 1).totalCents;
+    expect([first, second, third]).toEqual([122, 121, 122]);
+    expect(first + second + third).toBe(365);
+  });
+
+  it("devolver el resto de la partida da exactamente lo que falta por reembolsar", () => {
+    const cable = { subtotal: "41.25", quantity: "2.500", tax_rate: "16.00", returned_quantity: "1.250" };
+    expect(estimateLineCents(cable, 1.25)).toEqual({ subCents: 2063, taxCents: 330, totalCents: 2393 });
+  });
 });
 
 describe("qtyError", () => {
