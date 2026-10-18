@@ -298,9 +298,14 @@ class PurchaseOrderService:
             if product and stock:
                 current_stock = stock.quantity  # already updated by move_stock
                 old_stock = current_stock - recv_qty
-                if current_stock > 0:
+                prior_avg = product.avg_cost or Decimal("0")
+                if old_stock <= 0 or prior_avg <= 0:
+                    # Sin existencias previas, o con unidades de costo desconocido (alta sin precio de compra,
+                    # carga por ajuste): esas unidades no deben diluir el costo a 0 (RF-07)
+                    product.avg_cost = Decimal(order_item.unit_cost).quantize(Decimal("0.0001"))
+                elif current_stock > 0:
                     new_avg = (
-                        (old_stock * product.avg_cost + recv_qty * order_item.unit_cost)
+                        (old_stock * prior_avg + recv_qty * order_item.unit_cost)
                         / current_stock
                     ).quantize(Decimal("0.0001"))
                     product.avg_cost = new_avg

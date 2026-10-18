@@ -239,6 +239,10 @@ class ProductService:
         }
         for field, value in data.items():
             setattr(product, field, value)
+        # Un producto dado de alta sin precio de compra quedaba con costo promedio 0 para siempre (RF-07):
+        # el primer precio de compra que se captura lo fija. Si ya hay un promedio calculado, no se toca
+        if data.get("purchase_price") and not (product.avg_cost or 0):
+            product.avg_cost = data["purchase_price"]
         new_value = {
             field: str(getattr(product, field)) if getattr(product, field) is not None else None
             for field in data.keys()
