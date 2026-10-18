@@ -359,3 +359,35 @@ def test_estado_inicial_inactivo_y_sin_datos_internos(client, aislado):
     datos = client.get("/api/backup/restore-status").get_json()
     assert datos["state"] == "inactivo"
     assert "started_ts" not in datos and "pre_restore_file" not in datos
+
+
+# ── RF-05 (revisión funcional 2026-10): toda sesión anterior a la restauración queda cerrada ──────────
+
+
+@pytest.mark.parametrize("como", ["cambio_de_contrasena", "cambio_de_rol"])
+def test_rf05_un_token_emitido_despues_del_respaldo_tambien_se_revoca(
+    client, db, aislado, admin_token, seed_cajero, comandos_pg_restore, como
+):
+    nombre = _crear_respaldo(client, admin_token)  # el respaldo guarda token_version = N del cajero
+
+    # Después del respaldo el cajero obtiene un token de versión N+1
+    if como == "cambio_de_contrasena":
+        login = client.post("/api/auth/login", json={"username": "cajero1", "password": "cajero123"}).get_json()
+        resp = client.post("/api/auth/change-password", headers=_auth(login["access_token"]),
+                           json={"current_password": "cajero123", "new_password": "cajero-nueva-123"})
+        assert resp.status_code == 200, resp.get_json()
+        token = resp.get_json()["access_token"]
+    else:
+        gerente = Role.query.filter_by(name="gerente").one()
+        resp = client.patch(f"/api/users/{seed_cajero.id}", headers=_auth(admin_token), json={"role_id": gerente.id})
+        assert resp.status_code == 200, resp.get_json()
+        token = client.post("/api/auth/login", json={"username": "cajero1", "password": "cajero123"}).get_json()["access_token"]
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 200
+
+    resp = _restaurar(client, admin_token, nombre)
+    assert resp.status_code == 202, resp.get_json()
+    assert _esperar_fin()["state"] == restore_service.STATE_OK
+
+    # La base vuelve a token_version = N, pero ningún token anterior a la restauración debe seguir sirviendo
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 401
+    assert client.get("/api/products/", headers=_auth(token)).status_code == 401

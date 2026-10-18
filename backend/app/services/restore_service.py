@@ -171,11 +171,26 @@ def _run_migrations() -> None:
     upgrade(directory=str(Path(current_app.root_path).parent / "migrations"))
 
 
-def _revoke_all_sessions() -> None:
-    """Sube token_version de todos los usuarios: todas las sesiones y cajas deben volver a entrar."""
+def _token_versions() -> dict[int, int]:
+    """token_version de cada usuario ANTES de restaurar (los tokens vigentes llevan esas versiones)."""
     from app.models.user import User
 
-    db.session.execute(db.update(User).values(token_version=User.token_version + 1))
+    versions = {uid: int(version or 0) for uid, version in db.session.query(User.id, User.token_version).all()}
+    db.session.rollback()
+    return versions
+
+
+def _revoke_all_sessions(previous: dict[int, int]) -> None:
+    """Todas las sesiones y cajas deben volver a entrar.
+
+    Sumar 1 a la versión RESTAURADA no basta (RF-05): un token emitido después del respaldo lleva la versión
+    del respaldo + 1 y volvía a coincidir. La nueva versión supera tanto la restaurada como la que había justo
+    antes de restaurar, así que ningún token emitido antes de la restauración es válido.
+    """
+    from app.models.user import User
+
+    for user in User.query.all():
+        user.token_version = max(int(user.token_version or 0), previous.get(user.id, 0)) + 1
     db.session.commit()
 
 
@@ -204,12 +219,14 @@ def _execute(app, filename: str, backup_path: Path, pre_path: Path, actor: dict)
         error: str | None = None
         rolled_back: bool | None = None
         try:
+            # Ya en mantenimiento: nadie puede iniciar sesión entre esta foto y la restauración
+            previous_versions = _token_versions()
             _write_status(step="Restaurando la base de datos...")
             _restore_file(backup_path)
             _write_status(step="Actualizando el esquema...")
             _run_migrations()
             _write_status(step="Cerrando todas las sesiones...")
-            _revoke_all_sessions()
+            _revoke_all_sessions(previous_versions)
         except Exception as exc:  # noqa: BLE001 - cualquier fallo dispara la reversión
             error = str(exc) or exc.__class__.__name__
             _write_status(step="Falló la restauración; recuperando el estado anterior...")
