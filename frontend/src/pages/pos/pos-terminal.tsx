@@ -42,6 +42,11 @@ async function findProductByCode(code: string): Promise<{ product: Product | nul
     if (!useConnectionStore.getState().serverReachable) throw new Error("sin servidor");
     return { product: await getProductByCode(code), offline: false };
   } catch (err) {
+    // Servidor caído o base de datos caída (5xx): se busca en la copia local en lugar de fallar (RF-10)
+    if (err instanceof AxiosError && err.response && err.response.status >= 500) {
+      useConnectionStore.getState().setServerReachable(false);
+      return { product: findByCodeOffline(code), offline: true };
+    }
     if (err instanceof AxiosError && err.response) {
       if (err.response.status !== 404) {
         return { product: null, offline: false, error: err.response.data?.error ?? "Error al procesar la lectura del código." };

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { apiClient } from "../api/client";
 import { invalidateAfterSale } from "../api/invalidate";
 import { createSale } from "../api/sales";
+import { isReachableHealthError, isServerUnavailable } from "../lib/connectivity";
 import { queryClient } from "../lib/query-client";
 import { useAuthStore } from "../stores/auth-store";
 import { useConnectionStore } from "../stores/connection-store";
@@ -93,7 +94,7 @@ export function syncOfflineQueue(): Promise<void> {
             continue;
           }
           // Red caída, timeout o 5xx: se conserva la venta y se reintenta con backoff.
-          if (isAxiosError(error) && !error.response) {
+          if (isServerUnavailable(error)) {
             connection.setServerReachable(false);
           }
           scheduleRetry();
@@ -125,8 +126,9 @@ async function pingServer() {
     useConnectionStore.getState().setServerReachable(true);
     return true;
   } catch (error) {
-    // Cualquier respuesta HTTP significa que el servidor está en la red.
-    const reachable = isAxiosError(error) && Boolean(error.response);
+    // Una respuesta 4xx significa que el servidor está en la red; un 5xx (base de datos caída, puerta de enlace)
+    // significa que no puede vender: la caja pasa a modo sin conexión (RF-10)
+    const reachable = isReachableHealthError(error);
     useConnectionStore.getState().setServerReachable(reachable);
     return reachable;
   }

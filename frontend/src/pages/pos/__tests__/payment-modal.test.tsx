@@ -6,6 +6,7 @@ import { AxiosError } from "axios";
 import type { CartItem } from "../../../stores/pos-store";
 import { usePosStore } from "../../../stores/pos-store";
 import { useAuthStore } from "../../../stores/auth-store";
+import { useConnectionStore } from "../../../stores/connection-store";
 import { PaymentModal } from "../payment-modal";
 
 const createSale = vi.fn();
@@ -45,6 +46,7 @@ beforeEach(() => {
   window.localStorage.clear();
   usePosStore.setState({ cart: [item()], offlineSalesQueue: [], rejectedSales: [] });
   useAuthStore.setState({ user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", permissions: [] } as never });
+  useConnectionStore.setState({ serverReachable: true });
   quoteSale.mockResolvedValue({ total: "232.00" });
   createSale.mockResolvedValue(serverSale);
 });
@@ -243,5 +245,33 @@ describe("PaymentModal: cierre", () => {
     await act(async () => fireEvent.click(confirm()));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(createSale.mock.calls[0][0].payments[0]).toMatchObject({ method: "tarjeta", reference: "4321", change_amount: "0.00" });
+  });
+});
+
+describe("PaymentModal: sin servidor (RF-10)", () => {
+  it("un 503 (base de datos caída o restauración) encola la venta con su client_uuid", async () => {
+    createSale.mockRejectedValue(new AxiosError("Service Unavailable", "ERR_BAD_RESPONSE", undefined, undefined, { status: 503, data: {} } as never));
+    const { onSuccess } = open();
+    await act(async () => fireEvent.click(confirm()));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(usePosStore.getState().offlineSalesQueue).toHaveLength(1);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("si el ping ya sabe que no hay servidor, no intenta enviar: encola directo", async () => {
+    useConnectionStore.setState({ serverReachable: false });
+    const { onSuccess } = open();
+    await act(async () => fireEvent.click(confirm()));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(createSale).not.toHaveBeenCalled();
+    expect(usePosStore.getState().offlineSalesQueue).toHaveLength(1);
+  });
+
+  it("un 500 genérico NO se encola: se muestra el error", async () => {
+    createSale.mockRejectedValue(new AxiosError("x", "ERR_BAD_RESPONSE", undefined, undefined, { status: 500, data: { error: "Fallo interno" } } as never));
+    open();
+    await act(async () => fireEvent.click(confirm()));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Fallo interno"));
+    expect(usePosStore.getState().offlineSalesQueue).toHaveLength(0);
   });
 });

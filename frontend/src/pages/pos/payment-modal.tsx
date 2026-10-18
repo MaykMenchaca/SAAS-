@@ -6,12 +6,13 @@ import { toast } from "sonner";
 
 import { invalidateAfterSale } from "../../api/invalidate";
 import type { CreateSalePayload, PaymentInput, Sale, SaleItemInput } from "../../api/sales";
-import { isMaintenanceError } from "../../api/backup";
 import { createSale, quoteSale } from "../../api/sales";
 import { Button, Input, Modal, Segmented } from "../../components/ui";
 import { cn } from "../../lib/cn";
+import { isServerUnavailable } from "../../lib/connectivity";
 import { formatCurrency } from "../../lib/formatters";
 import { useAuthStore } from "../../stores/auth-store";
+import { useConnectionStore } from "../../stores/connection-store";
 import { getCartTotals, usePosStore } from "../../stores/pos-store";
 import type { PaymentEntry, PayMethod } from "./payment-math";
 import { applyKeypad, KEYPAD_KEYS, paymentStatus, quickCashAmounts, summarizePayments } from "./payment-math";
@@ -153,7 +154,8 @@ export function PaymentModal({ defaultMethod, onClose, onSuccess, sessionId, tot
         payments: paymentInputs,
       };
 
-      if (navigator.onLine) {
+      // Si el ping ya sabe que no hay servidor, no se espera un timeout: directo a la cola (RF-10)
+      if (navigator.onLine && useConnectionStore.getState().serverReachable) {
         try {
           await saleMutation.mutateAsync(payload);
           return;
@@ -161,7 +163,9 @@ export function PaymentModal({ defaultMethod, onClose, onSuccess, sessionId, tot
           // H-03: Solo pasar a offline ante errores de red reales (!err.response o timeout).
           // Si el servidor respondió con 4xx o 5xx, NO pasar a offline:
           // mantener modal abierto, mostrar error del servidor y conservar el carrito.
-          const isHttpError = err instanceof AxiosError && Boolean(err.response) && !isMaintenanceError(err); // 503 por restauración: la venta se encola
+          // 502/503/504 (puerta de enlace, base caída, restauración en curso): el servidor no procesó la venta y
+          // se encola con su client_uuid; la sincronización es idempotente (RF-10)
+          const isHttpError = err instanceof AxiosError && Boolean(err.response) && !isServerUnavailable(err);
           if (isHttpError) {
             const serverMsg = err.response?.data?.error ?? "Error al procesar la venta en el servidor.";
             toast.error(serverMsg);
