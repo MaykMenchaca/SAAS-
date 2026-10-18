@@ -4,6 +4,7 @@ from decimal import Decimal
 from marshmallow import EXCLUDE, Schema, fields, validate
 
 from app.extensions import db
+from app.utils.quantities import max_qty_decimals
 
 
 # --- Cash Register ---
@@ -59,7 +60,9 @@ class SaleItemInputSchema(Schema):
         unknown = EXCLUDE
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
+    quantity = fields.Decimal(
+        as_string=True, required=True, validate=[validate.Range(min=0, min_inclusive=False), max_qty_decimals]
+    )
     unit_price = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
     tax_rate = fields.Decimal(as_string=True, required=False, load_default=None, places=2, validate=validate.Range(min=0))
     discount_percent = fields.Decimal(
@@ -198,7 +201,9 @@ class SaleReturnItemInputSchema(Schema):
         unknown = EXCLUDE
 
     sale_item_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False))
+    quantity = fields.Decimal(
+        as_string=True, required=True, validate=[validate.Range(min=0, min_inclusive=False), max_qty_decimals]
+    )
 
 
 class SaleReturnCreateSchema(Schema):

@@ -12,6 +12,7 @@ from app.services import config_service
 from app.services.inventory_service import InventoryService
 from app.utils.decorators import with_rollback
 from app.utils.timeutil import local_today
+from app.utils.quantities import validate_quantity
 
 
 class SaleService:
@@ -57,14 +58,8 @@ class SaleService:
                 raise ValueError(f"El producto '{product.name}' está inactivo")
 
             qty = Decimal(str(item_data["quantity"]))
-            if qty <= Decimal("0"):
-                raise ValueError("La cantidad debe ser mayor a 0")
-
-            if product.unit and not product.unit.allows_fractions:
-                if qty % Decimal("1") != Decimal("0"):
-                    raise ValueError(
-                        f"El producto '{product.name}' no permite cantidades fraccionarias"
-                    )
+            # Máximo 3 decimales y enteros en unidades sin fracciones (RF-03); misma regla que las devoluciones
+            validate_quantity(qty, product.unit, product.name)
 
             # Precios e impuestos autoritativos desde el catálogo del servidor
             price = Decimal(str(product.sale_price))
@@ -491,6 +486,9 @@ class SaleService:
             sale_item = db.session.get(SaleItem, si_id)
             if not sale_item or sale_item.sale_id != sale_id:
                 raise ValueError(f"Item {si_id} no pertenece a esta venta")
+            # No se devuelve media pieza ni más de 3 decimales (RF-02, RF-03)
+            unit = sale_item.product.unit if sale_item.product else None
+            validate_quantity(total_qty, unit, sale_item.product_name)
 
             prev_returned = already_returned.get(sale_item.id, Decimal("0"))
             available = sale_item.quantity - prev_returned
@@ -522,10 +520,13 @@ class SaleService:
             )
         for si_id, qty in grouped_quantities.items():
             sale_item = db.session.get(SaleItem, si_id)
-            # Calculate proportional refund
-            price_per_unit = sale_item.subtotal / sale_item.quantity
-            tax_per_unit = price_per_unit * sale_item.tax_rate / Decimal("100")
-            line_refund = ((price_per_unit + tax_per_unit) * qty).quantize(Decimal("0.01"))
+            # Reembolso ACUMULADO (RF-04): lo que corresponde a todo lo devuelto hasta ahora, menos lo que ya se
+            # reembolsó. Redondear cada devolución por separado sumaba de más (3 × 1.22 = 3.66 de una partida
+            # de 3.65); así, devolver la partida completa en cualquier número de partes da exactamente lo cobrado
+            prev_qty = already_returned.get(si_id, Decimal("0"))
+            line_refund = SaleService._refund_upto(sale_item, prev_qty + qty) - SaleService._refund_upto(
+                sale_item, prev_qty
+            )
 
             return_item = SaleReturnItem(
                 sale_return_id=sale_return.id,
@@ -581,6 +582,17 @@ class SaleService:
 
         db.session.commit()
         return sale_return
+
+    @staticmethod
+    def _refund_upto(sale_item: SaleItem, qty: Decimal) -> Decimal:
+        """Parte del importe cobrado de la partida que corresponde a `qty` unidades devueltas en total."""
+        line_tax = (sale_item.subtotal * sale_item.tax_rate / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_EVEN
+        )
+        line_total = sale_item.subtotal + line_tax
+        if qty >= sale_item.quantity:
+            return line_total
+        return (line_total * qty / sale_item.quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     @staticmethod
     def get_sale(sale_id: int) -> Sale | None:

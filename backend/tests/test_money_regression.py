@@ -93,8 +93,9 @@ class TestMoneyAndInventoryRegression:
                 "reason": "Intento de sobre-devolución",
                 "session_id": seed_open_session.id,
                 "items": [
-                    {"sale_item_id": sale_item_id, "quantity": "1.5"},
-                    {"sale_item_id": sale_item_id, "quantity": "1.0"},
+                    # Piezas enteras: 2 + 1 = 3 de 2 vendidas (media pieza ya se rechaza por RF-02)
+                    {"sale_item_id": sale_item_id, "quantity": "2"},
+                    {"sale_item_id": sale_item_id, "quantity": "1"},
                 ],
             },
         )

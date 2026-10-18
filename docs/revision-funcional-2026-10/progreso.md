@@ -17,8 +17,8 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 
 ## Fase 1: Críticos
 - [x] 1.1 RF-01 Escaneo `by-code` prioriza código de barras; SKU ≠ código de barras de otro
-- [ ] 1.2 RF-02, RF-03 Cantidades: máximo 3 decimales y `allows_fractions` en ventas y devoluciones
-- [ ] 1.3 RF-04 Reembolso acumulado sin exceder el total
+- [x] 1.2 RF-02, RF-03 Cantidades: máximo 3 decimales y `allows_fractions` en ventas y devoluciones
+- [x] 1.3 RF-04 Reembolso acumulado sin exceder el total
 - [ ] 1.4 RF-05 Restauración revoca todas las sesiones
 - [ ] **Gate 1**
 
