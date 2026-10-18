@@ -154,6 +154,26 @@ describe("Corte de caja: arqueo y cierre", () => {
     expect(await screen.findByText(/Turno cerrado/)).toBeTruthy();
   });
 
+  // RF-50: tras cerrar mostraba "cerrado —" sin hora y sin las observaciones que el servidor guardó
+  it("tras cerrar muestra la hora de cierre y las observaciones guardadas", async () => {
+    closeCashRegister.mockResolvedValue({
+      ...abierta, status: "cerrada", closing_amount: "11355.00", expected_cash: "11360.00", difference: "-5.00",
+      closed_at: "2026-10-12T22:15:00Z", close_notes: "Faltan 5 pesos",
+    });
+    await abrirArqueo();
+    fireEvent.change(screen.getByLabelText("Total contado en caja"), { target: { value: "11355" } });
+    fireEvent.change(screen.getByLabelText("Observaciones"), { target: { value: "Faltan 5 pesos" } });
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar turno e imprimir corte/ }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Sí, cerrar turno" }));
+    expect(await screen.findByText(/Turno cerrado/)).toBeTruthy();
+    const cierre = new Date("2026-10-12T22:15:00Z").toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    expect(screen.getByText(`Caja 1 · Turno de jperez · cerrado ${cierre}`)).toBeTruthy();
+    expect(screen.queryByText(/cerrado —/)).toBeNull();
+    expect((screen.getByLabelText("Observaciones") as HTMLTextAreaElement).value).toBe("Faltan 5 pesos");
+    // El comprobante imprimible lleva las observaciones guardadas
+    expect(screen.getByText("Observaciones:").parentElement?.textContent).toContain("Faltan 5 pesos");
+  });
+
   it("sin total capturado no abre la confirmación", async () => {
     await abrirArqueo();
     fireEvent.click(screen.getByRole("button", { name: /Cerrar turno e imprimir corte/ }));
