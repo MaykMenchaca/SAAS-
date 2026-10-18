@@ -21,6 +21,7 @@ from app.services.inventory_count_service import InventoryCountService
 from app.services.inventory_service import InventoryService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
+from app.utils.quantities import validate_quantity
 
 inventory_bp = Blueprint("inventory", __name__)
 
@@ -112,6 +113,13 @@ def adjust_stock():
     if not product:
         return jsonify({"error": "Producto no encontrado"}), 404
 
+    # Un producto por pieza no puede quedar con 2.5 pz que nunca se podrán vender (RF-19)
+    if data["quantity"] > 0:
+        try:
+            validate_quantity(data["quantity"], product.unit, product.name)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
     user_id = int(get_jwt_identity())
 
     reason = data.get("reason")
@@ -161,7 +169,7 @@ def adjust_stock():
 def list_movements(product_id):
     """List stock movements for a specific product."""
     limit = request.args.get("limit", 50, type=int)
-    limit = min(limit, 200)
+    limit = max(1, min(limit, 200))  # limit=-1 llegaba a SQL y daba 500 (RF-12)
 
     movements = InventoryService.get_movements(product_id, limit=limit)
     return jsonify(movements_schema.dump(movements)), 200

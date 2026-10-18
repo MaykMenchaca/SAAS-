@@ -80,7 +80,10 @@ def update_unit(unit_id):
     if not unit:
         return jsonify({"error": "Unidad de medida no encontrada"}), 404
     data = unit_schema.load(request.get_json(silent=True) or {}, partial=True)
-    unit = ProductService.update_unit(unit, data)
+    try:
+        unit = ProductService.update_unit(unit, data)
+    except ValueError as e:  # stock fraccionario al quitar allows_fractions (RF-19)
+        return jsonify({"error": str(e)}), 400
     return jsonify(unit_schema.dump(unit)), 200
 
 

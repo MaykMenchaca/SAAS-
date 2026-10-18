@@ -58,6 +58,12 @@ export function ProductPanel({
   saved,
   units,
 }: ProductPanelProps) {
+  // Si su categoría ya está inactiva, sigue en la lista para no cambiarla sin querer al guardar (RF-20)
+  const currentCategory = product?.category;
+  const categoryOptions = categories.map((category) => ({ value: category.id, label: category.name }));
+  if (currentCategory && !categories.some((category) => category.id === currentCategory.id)) {
+    categoryOptions.push({ value: currentCategory.id, label: `${currentCategory.name} (inactiva)` });
+  }
   const initialForm = useMemo(() => (product ? productToForm(product) : emptyForm), [product]);
   const [form, setForm] = useState<ProductFormState>(initialForm);
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -117,7 +123,7 @@ export function ProductPanel({
                 label="Categoría"
                 name="category_id"
                 onChange={(e) => setField("category_id", e.target.value)}
-                options={categories.map((category) => ({ value: category.id, label: category.name }))}
+                options={categoryOptions}
                 placeholder="Sin categoría"
                 value={form.category_id}
               />

@@ -55,7 +55,10 @@ def update_category(category_id):
                             "code": "forbidden"}), 403
         if not data["is_active"]:
             data.pop("is_active")
-            category = CategoryService.deactivate_category(category)
+            try:
+                category = CategoryService.deactivate_category(category)
+            except ValueError as e:  # tiene productos activos (RF-20)
+                return jsonify({"error": str(e)}), 400
     else:
         data.pop("is_active", None)
 
@@ -71,5 +74,8 @@ def deactivate_category(category_id):
     if not category:
         return jsonify({"error": "Categoria no encontrada"}), 404
 
-    category = CategoryService.deactivate_category(category)
+    try:
+        category = CategoryService.deactivate_category(category)
+    except ValueError as e:  # tiene productos activos (RF-20)
+        return jsonify({"error": str(e)}), 400
     return jsonify(category_schema.dump(category)), 200

@@ -10,7 +10,11 @@ from app.models.product import Product
 from app.models.purchase import PurchaseOrder, PurchaseOrderItem, Supplier
 from app.services.inventory_service import InventoryService
 from app.utils.decorators import with_rollback
+from app.utils.quantities import validate_quantity
 from app.utils.timeutil import local_today
+
+# Tope del Numeric(12, 2) de los totales de la orden (RF-12)
+MAX_ORDER_TOTAL = Decimal("9999999999.99")
 
 
 class PurchaseOrderService:
@@ -94,6 +98,8 @@ class PurchaseOrderService:
                 raise ValueError(f"Producto {item_data['product_id']} no encontrado")
 
             qty = Decimal(str(item_data["quantity"]))
+            # Unidades sin fracciones: solo enteros, igual que en la venta (RF-19)
+            validate_quantity(qty, product.unit, product.name)
             cost = Decimal(str(item_data["unit_cost"]))
             tax_rate = Decimal(str(item_data.get("tax_rate", "16.00")))
 
@@ -117,6 +123,8 @@ class PurchaseOrderService:
             subtotal += line_subtotal
             tax_total += line_tax
 
+        if subtotal + tax_total > MAX_ORDER_TOTAL:
+            raise ValueError("El total de la orden excede el máximo permitido ($9,999,999,999.99)")
         order.subtotal = subtotal
         order.tax_total = tax_total
         order.total = subtotal + tax_total
@@ -270,6 +278,7 @@ class PurchaseOrderService:
                 )
 
             recv_qty = Decimal(str(item_data["received_quantity"]))
+            validate_quantity(recv_qty, order_item.product.unit, order_item.product_name)  # RF-19
             remaining = order_item.quantity - order_item.received_quantity
 
             if recv_qty > remaining:

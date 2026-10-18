@@ -9,6 +9,7 @@ import { createUnit, deleteUnit, listUnits, updateUnit } from "../../api/product
 import { qk } from "../../api/query-keys";
 import { useCan } from "../../components/auth/require-permission";
 import { Badge, Button, EmptyState, ErrorState, Input, Modal, SkeletonTable, Table, Tooltip, Toggle, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
+import { getErrorMessage } from "./error-message";
 
 export function UnitsTab() {
   const can = useCan();
@@ -32,10 +33,8 @@ export function UnitsTab() {
       closeUnitModal();
       toast.success("Unidad de medida creada con éxito.");
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof AxiosError ? err.response?.data?.error ?? "Error al crear la unidad." : "Error al crear la unidad.";
-      toast.error(msg);
-    },
+    // Muestra el motivo del servidor (duplicada, nombre en blanco) y no solo "Datos inválidos" (RF-18)
+    onError: (err: Error) => toast.error(getErrorMessage(err) || "Error al crear la unidad."),
   });
 
   const updateMutation = useMutation({
@@ -46,10 +45,8 @@ export function UnitsTab() {
       closeUnitModal();
       toast.success("Unidad de medida actualizada con éxito.");
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof AxiosError ? err.response?.data?.error ?? "Error al actualizar la unidad." : "Error al actualizar la unidad.";
-      toast.error(msg);
-    },
+    // Incluye el 400 por stock fraccionario al quitar "permite fracciones" (RF-19)
+    onError: (err: Error) => toast.error(getErrorMessage(err) || "Error al actualizar la unidad."),
   });
 
   const deleteMutation = useMutation({

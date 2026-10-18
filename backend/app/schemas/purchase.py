@@ -1,18 +1,25 @@
 """Marshmallow schemas for supplier and purchase order endpoints."""
 from marshmallow import EXCLUDE, Schema, fields, validate
 
+from app.schemas.product import MAX_PRICE, MAX_QTY, TAX_RANGE
+from app.utils.quantities import max_qty_decimals
+
+# Cantidades de partidas y recepciones: > 0, tope del Numeric(12, 3) y máximo 3 decimales (RF-12)
+POSITIVE_QTY = [validate.Range(min=0, min_inclusive=False, max=MAX_QTY), max_qty_decimals]
+
 
 class SupplierCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
+    # Largos de las columnas: un teléfono de 25 caracteres daba 500 (RF-12)
     name = fields.Str(required=True, validate=validate.Length(min=1, max=200))
     rfc = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=13))
-    contact_name = fields.Str(load_default=None, allow_none=True)
-    phone = fields.Str(load_default=None, allow_none=True)
-    email = fields.Email(load_default=None, allow_none=True)
+    contact_name = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=150))
+    phone = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=20))
+    email = fields.Email(load_default=None, allow_none=True, validate=validate.Length(max=120))
     address = fields.Str(load_default=None, allow_none=True)
-    payment_terms = fields.Str(load_default=None, allow_none=True)
+    payment_terms = fields.Str(load_default=None, allow_none=True, validate=validate.Length(max=100))
     notes = fields.Str(load_default=None, allow_none=True)
 
 
@@ -22,11 +29,11 @@ class SupplierUpdateSchema(Schema):
 
     name = fields.Str(validate=validate.Length(min=1, max=200))
     rfc = fields.Str(allow_none=True, validate=validate.Length(max=13))
-    contact_name = fields.Str(allow_none=True)
-    phone = fields.Str(allow_none=True)
-    email = fields.Email(allow_none=True)
+    contact_name = fields.Str(allow_none=True, validate=validate.Length(max=150))
+    phone = fields.Str(allow_none=True, validate=validate.Length(max=20))
+    email = fields.Email(allow_none=True, validate=validate.Length(max=120))
     address = fields.Str(allow_none=True)
-    payment_terms = fields.Str(allow_none=True)
+    payment_terms = fields.Str(allow_none=True, validate=validate.Length(max=100))
     notes = fields.Str(allow_none=True)
 
 
@@ -52,15 +59,12 @@ class PurchaseOrderItemInputSchema(Schema):
         unknown = EXCLUDE
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(
-        as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False)
-    )
+    quantity = fields.Decimal(as_string=True, required=True, validate=POSITIVE_QTY)
     unit_cost = fields.Decimal(
-        as_string=True, required=True, places=2, validate=validate.Range(min=0, min_inclusive=False)
+        as_string=True, required=True, places=2,
+        validate=validate.Range(min=0, min_inclusive=False, max=MAX_PRICE),
     )
-    tax_rate = fields.Decimal(
-        as_string=True, load_default="16.00", places=2, validate=validate.Range(min=0)
-    )
+    tax_rate = fields.Decimal(as_string=True, load_default="16.00", places=2, validate=TAX_RANGE)
 
 
 class PurchaseOrderCreateSchema(Schema):
@@ -117,9 +121,7 @@ class ReceiveItemInputSchema(Schema):
         unknown = EXCLUDE
 
     order_item_id = fields.Int(required=True, validate=validate.Range(min=1))
-    received_quantity = fields.Decimal(
-        as_string=True, required=True, validate=validate.Range(min=0, min_inclusive=False)
-    )
+    received_quantity = fields.Decimal(as_string=True, required=True, validate=POSITIVE_QTY)
 
 
 class ReceiveOrderSchema(Schema):

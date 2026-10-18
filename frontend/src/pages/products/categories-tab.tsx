@@ -8,6 +8,7 @@ import { createCategory, deactivateCategory, listCategories, updateCategory } fr
 import { qk } from "../../api/query-keys";
 import { useCan } from "../../components/auth/require-permission";
 import { Badge, Button, EmptyState, ErrorState, Input, Modal, SkeletonTable, Table, Tooltip, tableCellClass, tableHeadClass, tableRowClass } from "../../components/ui";
+import { getErrorMessage } from "./error-message";
 import { textareaClass } from "./styles";
 
 export function CategoriesTab() {
@@ -31,9 +32,7 @@ export function CategoriesTab() {
       closeCategoryModal();
       toast.success("Categoría creada con éxito.");
     },
-    onError: () => {
-      toast.error("Error al crear la categoría.");
-    },
+    onError: (err: Error) => toast.error(getErrorMessage(err) || "Error al crear la categoría."),
   });
 
   const updateMutation = useMutation({
@@ -44,9 +43,7 @@ export function CategoriesTab() {
       closeCategoryModal();
       toast.success("Categoría actualizada con éxito.");
     },
-    onError: () => {
-      toast.error("Error al actualizar la categoría.");
-    },
+    onError: (err: Error) => toast.error(getErrorMessage(err) || "Error al actualizar la categoría."),
   });
 
   const deactivateMutation = useMutation({
@@ -55,8 +52,10 @@ export function CategoriesTab() {
       await queryClient.invalidateQueries({ queryKey: qk.categories() });
       toast.success("Categoría desactivada con éxito.");
     },
-    onError: () => {
-      toast.error("Error al desactivar la categoría.");
+    // Con productos activos el servidor la rechaza y dice cuántos son (RF-20)
+    onError: (err: Error) => {
+      toast.error(getErrorMessage(err) || "Error al desactivar la categoría.");
+      setConfirmDeactivateId(null);
     },
   });
 
@@ -250,7 +249,7 @@ export function CategoriesTab() {
           }
         >
           <p className="text-sm text-ink-2">
-            La categoría será desactivada. Los productos existentes mantendrán su relación pero no aparecerá para nuevos registros.
+            La categoría dejará de aparecer para nuevos productos. Solo se puede desactivar si no tiene productos activos: muévelos a otra categoría o desactívalos primero.
           </p>
         </Modal>
       )}

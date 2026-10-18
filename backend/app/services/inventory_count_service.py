@@ -7,6 +7,7 @@ from app.models.inventory import InventoryCount, InventoryCountItem, Stock
 from app.models.product import Product
 from app.services.inventory_service import InventoryService
 from app.utils.decorators import with_rollback
+from app.utils.quantities import validate_quantity
 
 
 class InventoryCountService:
@@ -131,6 +132,9 @@ class InventoryCountService:
             item.expected_quantity = stock.quantity
 
         counted = Decimal(str(counted_quantity))
+        if counted > 0 and item.product is not None:
+            # Las unidades sin fracciones solo se cuentan en enteros (RF-19)
+            validate_quantity(counted, item.product.unit, item.product.name)
         item.counted_quantity = counted
         item.difference = counted - item.expected_quantity
         item.notes = notes

@@ -1,3 +1,5 @@
+import unicodedata
+
 from marshmallow import ValidationError
 from sqlalchemy import or_, func
 
@@ -110,6 +112,8 @@ class ProductService:
     @staticmethod
     @with_rollback
     def update_unit(unit, data):
+        if data.get("allows_fractions") is False and unit.allows_fractions:
+            ProductService._validate_no_fractional_stock(unit)
         if "name" in data or "abbreviation" in data:
             ProductService._validate_unique_unit(
                 data.get("name", unit.name),
@@ -160,20 +164,38 @@ class ProductService:
         return True
 
     @staticmethod
+    def _validate_no_fractional_stock(unit):
+        """Una unidad no deja de admitir fracciones si un producto suyo tiene stock fraccionario (RF-19)."""
+        fraccionario = (
+            db.session.query(Product.name, Stock.quantity)
+            .join(Stock, Stock.product_id == Product.id)
+            .filter(Product.unit_id == unit.id, Stock.quantity != func.trunc(Stock.quantity))
+            .order_by(Product.name)
+            .first()
+        )
+        if fraccionario:
+            nombre, cantidad = fraccionario
+            raise ValueError(
+                f"No se puede quitar 'permite fracciones' a la unidad '{unit.name}': el producto '{nombre}' "
+                f"tiene stock fraccionario ({cantidad.normalize():f}). Ajusta su stock a un entero primero."
+            )
+
+    @staticmethod
+    def _normalize_unit_text(value):
+        """Forma de comparación de unidades: sin espacios, mayúsculas ni acentos ("GALÓN " == "galon") (RF-18)."""
+        text = unicodedata.normalize("NFKD", (value or "").strip().lower())
+        return "".join(ch for ch in text if not unicodedata.combining(ch))
+
+    @staticmethod
     def _validate_unique_unit(name, abbreviation, exclude_unit_id=None):
+        # El catálogo de unidades es pequeño: se compara en Python para ignorar también los acentos (RF-18)
         errors = {}
-        if name:
-            query = UnitOfMeasure.query.filter_by(name=name)
-            if exclude_unit_id is not None:
-                query = query.filter(UnitOfMeasure.id != exclude_unit_id)
-            if query.first():
-                errors["name"] = ["Unidad con este nombre ya existe"]
-        if abbreviation:
-            query = UnitOfMeasure.query.filter_by(abbreviation=abbreviation)
-            if exclude_unit_id is not None:
-                query = query.filter(UnitOfMeasure.id != exclude_unit_id)
-            if query.first():
-                errors["abbreviation"] = ["Unidad con esta abreviatura ya existe"]
+        others = [u for u in UnitOfMeasure.query.all() if u.id != exclude_unit_id]
+        norm = ProductService._normalize_unit_text
+        if name and any(norm(u.name) == norm(name) for u in others):
+            errors["name"] = ["Ya existe una unidad con ese nombre"]
+        if abbreviation and any(norm(u.abbreviation) == norm(abbreviation) for u in others):
+            errors["abbreviation"] = ["Ya existe una unidad con esa abreviatura"]
         if errors:
             raise ValidationError(errors)
 
@@ -226,7 +248,7 @@ class ProductService:
     def update_product(product, data):
         data = ProductService._clean_optional_fields(data)
         data.pop("avg_cost", None)
-        ProductService._validate_references(data)
+        ProductService._validate_references(data, current_category_id=product.category_id)
         ProductService._validate_unique_product(
             sku=data.get("sku"),
             barcode=data.get("barcode"),
@@ -309,11 +331,12 @@ class ProductService:
         return cleaned
 
     @staticmethod
-    def _validate_references(data):
+    def _validate_references(data, current_category_id=None):
         errors = {}
 
         category_id = data.get("category_id")
-        if category_id is not None:
+        # El formulario reenvía la categoría actual: si no cambia, no se exige que siga activa (RF-20)
+        if category_id is not None and category_id != current_category_id:
             category = Category.query.filter_by(id=category_id, is_active=True).first()
             if not category:
                 errors["category_id"] = ["Categoria no encontrada"]
@@ -331,30 +354,22 @@ class ProductService:
     def _validate_unique_product(sku=None, barcode=None, exclude_product_id=None):
         errors = {}
 
-        if sku:
-            query = Product.query.filter_by(sku=sku)
-            if exclude_product_id is not None:
-                query = query.filter(Product.id != exclude_product_id)
-            if query.first():
-                errors["sku"] = ["SKU ya existe"]
-
-        if barcode:
-            query = Product.query.filter_by(barcode=barcode)
-            if exclude_product_id is not None:
-                query = query.filter(Product.id != exclude_product_id)
-            if query.first():
-                errors["barcode"] = ["Codigo de barras ya existe"]
-
-        # RF-01: un SKU no puede ser el código de barras de OTRO producto (ni al revés): el escáner no sabría cuál es
-        def _cruzado(column, value):
-            query = Product.query.filter(func.lower(column) == value.strip().lower())
+        # Sin distinguir mayúsculas ni espacios, igual que la búsqueda por código del escáner (RF-17)
+        def _existe(column, value):
+            query = Product.query.filter(func.lower(func.trim(column)) == value.strip().lower())
             if exclude_product_id is not None:
                 query = query.filter(Product.id != exclude_product_id)
             return query.first()
 
-        if sku and "sku" not in errors and _cruzado(Product.barcode, sku):
+        if sku and _existe(Product.sku, sku):
+            errors["sku"] = ["Ya existe un producto con ese SKU"]
+        if barcode and _existe(Product.barcode, barcode):
+            errors["barcode"] = ["Ya existe un producto con ese código de barras"]
+
+        # RF-01: un SKU no puede ser el código de barras de OTRO producto (ni al revés): el escáner no sabría cuál es
+        if sku and "sku" not in errors and _existe(Product.barcode, sku):
             errors["sku"] = ["El SKU coincide con el código de barras de otro producto"]
-        if barcode and "barcode" not in errors and _cruzado(Product.sku, barcode):
+        if barcode and "barcode" not in errors and _existe(Product.sku, barcode):
             errors["barcode"] = ["El código de barras coincide con el SKU de otro producto"]
 
         if errors:
@@ -425,6 +440,14 @@ class CategoryService:
     @staticmethod
     @with_rollback
     def deactivate_category(category):
+        # Desactivarla dejaba productos activos en una categoría que ya no se puede elegir (RF-20)
+        activos = Product.query.filter_by(category_id=category.id, is_active=True).count()
+        if activos:
+            texto = "1 producto activo" if activos == 1 else f"{activos} productos activos"
+            raise ValueError(
+                f"No se puede desactivar la categoría '{category.name}': tiene {texto}. "
+                "Muévelos a otra categoría o desactívalos primero."
+            )
         prev_active = category.is_active
         category.is_active = False
 

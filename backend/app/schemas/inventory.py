@@ -1,6 +1,8 @@
 """Marshmallow schemas for inventory endpoints."""
 from marshmallow import EXCLUDE, Schema, fields, validate
 
+from app.schemas.product import QTY_VALIDATORS
+
 
 class StockSchema(Schema):
     """Schema for stock listing/detail responses."""
@@ -75,12 +77,8 @@ class StockAdjustSchema(Schema):
         unknown = EXCLUDE
 
     product_id = fields.Int(required=True, validate=validate.Range(min=1))
-    quantity = fields.Decimal(
-        as_string=True,
-        required=True,
-        places=3,
-        validate=validate.Range(min=0),
-    )
+    # Tope del Numeric(12, 3) y máximo 3 decimales, sin redondear en silencio (RF-12)
+    quantity = fields.Decimal(as_string=True, required=True, validate=QTY_VALIDATORS)
     reason = fields.Str(
         load_default=None,
         allow_none=True,
@@ -108,12 +106,7 @@ class InventoryCountCaptureSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
-    counted_quantity = fields.Decimal(
-        as_string=True,
-        required=True,
-        places=3,
-        validate=validate.Range(min=0),
-    )
+    counted_quantity = fields.Decimal(as_string=True, required=True, validate=QTY_VALIDATORS)  # RF-12
     notes = fields.Str(load_default=None, allow_none=True)
 
 

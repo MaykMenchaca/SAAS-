@@ -102,6 +102,19 @@ describe("Productos con el diseño Industry", () => {
     expect(await screen.findByText("Cambios guardados.")).toBeTruthy();
   });
 
+  it("un producto de categoría inactiva la conserva al guardar (RF-20)", async () => {
+    const pintura = { ...martillo, id: 3, name: "Pintura", category_id: 5, category: { id: 5, name: "Pinturas", description: null, is_active: false } };
+    mocks.listProducts.mockResolvedValue({ items: [pintura], total: 1, page: 1, pages: 1, per_page: 20 });
+    mocks.updateProduct.mockResolvedValue(pintura);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Pintura" }));
+    expect(await screen.findByRole("option", { name: "Pinturas (inactiva)" })).toBeTruthy();
+    expect((screen.getByLabelText("Categoría") as HTMLSelectElement).value).toBe("5");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(mocks.updateProduct).toHaveBeenCalledTimes(1));
+    expect(mocks.updateProduct.mock.calls[0][1]).toMatchObject({ category_id: 5 });
+  });
+
   it("el rol de solo consulta ve el panel en solo lectura", async () => {
     useAuthStore.setState({ isAuthenticated: true, user: cajero });
     renderPage();
