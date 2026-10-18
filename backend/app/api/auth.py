@@ -8,7 +8,7 @@ from app.services.auth_service import AuthService
 auth_bp = Blueprint("auth", __name__)
 
 
-from app.services.rate_limiter import login_limiter
+from app.services.rate_limiter import CHANGE_PASSWORD_SCOPE, change_password_limiter, login_limiter
 
 
 def _json_object():
@@ -145,12 +145,23 @@ def change_password():
     from app.extensions import db
 
     user_id = int(get_jwt_identity())
+    # Freno a adivinar la contraseña actual con un token robado (RF-45): ver rate_limiter
+    if change_password_limiter.is_user_locked(user_id, CHANGE_PASSWORD_SCOPE):
+        return jsonify({
+            "error": "Demasiados intentos fallidos de cambiar la contraseña. Intente de nuevo en 5 minutos.",
+        }), 429
+
     user = db.session.get(User, user_id)
     if not user or not user.check_password(current_password):
+        change_password_limiter.record_login_failure(user_id, CHANGE_PASSWORD_SCOPE)
         return jsonify({"error": "Contraseña actual incorrecta"}), 400
+    change_password_limiter.record_login_success(user_id, CHANGE_PASSWORD_SCOPE)
 
     if len(new_password) < 8:
         return jsonify({"error": "La nueva contraseña debe tener al menos 8 caracteres"}), 400
+    # Antes solo el frontend lo impedía (RF-45)
+    if new_password == current_password:
+        return jsonify({"error": "La nueva contraseña debe ser distinta de la actual"}), 400
 
     user.set_password(new_password)
     user.must_change_password = False

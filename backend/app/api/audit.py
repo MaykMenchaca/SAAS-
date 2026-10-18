@@ -11,6 +11,17 @@ audit_bp = Blueprint("audit", __name__)
 _log_schema = AuditLogSchema(many=True)
 
 
+def _int_filter(name: str):
+    """Filtro entero opcional. Un valor no entero era None con `type=int` y devolvía TODAS las filas (RF-46)."""
+    raw = request.args.get(name)
+    if raw is None or raw.strip() == "":
+        return None, None
+    try:
+        return int(raw.strip()), None
+    except ValueError:
+        return None, (jsonify({"error": f"El filtro {name} debe ser un número entero"}), 400)
+
+
 @audit_bp.route("/", methods=["GET"])
 @require_role("admin")
 def list_audit_logs():
@@ -28,10 +39,14 @@ def list_audit_logs():
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 50, type=int), 100)
 
-    user_id = request.args.get("user_id", type=int)
+    user_id, error = _int_filter("user_id")
+    if error:
+        return error
+    entity_id, error = _int_filter("entity_id")
+    if error:
+        return error
     action = request.args.get("action")
     entity_type = request.args.get("entity_type")
-    entity_id = request.args.get("entity_id", type=int)
 
     date_from = None
     date_to = None

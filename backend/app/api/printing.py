@@ -1,5 +1,5 @@
 """Printing API - sale tickets and product labels."""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from app.extensions import db
 from app.models.product import Product
@@ -8,6 +8,15 @@ from app.services.printer_service import PrinterService
 from app.utils.decorators import require_permission
 
 printing_bp = Blueprint("printing", __name__)
+
+
+def _printer_unavailable(exc: Exception):
+    """503 con un mensaje genérico: el error del sistema operativo (con la ruta del servidor) solo va al log (RF-31)."""
+    current_app.logger.warning("Impresora no disponible: %s", exc)
+    return jsonify({
+        "error": "Impresora no disponible. Revisa que esté encendida y conectada e inténtalo de nuevo.",
+        "code": "printer_unavailable",
+    }), 503
 
 
 def _print_options():
@@ -42,7 +51,7 @@ def print_sale_ticket(sale_id):
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:
-            return jsonify({"error": str(exc)}), 503
+            return _printer_unavailable(exc)
 
     return jsonify({
         "sale_id": sale.id,
@@ -72,7 +81,7 @@ def print_product_label(product_id):
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:
-            return jsonify({"error": str(exc)}), 503
+            return _printer_unavailable(exc)
 
     return jsonify({
         "product_id": product.id,

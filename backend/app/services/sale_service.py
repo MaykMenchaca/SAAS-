@@ -16,6 +16,33 @@ from app.utils.timeutil import local_today
 from app.utils.quantities import validate_quantity
 
 
+class SaleNotFoundError(ValueError):
+    """La venta no existe: la API responde 404 (RF-29). Hereda de ValueError por compatibilidad."""
+
+    def __init__(self, message: str = "Venta no encontrada"):
+        super().__init__(message)
+
+
+class ClientUuidConflictError(ValueError):
+    """El client_uuid ya se usó en una venta de OTRO usuario: la API responde 409 sin revelarla (RF-30)."""
+
+    def __init__(self):
+        super().__init__(
+            "Este identificador de venta (client_uuid) ya se usó en otra venta. Genera uno nuevo y reintenta."
+        )
+
+
+def _replay_of(client_uuid, user_id: int) -> Sale | None:
+    """Venta ya creada con ese client_uuid (reenvío idempotente) o None.
+
+    Solo el mismo usuario recibe la venta original; si es de otro usuario, ClientUuidConflictError (RF-30).
+    """
+    existing = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+    if existing is not None and existing.user_id != user_id:
+        raise ClientUuidConflictError()
+    return existing
+
+
 class SaleService:
     """Handles sale creation with inventory deduction and payment validation."""
 
@@ -123,7 +150,8 @@ class SaleService:
     ) -> Sale:
         """Create a complete sale atomically.
 
-        1. Validates client_uuid idempotency (returns existing sale if already processed)
+        1. Validates client_uuid idempotency (returns existing sale if already processed by the same
+           user; ClientUuidConflictError if it belongs to another user, RF-30)
         2. Validates cash register session is open and owned (or supervised)
         3. Calculates authoritative pricing via price_lines
         4. Creates sale items with discount calculation (provisional folio)
@@ -148,7 +176,7 @@ class SaleService:
             PermissionError: If cashier attempts to sell in another user's session without permission.
         """
         if client_uuid:
-            existing_sale = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+            existing_sale = _replay_of(client_uuid, user_id)
             if existing_sale:
                 return existing_sale
 
@@ -166,7 +194,7 @@ class SaleService:
         # Un reenvío simultáneo con el mismo client_uuid esperó el bloqueo de la sesión:
         # ahora ve la venta ya creada y la devuelve en vez de chocar con el UNIQUE (OPS-10)
         if client_uuid:
-            existing_sale = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+            existing_sale = _replay_of(client_uuid, user_id)
             if existing_sale:
                 return existing_sale
 
@@ -302,7 +330,7 @@ class SaleService:
         except IntegrityError:
             db.session.rollback()
             if client_uuid:
-                existing = Sale.query.filter_by(client_uuid=str(client_uuid)).first()
+                existing = _replay_of(client_uuid, user_id)
                 if existing:
                     return existing
             raise
@@ -326,7 +354,7 @@ class SaleService:
         """
         sale = db.session.get(Sale, sale_id)
         if not sale:
-            raise ValueError("Venta no encontrada")
+            raise SaleNotFoundError()
         # Orden de bloqueo sesión → venta. La cancelación devuelve el efectivo desde el cajón de la
         # sesión de la venta; si ya se cerró, cambiaría un corte histórico y el dinero saldría de
         # una caja que no lo registra (BE-101)
@@ -414,6 +442,9 @@ class SaleService:
         """
         if refund_method not in ("efectivo", "tarjeta", "transferencia"):
             raise ValueError(f"Método de reembolso inválido: {refund_method}")
+        # Una venta inexistente es 404 antes que cualquier validación de la caja (RF-29)
+        if db.session.get(Sale, sale_id) is None:
+            raise SaleNotFoundError()
 
         # Un reembolso en efectivo sale de un cajón: si no se indica la caja, se usa la sesión abierta
         # del usuario, para que el corte lo descuente (BE-100/FE-100, H-08). Sin caja, no se puede.
@@ -457,7 +488,7 @@ class SaleService:
 
         sale = db.session.query(Sale).filter_by(id=sale_id).with_for_update().first()
         if not sale:
-            raise ValueError("Venta no encontrada")
+            raise SaleNotFoundError()
         if sale.status == "cancelada":
             raise ValueError("No se puede devolver una venta cancelada")
 

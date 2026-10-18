@@ -16,7 +16,7 @@ from app.schemas.sale import (
 from app.extensions import db
 from app.services.audit_service import log_action
 from app.services.printer_service import PrinterService
-from app.services.sale_service import SaleService
+from app.services.sale_service import ClientUuidConflictError, SaleNotFoundError, SaleService
 from app.utils.decorators import require_permission
 from app.utils.pagination import paginate
 from app.models.sale import Sale
@@ -69,6 +69,9 @@ def create_sale():
             payments=data["payments"],
             client_uuid=client_uuid,
         )
+    except ClientUuidConflictError as e:
+        # El uuid es de la venta de otro usuario: no se devuelve ni se confirma cuál es (RF-30)
+        return jsonify({"error": str(e), "code": "client_uuid_conflict"}), 409
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
     except ValueError as e:
@@ -95,6 +98,8 @@ def cancel_sale(sale_id):
             user_id=user_id,
             reason=data["reason"],
         )
+    except SaleNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -119,6 +124,8 @@ def return_sale(sale_id):
             refund_method=data.get("refund_method", "efectivo"),
             restock=data.get("restock", True),
         )
+    except SaleNotFoundError as e:
+        return jsonify({"error": str(e)}), 404  # RF-29
     except PermissionError as e:
         return jsonify({"error": str(e)}), 403
     except ValueError as e:
