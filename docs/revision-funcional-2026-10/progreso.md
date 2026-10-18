@@ -41,4 +41,5 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
 
 ## Fase 4: Bajos
 - [ ] RF-29…40, RF-43…51
+  - Carril P (`test_revision_funcional_p.py`, commits 924e646 y 7eb83f4): [x] RF-29 (parte P: venta inexistente 404, token inválido o de otro tipo 401) · [x] RF-30 · [x] RF-31 (parte P: 503 de impresión genérico) · [x] RF-43 · [x] RF-44 · [x] RF-45 · [x] RF-46 · [x] RF-47 (`PRE_RESTORE_KEEP` = 5) · [x] pendientes del Dashboard (`low_stock_count` = agotados + bajo mínimo como `/inventory/summary`; neto del día, mes y turno sin recortar, en rojo si es negativo)
 - [ ] **Gate 4**

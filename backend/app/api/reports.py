@@ -20,6 +20,7 @@ from app.models.sale import (
 from app.models.user import User
 from app.utils.decorators import require_permission
 from app.utils.timeutil import (
+    InvalidDateError,
     app_tz,
     local_day_bounds,
     local_today,
@@ -27,6 +28,21 @@ from app.utils.timeutil import (
 )
 
 reports_bp = Blueprint("reports", __name__)
+
+# Años aceptados en los rangos de reportes: fuera de aquí las fechas no tienen sentido para la tienda y los
+# extremos (0001, 9999) desbordaban el cálculo de límites del día y daban 500 (RF-44)
+REPORT_MIN_YEAR = 2000
+REPORT_MAX_YEAR = 2100
+TOP_PRODUCTS_MAX_LIMIT = 100
+
+
+class ReportParamError(ValueError):
+    """Parámetro de reporte inválido (no de fecha): 400 con el mensaje."""
+
+
+@reports_bp.errorhandler(ReportParamError)
+def _report_param_error(e):
+    return jsonify({"error": str(e)}), 400
 
 
 @reports_bp.route("/dashboard", methods=["GET"])
@@ -98,16 +114,18 @@ def dashboard():
     product_stats.sort(key=lambda p: p["quantity"], reverse=True)
     top_products = product_stats[:5]
 
-    # Low stock count
+    # Stock bajo con la misma regla que los KPI de Inventario (/inventory/summary): agotados (stock <= 0, con o
+    # sin mínimo; sin registro de stock = 0) + bajo mínimo (mínimo > 0, stock > 0 y stock <= mínimo).
+    # Antes solo contaba stock < mínimo y no coincidía con Inventario ni con el badge del menú
+    qty = func.coalesce(Stock.quantity, 0)
     low_stock_count = (
-        Stock.query
-        .join(Product)
+        db.session.query(func.count(Product.id))
+        .outerjoin(Stock, Stock.product_id == Product.id)
         .filter(
             Product.is_active.is_(True),
-            Product.min_stock > 0,
-            Stock.quantity < Product.min_stock,
+            db.or_(qty <= 0, db.and_(Product.min_stock > 0, qty <= Product.min_stock)),
         )
-        .count()
+        .scalar()
     )
 
     return jsonify({
@@ -159,7 +177,8 @@ def _open_sessions_summary() -> list[dict]:
             .filter(SaleReturn.session_id == session.id)
             .scalar()
         )
-        net = max(Decimal("0"), Decimal(str(revenue)) - Decimal(str(refunds)))
+        # Neto real: un turno con solo devoluciones queda en negativo (salida de efectivo), no en 0
+        net = Decimal(str(revenue)) - Decimal(str(refunds))
         result.append({
             "id": session.id,
             "register": register_name,
@@ -172,11 +191,11 @@ def _open_sessions_summary() -> list[dict]:
     return result
 
 
-def _get_period_stats(start: datetime, end: datetime, clamp: bool = True) -> dict:
+def _get_period_stats(start: datetime, end: datetime) -> dict:
     """Get sale count and total revenue for [start, end), net of returns.
 
-    El tablero recorta a 0; el reporte de ventas pide el neto real (clamp=False), que puede ser
-    negativo en un periodo con más reembolsos que ventas (RF-25).
+    Neto real, sin recortar a 0: un periodo con más reembolsos que ventas sale en negativo, tanto en el
+    reporte de ventas (RF-25) como en el tablero (pendiente de Fase 3).
     """
     result = (
         db.session.query(
@@ -201,7 +220,7 @@ def _get_period_stats(start: datetime, end: datetime, clamp: bool = True) -> dic
     net_revenue = Decimal(str(result.revenue)) - Decimal(str(refunds))
     return {
         "count": result.count,
-        "revenue": str((max(Decimal("0"), net_revenue) if clamp else net_revenue).quantize(Decimal("0.01"))),
+        "revenue": str(net_revenue.quantize(Decimal("0.01"))),
     }
 
 
@@ -211,7 +230,33 @@ def _resolve_local_range():
     date_to = request.args.get("to")
     last_day = parse_local_date(date_to) if date_to else local_today()
     first_day = parse_local_date(date_from) if date_from else last_day - timedelta(days=30)
+    # Rango acotado y ordenado (RF-44): InvalidDateError responde 400 con el mensaje
+    for day in (first_day, last_day):
+        if not REPORT_MIN_YEAR <= day.year <= REPORT_MAX_YEAR:
+            raise InvalidDateError(
+                f"Fecha fuera de rango: '{day.isoformat()}'. Usa fechas entre los años "
+                f"{REPORT_MIN_YEAR} y {REPORT_MAX_YEAR}"
+            )
+    if first_day > last_day:
+        raise InvalidDateError("La fecha inicial (from) debe ser anterior o igual a la final (to)")
     return first_day, last_day
+
+
+def _parse_limit(default: int = 20) -> int:
+    """`limit` entero entre 1 y TOP_PRODUCTS_MAX_LIMIT; otro valor → ReportParamError (400) (RF-44).
+
+    Antes limit=-1 recortaba el último producto (items[:-1]) y limit=0 devolvía vacío sin avisar.
+    """
+    raw = request.args.get("limit")
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        limit = int(raw.strip())
+    except ValueError:
+        limit = 0
+    if not 1 <= limit <= TOP_PRODUCTS_MAX_LIMIT:
+        raise ReportParamError(f"El parámetro limit debe ser un entero entre 1 y {TOP_PRODUCTS_MAX_LIMIT}")
+    return limit
 
 
 # --- Task 31: Sales report by period ---
@@ -231,7 +276,7 @@ def sales_report():
     _, end = local_day_bounds(last_day)
 
     # Summary stats: sin recortar a 0 para que cuadre con daily y payment_methods (RF-25)
-    stats = _get_period_stats(start, end, clamp=False)
+    stats = _get_period_stats(start, end)
 
     # Sales by day (net of refunds), agrupadas por día local
     tz_name = app_tz().key
@@ -404,7 +449,7 @@ def top_products_report():
     """
     first_day, last_day = _resolve_local_range()
     sort_by = request.args.get("sort", "quantity")
-    limit = min(request.args.get("limit", 20, type=int), 100)
+    limit = _parse_limit()
     start, _ = local_day_bounds(first_day)
     _, end = local_day_bounds(last_day)
 

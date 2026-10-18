@@ -232,14 +232,36 @@ def copy_backup_to_usb(filepath: str | os.PathLike) -> Path | None:
     return destination
 
 
+# Respaldos automáticos previos a una restauración (``pre-restore-<fecha>.dump``) que se conservan. Cada
+# restauración agrega un dump completo y antes nunca se borraban (RF-47). Se guardan los más recientes:
+# alcanzan para deshacer las últimas restauraciones sin llenar el disco.
+PRE_RESTORE_KEEP = 5
+
+
+def _prune_pre_restore(backup_dir: Path, keep: int = PRE_RESTORE_KEEP) -> int:
+    """Borra los ``pre-restore-*.dump`` salvo los `keep` más recientes (el nombre lleva la fecha). Devuelve cuántos borró."""
+    files = sorted(backup_dir.glob("pre-restore-*.dump"), key=lambda f: f.name, reverse=True)
+    deleted = 0
+    for f in files[keep:]:
+        try:
+            f.unlink(missing_ok=True)
+            deleted += 1
+        except OSError:
+            pass
+    return deleted
+
+
 def apply_retention(daily_keep: int = 14, weekly_keep: int = 8) -> dict:
     """Apply retention policy to backups: keep latest `daily_keep` days,
     and 1 per week for up to `weekly_keep` weeks. Delete older ones.
+
+    Además conserva solo los PRE_RESTORE_KEEP ``pre-restore-*.dump`` más recientes (RF-47).
     """
     backup_dir = _get_backup_dir()
+    pre_restore_deleted = _prune_pre_restore(backup_dir)
     dump_files = sorted(backup_dir.glob("backup_*.dump"), key=lambda f: f.name, reverse=True)
     if not dump_files:
-        return {"kept": 0, "deleted": 0}
+        return {"kept": 0, "deleted": 0, "pre_restore_deleted": pre_restore_deleted}
 
     files_by_day = {}
     fallback_files = []
@@ -288,7 +310,7 @@ def apply_retention(daily_keep: int = 14, weekly_keep: int = 8) -> dict:
             except OSError:
                 pass
 
-    return {"kept": len(keep_files), "deleted": deleted_count}
+    return {"kept": len(keep_files), "deleted": deleted_count, "pre_restore_deleted": pre_restore_deleted}
 
 
 def list_backups() -> list:

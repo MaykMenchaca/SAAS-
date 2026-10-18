@@ -80,3 +80,10 @@ class LoginRateLimiter:
 
 
 login_limiter = LoginRateLimiter()
+
+# Intentos fallidos de change-password (RF-45): misma política que el bloqueo por usuario del login
+# (USER_MAX_FAILURES en USER_WINDOW → bloqueo de USER_LOCKOUT), pero en una instancia aparte para no
+# mezclar contadores con el inicio de sesión. La llave es el usuario con un ámbito fijo, no la IP: quien
+# tiene un token robado no puede adivinar la contraseña actual cambiando de máquina.
+CHANGE_PASSWORD_SCOPE = "change-password"
+change_password_limiter = LoginRateLimiter()

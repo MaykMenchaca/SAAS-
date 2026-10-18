@@ -145,6 +145,19 @@ def get(key: str) -> str | None:
     return None
 
 
+def first_configured(*keys: str, default: str = "") -> str:
+    """Primer valor GUARDADO y no vacío entre `keys`; si ninguno, `default`.
+
+    No usa los valores por omisión de DEFAULTS: así una clave nueva sin guardar (``company_name`` =
+    "Mi Negocio") no tapa la clave anterior que sí se configuró (``business_name``) (RF-43).
+    """
+    for key in keys:
+        row = db.session.get(SystemConfig, key)
+        if row is not None and row.value and row.value.strip():
+            return row.value.strip()
+    return default
+
+
 def set_value(key: str, value: str) -> SystemConfig:
     """Set a config value (upsert)."""
     row = db.session.get(SystemConfig, key)

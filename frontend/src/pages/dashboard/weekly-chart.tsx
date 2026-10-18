@@ -1,6 +1,6 @@
 import { addLocalDays, localISODate } from "../../lib/dates";
-import { formatCurrency } from "../../lib/formatters";
 import type { SalesReport } from "../../api/reports";
+import { formatSignedCurrency, negativeTone } from "../reports/helpers";
 
 export type WeekDay = {
   date: string;
@@ -29,8 +29,10 @@ export function buildWeek(daily: SalesReport["daily"] | undefined, now: Date = n
   });
 }
 
-/** "$14.4k" para cifras de mil o más; el importe exacto va en el `title` de cada barra. */
+/** "$14.4k" para cifras de mil o más; el importe exacto va en el `title` de cada barra.
+    Un día con solo devoluciones es negativo: el signo va delante ("-$116"). */
 export function shortAmount(value: number): string {
+  if (value < 0) return `-${shortAmount(-value)}`;
   if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
   return `$${Math.round(value)}`;
 }
@@ -43,8 +45,8 @@ export function WeeklyChart({ days }: { days: WeekDay[] }) {
     <>
       <div className="grid h-56 grid-cols-7 items-end gap-1.5 px-4 pt-6 sm:gap-3.5 sm:px-5" role="img" aria-label="Ventas de los últimos 7 días">
         {days.map((d) => (
-          <div className="flex h-full min-w-0 flex-col items-stretch justify-end gap-1.5" key={d.date} title={`${d.day} ${d.dayNumber}: ${formatCurrency(d.value)}`}>
-            <span className={`truncate text-center text-xs tabular-nums ${d.isToday ? "text-text" : "text-ink-2"}`}>{shortAmount(d.value)}</span>
+          <div className="flex h-full min-w-0 flex-col items-stretch justify-end gap-1.5" key={d.date} title={`${d.day} ${d.dayNumber}: ${formatSignedCurrency(d.value)}`}>
+            <span className={`truncate text-center text-xs tabular-nums ${negativeTone(d.value) || (d.isToday ? "text-text" : "text-ink-2")}`}>{shortAmount(d.value)}</span>
             <div
               className={d.isToday ? "bg-accent" : "bg-accent/40"}
               style={{ height: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`, minHeight: 2 }}
@@ -60,8 +62,8 @@ export function WeeklyChart({ days }: { days: WeekDay[] }) {
         ))}
       </div>
       <div className="mt-auto flex flex-wrap justify-between gap-x-3 gap-y-1 px-4 py-3.5 text-sm text-ink-2 sm:px-5">
-        <span>Promedio diario <span className="font-medium tabular-nums text-text">{formatCurrency(total / 7)}</span></span>
-        <span>Total semana <span className="font-heading text-lg font-semibold tabular-nums text-text">{formatCurrency(total)}</span></span>
+        <span>Promedio diario <span className={`font-medium tabular-nums ${negativeTone(total) || "text-text"}`}>{formatSignedCurrency(total / 7)}</span></span>
+        <span>Total semana <span className={`font-heading text-lg font-semibold tabular-nums ${negativeTone(total) || "text-text"}`}>{formatSignedCurrency(total)}</span></span>
       </div>
     </>
   );

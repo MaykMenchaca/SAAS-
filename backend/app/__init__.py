@@ -103,6 +103,18 @@ def _setup_jwt(jwt_mgr):
     def revoked_token_callback(jwt_header, jwt_payload):
         return jsonify({"error": "El token ha sido revocado", "code": "token_revoked"}), 401
 
+    @jwt_mgr.invalid_token_loader
+    def invalid_token_callback(_reason):
+        # Token mal formado, con firma inválida o de otro tipo (refresh por access): es un problema de
+        # autenticación, 401 y no el 422 por omisión de flask_jwt_extended, que se confundía con la
+        # validación de datos (RF-29). El motivo técnico no se reenvía al cliente
+        return jsonify({"error": "Token inválido; vuelve a iniciar sesión", "code": "invalid_token"}), 401
+
+    @jwt_mgr.unauthorized_loader
+    def unauthorized_callback(_reason):
+        # Sin cabecera Authorization: ya era 401; mismo formato {error, code} en español (RF-29)
+        return jsonify({"error": "Falta el token de acceso; inicia sesión", "code": "missing_token"}), 401
+
     @jwt_mgr.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
         from app.models.user import User

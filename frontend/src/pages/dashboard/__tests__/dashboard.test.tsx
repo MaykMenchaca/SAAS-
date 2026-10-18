@@ -116,6 +116,24 @@ describe("Dashboard", () => {
     expect(getLowStock).not.toHaveBeenCalled();
   });
 
+  it("un día o un turno con solo devoluciones muestra el neto negativo en rojo", async () => {
+    fetchDashboardSummary.mockResolvedValue({
+      ...summary,
+      sales_today: 0,
+      revenue_today: "-116.00",
+      revenue_month: "-116.00",
+      open_sessions: [{ ...summary.open_sessions[0], revenue: "-50.00", count: 0 }],
+    });
+    renderPage();
+    expect(await screen.findByText("Turno abierto · Caja 1")).toBeTruthy();
+    const hoy = screen.getAllByText("-$116.00");
+    expect(hoy).toHaveLength(2); // Ventas hoy y Ventas del mes
+    hoy.forEach((el) => expect(el.className).toContain("text-bad"));
+    const turno = screen.getByText("-$50.00");
+    expect(turno.className).toContain("text-bad");
+    expect(screen.queryByText("$-116.00")).toBeNull();
+  });
+
   it("muestra la gráfica semanal con el ingreso de cada día", async () => {
     const hoy = new Date();
     const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
@@ -142,5 +160,10 @@ describe("helpers del dashboard", () => {
   it("shortAmount abrevia miles", () => {
     expect(shortAmount(14382.5)).toBe("$14.4k");
     expect(shortAmount(72.4)).toBe("$72");
+  });
+
+  it("shortAmount pone el signo delante en negativos", () => {
+    expect(shortAmount(-116)).toBe("-$116");
+    expect(shortAmount(-1500)).toBe("-$1.5k");
   });
 });
