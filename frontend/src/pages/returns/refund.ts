@@ -11,16 +11,42 @@ export function qtyText(n: number): string {
   return String(parseFloat(n.toFixed(3)));
 }
 
+/** num / den redondeado al entero par en las mitades (HALF_EVEN), exacto con enteros no negativos. */
+export function divHalfEven(num: number, den: number): number {
+  const q = Math.floor(num / den);
+  const twiceRest = 2 * (num - q * den);
+  if (twiceRest > den || (twiceRest === den && q % 2 !== 0)) return q + 1;
+  return q;
+}
+
+/** Parte de `amountCents` que corresponde a `qtyMilli` de `soldMilli` unidades (en milésimas), como el servidor. */
+function upto(amountCents: number, qtyMilli: number, soldMilli: number): number {
+  if (qtyMilli >= soldMilli) return amountCents;
+  return divHalfEven(amountCents * qtyMilli, soldMilli);
+}
+
 /**
- * Estimado del reembolso de una línea en centavos enteros (el servidor calcula el monto final):
- * parte proporcional del subtotal de la línea más su IVA.
+ * Estimado del reembolso de una línea en centavos enteros (el servidor calcula el monto final).
+ * Misma fórmula que `_refund_upto` del servidor (RF-49): reembolso ACUMULADO de la partida,
+ * refund(q) = round(total × (devuelto + q) / vendido) − round(total × devuelto / vendido), con
+ * total = subtotal + round(subtotal × IVA / 100), todo HALF_EVEN. El subtotal se reparte igual y el IVA
+ * es la diferencia, para que subtotal + IVA cuadren con el total.
  */
-export function estimateLineCents(item: Pick<SaleItem, "subtotal" | "quantity" | "tax_rate">, qty: number) {
-  const soldQty = Number(item.quantity);
-  if (!(soldQty > 0) || !(qty > 0)) return { subCents: 0, taxCents: 0, totalCents: 0 };
-  const subCents = Math.round((Number(item.subtotal) * 100 * qty) / soldQty);
-  const taxCents = Math.round((subCents * Number(item.tax_rate)) / 100);
-  return { subCents, taxCents, totalCents: subCents + taxCents };
+export function estimateLineCents(
+  item: Pick<SaleItem, "subtotal" | "quantity" | "tax_rate" | "returned_quantity">,
+  qty: number,
+) {
+  // Cantidades en milésimas (el servidor guarda 3 decimales) y montos en centavos: aritmética entera exacta
+  const soldMilli = Math.round(Number(item.quantity) * 1000);
+  const qtyMilli = Math.round(qty * 1000);
+  if (!(soldMilli > 0) || !(qtyMilli > 0)) return { subCents: 0, taxCents: 0, totalCents: 0 };
+  const prevMilli = Math.max(0, Math.round(Number(item.returned_quantity ?? 0) * 1000) || 0);
+  const lineSubCents = Math.round(Number(item.subtotal) * 100);
+  const lineTaxCents = divHalfEven(lineSubCents * Math.round(Number(item.tax_rate) * 100), 10000);
+  const lineTotalCents = lineSubCents + lineTaxCents;
+  const totalCents = upto(lineTotalCents, prevMilli + qtyMilli, soldMilli) - upto(lineTotalCents, prevMilli, soldMilli);
+  const subCents = upto(lineSubCents, prevMilli + qtyMilli, soldMilli) - upto(lineSubCents, prevMilli, soldMilli);
+  return { subCents, taxCents: totalCents - subCents, totalCents };
 }
 
 /** Error de una cantidad a devolver, o "" si es válida (según el máximo disponible y la unidad). */
