@@ -33,6 +33,7 @@ _DEVICE_RE = re.compile(r"^(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
 _RAW_DEVICE_RE = re.compile(r"^\\\\\.\\(COM\d{1,3}|LPT\d)$", re.IGNORECASE)
 # Destinos de archivo permitidos (spooler "imprimir a archivo" y pruebas). Nunca otros archivos (OPS-04).
 PRINT_FILE_SUFFIXES = (".prn",)
+PRINTER_PATH_MAX = 255  # CashRegister.printer_path es String(255)
 
 # Escrituras en curso por destino (impresora del servidor), para no apilar hilos colgados (OPS-12)
 _busy_writers: dict[str, threading.Thread] = {}
@@ -152,6 +153,9 @@ class PrinterService:
     def validate_target(target: str | os.PathLike) -> str:
         """Valida el destino: ruta absoluta local o puerto COM/LPT. Rechaza rutas UNC y relativas."""
         target_str = str(target).strip()
+        # La columna printer_path es varchar(255): una ruta más larga daba 500 al guardar (RF-12)
+        if len(target_str) > PRINTER_PATH_MAX:
+            raise ValueError(f"La ruta de la impresora admite como máximo {PRINTER_PATH_MAX} caracteres")
         device = _DEVICE_RE.match(target_str) or _RAW_DEVICE_RE.match(target_str)
         if device:
             name = device[1].upper()
