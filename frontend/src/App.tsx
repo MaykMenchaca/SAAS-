@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 
@@ -8,31 +8,32 @@ import { RequirePermission, useCan } from "./components/auth/require-permission"
 import { AppShell } from "./components/layout/app-shell";
 import { CommandPaletteProvider } from "./components/layout/command-palette-context";
 import { ErrorBoundary } from "./components/layout/error-boundary";
+import { lazyWithRetry } from "./lib/lazy-with-retry";
 import { queryClient } from "./lib/query-client";
 import { useAuthStore } from "./stores/auth-store";
 import { applyTheme, useThemeStore } from "./stores/theme-store";
 
 // Lazy loaded page components
-const CashCutPage = lazy(() => import("./pages/cash-cut").then((m) => ({ default: m.CashCutPage })));
-const DashboardPage = lazy(() => import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })));
-const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
-const ChangePasswordPage = lazy(() =>
+const CashCutPage = lazyWithRetry(() => import("./pages/cash-cut").then((m) => ({ default: m.CashCutPage })));
+const DashboardPage = lazyWithRetry(() => import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })));
+const LoginPage = lazyWithRetry(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
+const ChangePasswordPage = lazyWithRetry(() =>
   import("./pages/change-password").then((m) => ({ default: m.ChangePasswordPage })),
 );
-const InventoryPage = lazy(() => import("./pages/inventory").then((m) => ({ default: m.InventoryPage })));
-const InventoryCountPage = lazy(() => import("./pages/inventory-count").then((m) => ({ default: m.InventoryCountPage })));
-const NotFoundPage = lazy(() => import("./pages/not-found").then((m) => ({ default: m.NotFoundPage })));
-const PosPage = lazy(() => import("./pages/pos").then((m) => ({ default: m.PosPage })));
-const ProductsPage = lazy(() => import("./pages/products").then((m) => ({ default: m.ProductsPage })));
-const PurchasesPage = lazy(() => import("./pages/purchases").then((m) => ({ default: m.PurchasesPage })));
-const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
-const ReturnsPage = lazy(() => import("./pages/returns").then((m) => ({ default: m.ReturnsPage })));
-const SalesHistoryPage = lazy(() => import("./pages/sales-history").then((m) => ({ default: m.SalesHistoryPage })));
-const SettingsPage = lazy(() => import("./pages/settings").then((m) => ({ default: m.SettingsPage })));
-const UsersPage = lazy(() => import("./pages/users").then((m) => ({ default: m.UsersPage })));
+const InventoryPage = lazyWithRetry(() => import("./pages/inventory").then((m) => ({ default: m.InventoryPage })));
+const InventoryCountPage = lazyWithRetry(() => import("./pages/inventory-count").then((m) => ({ default: m.InventoryCountPage })));
+const NotFoundPage = lazyWithRetry(() => import("./pages/not-found").then((m) => ({ default: m.NotFoundPage })));
+const PosPage = lazyWithRetry(() => import("./pages/pos").then((m) => ({ default: m.PosPage })));
+const ProductsPage = lazyWithRetry(() => import("./pages/products").then((m) => ({ default: m.ProductsPage })));
+const PurchasesPage = lazyWithRetry(() => import("./pages/purchases").then((m) => ({ default: m.PurchasesPage })));
+const ReportsPage = lazyWithRetry(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
+const ReturnsPage = lazyWithRetry(() => import("./pages/returns").then((m) => ({ default: m.ReturnsPage })));
+const SalesHistoryPage = lazyWithRetry(() => import("./pages/sales-history").then((m) => ({ default: m.SalesHistoryPage })));
+const SettingsPage = lazyWithRetry(() => import("./pages/settings").then((m) => ({ default: m.SettingsPage })));
+const UsersPage = lazyWithRetry(() => import("./pages/users").then((m) => ({ default: m.UsersPage })));
 // Catálogo de componentes: solo en desarrollo (Vite elimina esta rama y su chunk en producción)
 const UiCatalogPage = import.meta.env.DEV
-  ? lazy(() => import("./pages/ui-catalog").then((m) => ({ default: m.UiCatalogPage })))
+  ? lazyWithRetry(() => import("./pages/ui-catalog").then((m) => ({ default: m.UiCatalogPage })))
   : null;
 
 function PageLoader() {

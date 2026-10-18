@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { POS_STORAGE_ERROR_EVENT } from "../../stores/pos-store";
 import { useCan } from "../auth/require-permission";
 import { BrandCustomizer } from "./brand-customizer";
 import { CommandPalette } from "./command-palette";
+import { ErrorBoundary } from "./error-boundary";
 import { MobileDrawer } from "./mobile-drawer";
 import { filterNav, findNavEntry, navSections } from "./nav-config";
 import { Sidebar } from "./sidebar";
@@ -38,6 +39,15 @@ function useStorageErrorAlert() {
  * contenido. El menú se colapsa solo en el punto de venta; en el resto de pantallas se puede colapsar a mano
  * y la preferencia se recuerda. Por debajo de `lg` el menú es un drawer.
  */
+function PageSpinner() {
+  return (
+    <div className="flex min-h-[300px] w-full items-center justify-center" role="status">
+      <span className="sr-only">Cargando…</span>
+      <div aria-hidden="true" className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+    </div>
+  );
+}
+
 export function AppShell() {
   useSyncQueue();
   useStorageErrorAlert();
@@ -99,7 +109,12 @@ export function AppShell() {
         />
         {/* El POS ocupa todo el ancho y alto disponibles (sin el relleno de las demás pantallas) */}
         <main className={cn("flex-1", isPosRoute ? "p-0" : "p-4 lg:p-6")} id="main-content">
-          <Outlet />
+          {/* Error y carga por página: el menú sigue disponible y al navegar se reintenta (RF-52) */}
+          <ErrorBoundary resetKey={location.pathname} variant="page">
+            <Suspense fallback={<PageSpinner />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 
