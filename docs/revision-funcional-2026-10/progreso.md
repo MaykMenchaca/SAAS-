@@ -37,7 +37,7 @@ Regla: test de regresión primero (`backend/tests/test_revision_funcional_<área
   - 3.E/3.F (carril Z, `test_revision_funcional_z.py`): login sin distinguir mayúsculas; bloqueo por usuario existente + IP; límite por IP solo cuenta fallos; `change-password` entrega refresh nuevo; reporte de ventas une días/métodos con devoluciones y permite netos negativos (el tablero sigue recortando a 0). RF-12 solo en login/change-password
   - 3.C/3.D (carril Y, `test_revision_funcional_y.py`): etiqueta con IVA; SKU/código de barras sin espacios y únicos sin mayúsculas; unidades únicas (sin acentos ni mayúsculas); fracciones en ajustes, conteos y OC; categoría con productos activos no se desactiva; topes de precio/IVA/cantidades; reactivar proveedores (RFC de inactivo sugiere reactivar); OC parcial → «Cerrar orden» (estado `cerrada`); `GET /inventory/summary` para los KPI y `low-stock` incluye agotados sin mínimo
   - Pendiente detectado: `api/reports.py` `low_stock_count` (Dashboard y badge) aún usa la regla vieja; alinear en Fase 4. Sin índices únicos en BD (habría que depurar duplicados de `pos_db` primero)
-- [ ] **Gate 3**
+- [x] **Gate 3** (aprobado 2026-10-18: pytest completo local y CI en verde)
 
 ## Fase 4: Bajos
 - [ ] RF-29…40, RF-43…51
