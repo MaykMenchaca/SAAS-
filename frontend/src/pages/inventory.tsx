@@ -1,17 +1,19 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Search } from "lucide-react";
+import { ClipboardList, FileDown, FileUp, Search } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 import { invalidateInventory } from "../api/invalidate";
 import type { StockItem } from "../api/inventory";
-import { getInventorySummary, listStock } from "../api/inventory";
+import { exportInventoryExcel, getInventorySummary, listStock } from "../api/inventory";
 import { qk } from "../api/query-keys";
 import { fetchInventoryValuation } from "../api/reports";
 import { useCan } from "../components/auth/require-permission";
 import { Button, ErrorState, FilterChip, Input, PageHeader, Pagination, SkeletonKPI, SkeletonTable } from "../components/ui";
 import { formatCurrency } from "../lib/formatters";
+import { ExcelImportModal } from "./inventory/excel-import-modal";
 import { InventoryTabs } from "./inventory/inventory-tabs";
 import { isBelowMin } from "./inventory/stock-level";
 import { StockKpis } from "./inventory/stock-kpis";
@@ -30,6 +32,8 @@ export function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
 
   const canAdjust = can("inventario:ajustar");
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const stockQuery = useQuery({
     queryKey: qk.stock(page, search),
@@ -71,6 +75,17 @@ export function InventoryPage() {
     },
   ];
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await exportInventoryExcel();
+    } catch {
+      toast.error("No se pudo exportar el inventario.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
@@ -83,15 +98,31 @@ export function InventoryPage() {
         title="Inventario"
         subtitle="Existencias, ajustes y conteos físicos"
         actions={
-          canAdjust ? (
-            <Link to="/inventario/conteo">
-              <Button frame icon={<ClipboardList aria-hidden="true" size={18} />}>
-                Conteo físico
-              </Button>
-            </Link>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={exporting}
+              icon={<FileDown aria-hidden="true" size={18} />}
+              onClick={() => void handleExport()}
+              variant="secondary"
+            >
+              {exporting ? "Exportando…" : "Exportar a Excel"}
+            </Button>
+            {canAdjust ? (
+              <>
+                <Button icon={<FileUp aria-hidden="true" size={18} />} onClick={() => setImportOpen(true)} variant="secondary">
+                  Importar desde Excel
+                </Button>
+                <Link to="/inventario/conteo">
+                  <Button frame icon={<ClipboardList aria-hidden="true" size={18} />}>
+                    Conteo físico
+                  </Button>
+                </Link>
+              </>
+            ) : null}
+          </div>
         }
       />
+      {importOpen ? <ExcelImportModal onClose={() => setImportOpen(false)} /> : null}
 
       <InventoryTabs active="existencias" />
 

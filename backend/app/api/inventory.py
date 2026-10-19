@@ -1,5 +1,6 @@
 """Inventory API — stock consultation, adjustments, movement history, and physical counts."""
 from decimal import Decimal
+from io import BytesIO
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
@@ -321,3 +322,68 @@ def cancel_count(count_id):
         return jsonify({"error": str(e)}), 400
 
     return jsonify(count_schema.dump(count)), 200
+
+
+# ── Inventario completo con Excel ───────────────────────────────────────────────────────────────────
+
+
+@inventory_bp.route("/export", methods=["GET"])
+@require_permission("inventario:ver")
+def export_inventory():
+    """Descarga el inventario activo en Excel (sirve también de plantilla para importar)."""
+    from datetime import datetime
+
+    from flask import send_file
+    from flask_jwt_extended import current_user
+
+    from app.services import inventory_excel_service
+
+    content = inventory_excel_service.export_workbook(current_user)
+    return send_file(
+        BytesIO(content),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"inventario-{datetime.now():%Y%m%d-%H%M}.xlsx",
+    )
+
+
+def _import_file():
+    archivo = request.files.get("archivo")
+    if archivo is None:
+        return None, None
+    return archivo.read(), archivo.filename
+
+
+@inventory_bp.route("/import/preview", methods=["POST"])
+@require_permission("inventario:ajustar")
+def import_preview():
+    """Revisa un Excel de inventario sin aplicar nada: nuevos, cambios (antes → después), sin cambios y errores."""
+    from flask_jwt_extended import current_user
+
+    from app.services import inventory_excel_service as svc
+
+    contenido, nombre = _import_file()
+    try:
+        return jsonify(svc.preview(contenido, nombre, current_user)), 200
+    except svc.ImportFileError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@inventory_bp.route("/import/apply", methods=["POST"])
+@require_permission("inventario:ajustar")
+def import_apply():
+    """Aplica la importación revisada (todo o nada). `plan_hash` debe ser el de la vista previa."""
+    from flask_jwt_extended import current_user
+
+    from app.services import inventory_excel_service as svc
+
+    contenido, nombre = _import_file()
+    try:
+        result = svc.apply(contenido, nombre, current_user, request.form.get("plan_hash"))
+    except svc.ImportFileError as e:
+        return jsonify({"error": str(e)}), 400
+    except svc.ImportHasErrors as e:
+        return jsonify({"error": str(e), "code": "import_has_errors", "preview": e.preview}), 400
+    except svc.ImportPlanChanged as e:
+        return jsonify({"error": str(e), "code": "import_plan_changed"}), 409
+    return jsonify(result), 200

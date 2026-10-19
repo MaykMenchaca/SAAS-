@@ -60,6 +60,15 @@ Sigue [`DEPLOYMENT.md`](DEPLOYMENT.md). En resumen:
 
 Ahí mismo están el alcance del modo offline, la impresora y el cajón por caja, y los folios.
 
+## Inventario con Excel
+
+En **Inventario** hay dos botones:
+
+- **Exportar a Excel:** descarga productos, existencias, precios, unidades y categorías (con una hoja de instrucciones). Los costos solo se incluyen si el usuario puede modificar precios. Sirve como plantilla.
+- **Importar desde Excel:** sube el archivo editado y muestra una vista previa antes de aplicar: 🆕 productos nuevos, ✏️ cambios (antes → después), ✅ sin cambios y ⚠️ errores explicados por fila. Solo se aplica si no hay errores, y se aplica todo junto. Las **existencias del Excel reemplazan** a las del sistema (como un conteo físico) y la diferencia queda como ajuste "Importación desde Excel". Si el inventario cambió entre la vista previa y la confirmación, pide revisar de nuevo.
+
+Permisos: importar requiere `inventario:ajustar`; crear productos, `productos:crear`; cambiar precios, `productos:editar_precio`.
+
 ## Respaldo y restauración
 
 - **Respaldos automáticos** al cerrar cada caja, y manuales desde **Configuración → Respaldos**. Se guardan en `BACKUP_DIR` (por defecto `C:\ProgramData\pos-vrntas\backups`) con retención de 14 diarios y 8 semanales. Opcionalmente se copian a una USB (`USB_BACKUP_DIR`).

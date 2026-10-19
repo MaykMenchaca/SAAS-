@@ -308,6 +308,43 @@ def recorrido(app, t: Prueba, credenciales: dict):  # noqa: C901 - es un guion l
     t.igual("stock tras el conteo", stock(martillo["id"]), Decimal("21"))
     t.status("conteo inexistente da 404", api.get("/inventory/counts/999999"), 404)
 
+    # 7b. Inventario con Excel
+    t.seccion("7b. Inventario con Excel (exportar, vista previa y aplicar)")
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    r = api.get("/inventory/export")
+    t.check("exportar a Excel", r.status_code == 200 and r.data[:2] == b"PK", f"HTTP {r.status_code}")
+    wb = load_workbook(BytesIO(r.data))
+    r.close()
+    ws = wb["Inventario"]
+    col = {c.value: i + 1 for i, c in enumerate(ws[1])}
+
+    def subir(url, libro, **form):
+        buf = BytesIO()
+        libro.save(buf)
+        buf.seek(0)
+        return api.c.post("/api" + url, headers=api._h(None), content_type="multipart/form-data",
+                          data={"archivo": (buf, "inventario.xlsx"), **form})
+
+    r = subir("/inventory/import/preview", wb)
+    t.igual("reimportar lo exportado: sin cambios", (r.get_json() or {}).get("resumen", {}).get("cambios"), 0)
+    for fila in range(2, ws.max_row + 1):
+        if ws.cell(fila, col["SKU"]).value == "PRB-CLV":
+            ws.cell(fila, col["Existencias"]).value = 29.75
+    nueva = ws.max_row + 1
+    for k, v in {"SKU": "PRB-NIV", "Nombre": "Nivel prueba", "Unidad": "pz", "Precio de venta": 145, "Existencias": 3}.items():
+        ws.cell(nueva, col[k]).value = v
+    vista = subir("/inventory/import/preview", wb).get_json() or {}
+    t.igual("vista previa: 1 nuevo y 1 con cambios", (vista.get("resumen", {}).get("nuevos"), vista.get("resumen", {}).get("cambios")), (1, 1))
+    r = subir("/inventory/import/apply", wb, plan_hash=vista.get("plan_hash", ""))
+    t.status("aplicar la importación", r, 200)
+    t.igual("existencias reemplazadas desde el Excel", stock(clavo["id"]), Decimal("29.75"))
+    t.check("producto nuevo creado desde el Excel", (api.get("/products/by-code/PRB-NIV").get_json() or {}).get("sku") == "PRB-NIV")
+    ajuste = api.post("/inventory/adjust", {"product_id": clavo["id"], "quantity": "30", "reason": "otro"})
+    t.status("devolver el clavo a 30 kg para el resto del recorrido", ajuste, (200, 201))
+
     # 8. Caja
     t.seccion("8. Cajas y apertura de turno")
     r = api.post("/cash-register/registers", {"name": "Caja prueba"})

@@ -183,3 +183,68 @@ export async function cancelInventoryCount(countId: number) {
   const response = await apiClient.post<InventoryCount>(`/inventory/counts/${countId}/cancel`);
   return response.data;
 }
+
+// ── Inventario completo con Excel ───────────────────────────────────
+
+export type ImportRowState = "nuevo" | "cambio" | "igual" | "error";
+
+export type ImportPreviewRow = {
+  fila: number;
+  sku: string;
+  nombre: string | null;
+  estado: ImportRowState;
+  cambios: { campo: string; antes: string; despues: string }[];
+  errores: string[];
+};
+
+export type ImportPreview = {
+  resumen: { filas: number; nuevos: number; cambios: number; sin_cambios: number; errores: number };
+  filas: ImportPreviewRow[];
+  categorias_nuevas: string[];
+  plan_hash: string;
+};
+
+/** Descarga el inventario activo en Excel (también sirve de plantilla para importar). */
+export async function exportInventoryExcel() {
+  const response = await apiClient.get<Blob>("/inventory/export", { responseType: "blob", timeout: 120_000 });
+  const disposition = String(response.headers["content-disposition"] ?? "");
+  const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "inventario.xlsx";
+  const url = URL.createObjectURL(response.data);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// El cliente manda JSON por defecto, y con ese Content-Type axios convierte un FormData en JSON: el archivo nunca
+// llegaba al servidor. Con multipart/form-data el navegador agrega el boundary correcto
+const MULTIPART = { headers: { "Content-Type": "multipart/form-data" }, timeout: 120_000 };
+
+function excelForm(file: File, extra: Record<string, string> = {}) {
+  const form = new FormData();
+  form.append("archivo", file);
+  Object.entries(extra).forEach(([k, v]) => form.append(k, v));
+  return form;
+}
+
+/** Revisa el Excel sin aplicar nada: nuevos, cambios (antes → después), sin cambios y errores. */
+export async function previewInventoryImport(file: File) {
+  const response = await apiClient.post<ImportPreview>("/inventory/import/preview", excelForm(file), MULTIPART);
+  return response.data;
+}
+
+/** Aplica la importación revisada (todo o nada). Si el inventario cambió desde la vista previa responde 409. */
+export async function applyInventoryImport(file: File, planHash: string) {
+  const response = await apiClient.post<{ resumen: ImportPreview["resumen"]; categorias_nuevas: string[] }>(
+    "/inventory/import/apply",
+    excelForm(file, { plan_hash: planHash }),
+    MULTIPART,
+  );
+  return response.data;
+}
