@@ -86,6 +86,14 @@ Para que varias personas o agentes corran pytest a la vez sin pisarse, usa un es
 $env:TEST_DATABASE_URL = "postgresql://<usuario>:<contraseña>@localhost:5432/pos_test_db?options=-csearch_path%3Dlane_a,public"
 ```
 
+Prueba completa de la app con un solo comando (recorre login, usuarios, catálogo, compras, inventario, caja, ventas, devoluciones, corte, reportes, configuración, auditoría, permisos y respaldos contra un esquema nuevo de `pos_test_db`, que borra al terminar; nunca toca `pos_db`):
+
+```powershell
+backend\venv\Scripts\python.exe tools\prueba_completa.py
+```
+
+Imprime cada prueba con ✅/❌ y guarda el reporte en `tools/reportes-prueba/`. Conviene correrla antes de cada actualización en tienda.
+
 El CI (`.github/workflows/ci.yml`) corre en cada push y pull request:
 
 - `pytest` contra PostgreSQL 18;
